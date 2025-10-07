@@ -1,5 +1,5 @@
 <script>
-import { mapGetters } from 'vuex';
+import { mapGetters, mapActions, mapState } from 'vuex';
 
 export default {
   name: 'EventsGrid',
@@ -7,6 +7,7 @@ export default {
   computed: {
     // Get filtered events from store instead of hardcoded data
     ...mapGetters(['filteredEvents']),
+    ...mapState(['filters']),
     
     // Alias for template clarity
     events() {
@@ -15,6 +16,8 @@ export default {
   },
   
   methods: {
+    ...mapActions(['toggleTag']),
+    
     // Format attendees display
     formatAttendees(event) {
       if (event.maxAttendees) {
@@ -28,6 +31,18 @@ export default {
       const date = new Date(dateString);
       const options = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' };
       return date.toLocaleDateString('en-US', options);
+    },
+    
+    // Handle tag click
+    handleTagClick(tag) {
+      this.toggleTag(tag);
+      // Scroll to top to see filtered results
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+    
+    // Check if tag is selected
+    isTagSelected(tag) {
+      return this.filters.selectedTags.includes(tag);
     }
   }
 }
@@ -79,8 +94,15 @@ export default {
                         <p class="event-description">{{ event.description }}</p>
                         
                         <!-- Tags Display -->
+                        <!-- Tags Display - Now Clickable! -->
                         <div class="event-tags">
-                            <span v-for="tag in event.tags" :key="tag" class="tag-badge">
+                            <span 
+                                v-for="tag in event.tags" 
+                                :key="tag" 
+                                class="tag-badge"
+                                @click.stop="handleTagClick(tag)"
+                                :class="{ 'tag-selected': isTagSelected(tag) }"
+                            >
                                 #{{ tag }}
                             </span>
                         </div>
@@ -263,6 +285,35 @@ export default {
 
 .tag-badge:hover {
     background-color: var(--color-bg-2, #e0e0e0);
+}
+
+.event-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-8);
+}
+
+.tag-badge {
+    background-color: var(--color-bg-1, #f0f0f0);
+    color: var(--color-text-secondary);
+    padding: var(--space-4) var(--space-8);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    transition: all 0.2s ease;
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+
+.tag-badge:hover {
+    background-color: var(--color-bg-2, #e0e0e0);
+    transform: translateY(-1px);
+}
+
+.tag-badge.tag-selected {
+    background-color: var(--color-primary, #007bff);
+    color: white;
+    border-color: var(--color-primary, #007bff);
 }
 
 /* Responsive Design */
