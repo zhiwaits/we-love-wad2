@@ -33,7 +33,7 @@ export default createStore({
         venue: "SOE/SCIS",
         attendees: 150,
         maxAttendees: 200,
-        description: "What happens when desire consumes us and greed unleashes chaos? Three friends make selfish choices that spiral into ruin — revealing a timeless truth: true richness lies not in what we crave, but in what we already hold.",
+        description: "What happens when desire consumes us and greed unleashes chaos? Three friends make selfish choices that spiral into ruin — revealing a timeless truth: true richness lies not in what we crave, but in what we already hold. Witness this story told through the power of Latin Ballroom Dance",
         image: "/src/assets/dummy/un-paso.png"
       },
       {

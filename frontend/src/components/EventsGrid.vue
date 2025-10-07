@@ -1,85 +1,49 @@
 <script>
-export default {
-    data() {
-        return {
-            events: [
-                {
-                    id: 1,
-                    title: "SCIS Major Talks AY25/26",
-                    organiser: 'Ellipsis',
-                    category: "Academic",
-                    price: "FREE",
-                    date: "Tue, 7 Oct 2025",
-                    time: "10:00 AM - 2:30 PM",
-                    location: "Virtual - Zoom",
-                    attendees: "342 attending",
-                    description: "Join us to learn more about the various majors and tracks offered in SCIS from the professors themselves - ALL SCIS students are welcome!",
-                    image: "\\src\\assets\\dummy\\major-talks.png"
-                },
-                {
-                    id: 2,
-                    title: "UN PASO 2025: AS YOU WISH",
-                    organiser: 'SMU Ardiente',
-                    category: "Performance",
-                    price: "$16",
-                    date: "Sun, 12 Oct 2025",
-                    time: "2:00 PM",
-                    location: "SMU Arts & Culture Centre @ SOE/SCIS B1",
-                    attendees: "150 / 200 attending",
-                    description: "What happens when desire consumes us and greed unleashes chaos? Three friends make selfish choices that spiral into ruin — revealing a timeless truth: true richness lies not in what we crave, but in what we already hold. Witness this story told through the power of Latin Ballroom Dance",
-                    image: "\\src\\assets\\dummy\\un-paso.png"
+import { mapGetters } from 'vuex';
 
-                },
-                {
-                    id: 3,
-                    title: "Build With AWS GenAI",
-                    organiser: 'SMUAI',
-                    category: "Workshop",
-                    price: "FREE",
-                    date: "Tue, 7 Oct 2025",
-                    time: "6:30 PM - 8:30PM",
-                    location: "ALC Classroom 3-1 @ Connex Lvl 3",
-                    attendees: "38 / 50 attending",
-                    status: "Filling Fast",
-                    description: "Curious how to go from idea to working GenAI demo on AWS? Join us for a skills-first workshop where you'll build, test, and refine ML & Generative AI solutions; guided by AWS-aligned practices and tooling.",
-                    image: "\\src\\assets\\dummy\\build-with-aws-genai.png"
-                },
-                {
-                    id: 4,
-                    title: "SMU-SMC Transcendence",
-                    organiser: 'SMU-SMC',
-                    category: "Workshop",
-                    price: "FREE",
-                    date: "Fri, 17 Oct 2025",
-                    time: "3:30 PM - 6:30PM",
-                    location: "LKCSB SR2-3",
-                    attendees: "12 / 40 attending",
-                    description: "This is just the beginning of the Transcendence series, and it's more than just a skills workshop, it's an opportunity to elevate your personal brand and sharpen the way you present yourself professionally.",
-                    image: "\\src\\assets\\dummy\\smu-smuc-transcendence.png"
-                },
-                {
-                    id: 5,
-                    title: "Beginner Fishing",
-                    organiser: 'SMURF',
-                    category: "Recreation",
-                    price: "$10",
-                    date: "Sat, 11 Oct 2025",
-                    time: "9:00 AM - 1:00PM",
-                    location: "Bedok Jetty",
-                    attendees: "29 / 32 attending",
-                    description: "This session is perfect for those with little to no experience — we'll provide the basic gear and teach you the essentials of fishing, including how to catch bait fish. Come join us for a fun and relaxing afternoon by the sea! 🌊🐟",
-                    image: "\\src\\assets\\dummy\\beginner-fishing.png"
-                    }
-            ]
-        }
+export default {
+  name: 'EventsGrid',
+  
+  computed: {
+    // Get filtered events from store instead of hardcoded data
+    ...mapGetters(['filteredEvents']),
+    
+    // Alias for template clarity
+    events() {
+      return this.filteredEvents;
     }
+  },
+  
+  methods: {
+    // Format attendees display
+    formatAttendees(event) {
+      if (event.maxAttendees) {
+        return `${event.attendees} / ${event.maxAttendees} attending`;
+      }
+      return `${event.attendees} attending`;
+    },
+    
+    // Format date for display
+    formatDate(dateString) {
+      const date = new Date(dateString);
+      const options = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' };
+      return date.toLocaleDateString('en-US', options);
+    }
+  }
 }
 </script>
 
 <template>
     <section class="events-grid">
         <div class="container">
-            <div class="events-container">
+            <!-- No Results Message -->
+            <div v-if="events.length === 0" class="no-results">
+                <h3>No events found</h3>
+                <p>Try adjusting your search or filters to find what you're looking for.</p>
+            </div>
+            
+            <!-- Events Grid -->
+            <div v-else class="events-container">
                 <div v-for="event in events" :key="event.id" class="event-card">
                     <div class="event-image">
                         <img v-if="event.image" :src="event.image" alt="Event Image" class="event-img"/>
@@ -102,17 +66,24 @@ export default {
                                 <span>By {{ event.organiser }}</span>
                             </div>
                             <div class="event-datetime">
-                                <span>{{ event.date }} | {{ event.time }}</span>
+                                <span>{{ formatDate(event.date) }} | {{ event.time }}</span>
                             </div>
                             <div class="event-location">
-                                <span>{{ event.location }}</span>
+                                <span>📍 {{ event.location }}</span>
                             </div>
                             <div class="event-attendees">
-                                <span>{{ event.attendees }}</span>
+                                <span>👥 {{ formatAttendees(event) }}</span>
                             </div>
                         </div>
 
                         <p class="event-description">{{ event.description }}</p>
+                        
+                        <!-- Tags Display -->
+                        <div class="event-tags">
+                            <span v-for="tag in event.tags" :key="tag" class="tag-badge">
+                                #{{ tag }}
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -120,12 +91,26 @@ export default {
     </section>
 </template>
 
-
-
 <style scoped>
 .events-grid {
     padding: var(--space-32) 0;
     background-color: var(--color-background);
+}
+
+.no-results {
+    text-align: center;
+    padding: var(--space-64) var(--space-24);
+    color: var(--color-text-secondary);
+}
+
+.no-results h3 {
+    font-size: var(--font-size-2xl);
+    color: var(--color-text);
+    margin-bottom: var(--space-16);
+}
+
+.no-results p {
+    font-size: var(--font-size-lg);
 }
 
 .events-container {
@@ -156,11 +141,11 @@ export default {
 }
 
 .event-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover; 
-  object-position: center; 
-  display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
 }
 
 .event-image-placeholder {
@@ -230,13 +215,13 @@ export default {
     margin-bottom: var(--space-16);
 }
 
-.event-details>div {
+.event-details > div {
     margin-bottom: var(--space-8);
     font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
 }
 
-.event-details>div:last-child {
+.event-details > div:last-child {
     margin-bottom: 0;
 }
 
@@ -246,17 +231,44 @@ export default {
 
 .event-organiser span {
     font-weight: var(--font-weight-semibold, 550);
-    font-size: var(--font-size-lg, 200px);
+    font-size: var(--font-size-base);
 }
 
 .event-description {
     font-size: var(--font-size-base);
     color: var(--color-text-secondary);
     line-height: var(--line-height-normal);
-    margin: 0;
+    margin: 0 0 var(--space-12) 0;
     display: -webkit-box;
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
+}
+
+.event-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-8);
+}
+
+.tag-badge {
+    background-color: var(--color-bg-1, #f0f0f0);
+    color: var(--color-text-secondary);
+    padding: var(--space-4) var(--space-8);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    transition: background-color 0.2s ease;
+}
+
+.tag-badge:hover {
+    background-color: var(--color-bg-2, #e0e0e0);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .events-container {
+        grid-template-columns: 1fr;
+    }
 }
 </style>
