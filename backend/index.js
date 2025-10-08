@@ -1,25 +1,20 @@
 
 const express = require('express');
+const cors = require('cors');
+const bodyParser = require('body-parser');
 const app = express();
 const port = 3000;
 
-const { Pool } = require('pg');
+const eventsRoutes = require('./routes/events');
+const profilesRoutes = require('./routes/profiles');
+const rsvpsRoutes = require('./routes/rsvps');
+const eventTagsRoutes = require('./routes/eventTags');
+const followsRoutes = require('./routes/follows');
 
-const pool = new Pool({
-  user: 'postgres.okkqvwmdmnwadkokzynz',
-  host: 'aws-1-ap-southeast-1.pooler.supabase.com',
-  database: 'SMU Events Hub',
-  password: 'group7loveswad2',
-  port: 5432, 
-});
+app.use(cors());
+app.use(bodyParser.json());
 
-pool.query('SELECT NOW()', (err, res) => {
-  if (err) {
-    console.error('Database connection error', err);
-  } else {
-    console.log('Database connected at:', res.rows[0].now);
-  }
-});
+
 
 
 app.get('/', (req, res) => {
