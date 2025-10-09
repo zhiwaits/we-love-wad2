@@ -3,7 +3,7 @@ const table = "user_follows";
 
 exports.getAllFollows = async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM $1', [table]);
+    const result = await pool.query(`SELECT * FROM ${table}`);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -13,9 +13,9 @@ exports.getAllFollows = async (req, res) => {
 
 exports.getFollowsByUserId = async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM $2 WHERE follower_id = $1', [req.params.id, table]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Event not found' });
-    res.json(result.rows[0]);
+    const result = await pool.query(`SELECT * FROM ${table} WHERE follower_id = $1`, [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Follow not found' });
+    res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -23,9 +23,9 @@ exports.getFollowsByUserId = async (req, res) => {
 
 exports.getFollowersByClubId = async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM $2 WHERE followed_club_id = $1', [req.params.id, table]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Event not found' });
-    res.json(result.rows[0]);
+    const result = await pool.query(`SELECT * FROM ${table} WHERE followed_club_id = $1`, [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Followers not found' });
+    res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -38,9 +38,9 @@ exports.createFollow = async (req, res) => {
       follower_id, followed_club_id
     } = req.body;
     const result = await pool.query(
-      `INSERT INTO $1 (follower_id, followed_club_id)
-       VALUES (follower_id, followed_club_id) RETURNING *`,
-      [table, follower_id, followed_club_id]
+      `INSERT INTO ${table} (follower_id, followed_club_id)
+       VALUES ($1, $2) RETURNING *`,
+      [follower_id, followed_club_id]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -51,9 +51,9 @@ exports.createFollow = async (req, res) => {
 
 exports.deleteFollow = async (req, res) => {
   try {
-    const result = await pool.query('DELETE FROM $2 WHERE id = $1 RETURNING *', [req.params.id, table]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Event not found' });
-    res.json({ message: 'Event deleted', event: result.rows[0] });
+    const result = await pool.query(`DELETE FROM ${table} WHERE id = $1 RETURNING *`, [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Follow not found' });
+    res.json({ message: 'Follow deleted', follow: result.rows[0] });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
