@@ -1,7 +1,6 @@
 const pool = require('../db');
 const table = "events";
 
-// Helper formatters to match frontend expected shape
 function formatDateISO(date) {
   if (!date) return null;
   const d = new Date(date);
@@ -18,7 +17,7 @@ function formatTimeHM(date) {
   const minutes = String(d.getMinutes()).padStart(2, '0');
   const ampm = hours >= 12 ? 'PM' : 'AM';
   hours = hours % 12;
-  hours = hours ? hours : 12; // 0 => 12
+  hours = hours ? hours : 12;
   return `${hours}:${minutes} ${ampm}`;
 }
 
@@ -32,14 +31,13 @@ function formatTimeRange(start, end) {
     startD.getFullYear() === endD.getFullYear() &&
     startD.getMonth() === endD.getMonth() &&
     startD.getDate() === endD.getDate();
-  if (!sameDay) return startStr; // keep simple if multi-day
+  if (!sameDay) return startStr;
   return `${startStr} - ${formatTimeHM(end)}`;
 }
 
 function formatPriceTag(price) {
   if (price == null || Number(price) === 0) return 'FREE';
   const n = Number(price);
-  // If integer, no decimals; else keep up to 2 decimals
   const str = Number.isInteger(n) ? `${n}` : n.toFixed(2).replace(/\.00$/, '');
   return `$${str}`;
 }
