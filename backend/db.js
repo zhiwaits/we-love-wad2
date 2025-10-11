@@ -3,7 +3,7 @@ const { Pool } = require('pg');
 const pool = new Pool({
     user: 'postgres.okkqvwmdmnwadkokzynz',
     host: 'aws-1-ap-southeast-1.pooler.supabase.com',
-    database: 'SMU Events Hub',
+    database: 'postgres',
     password: 'group7loveswad2',
     port: 5432,
 });

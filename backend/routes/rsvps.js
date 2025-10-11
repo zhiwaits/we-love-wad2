@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const eventsController = require('../controllers/rsvpsController');
+const rsvpsController = require('../controllers/rsvpsController');
 
-router.get('/', eventsController.getAllRsvps);
-router.get('/:id', eventsController.getRsvpsByEventId);
-router.get('/:id', eventsController.getRsvpsByUserId);
-router.post('/', eventsController.createRsvp);
-router.put('/:id', eventsController.updateRsvp);
-router.delete('/:id', eventsController.deleteRsvp);
+router.get('/', rsvpsController.getAllRsvps);
+router.get('/event/:id', rsvpsController.getRsvpsByEventId);
+router.get('/user/:id', rsvpsController.getRsvpsByUserId);
+router.post('/', rsvpsController.createRsvp);
+router.put('/:id', rsvpsController.updateRsvp);
+router.delete('/:id', rsvpsController.deleteRsvp);
 
 module.exports = router;

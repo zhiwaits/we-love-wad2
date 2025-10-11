@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const eventsController = require('../controllers/followsController');
+const followsController = require('../controllers/followsController');
 
-router.get('/', eventsController.getAllFollows);
-router.get('/:id', eventsController.getFollowsByUserId);
-router.get('/:id', eventsController.getFollowersByClubId);
-router.post('/', eventsController.createFollow);
-router.delete('/:id', eventsController.deleteFollow);
+router.get('/', followsController.getAllFollows);
+router.get('/user/:id', followsController.getFollowsByUserId);
+router.get('/club/:id', followsController.getFollowersByClubId);
+router.post('/', followsController.createFollow);
+router.delete('/:id', followsController.deleteFollow);
 
 module.exports = router;

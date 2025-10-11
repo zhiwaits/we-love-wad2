@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const eventsController = require('../controllers/eventTagsController');
+const eventTagsController = require('../controllers/eventTagsController');
 
-router.get('/', eventsController.getAllEventTags);
-router.get('/event/:id', eventsController.getEventTagsByEventId);
-router.get('/tag/:tag', eventsController.getEventsByEventTag);
-router.post('/', eventsController.createEventTag);
-router.delete('/:event_id/:tag_id', eventsController.deleteEventTag);
+router.get('/', eventTagsController.getAllEventTags);
+router.get('/event/:id', eventTagsController.getEventTagsByEventId);
+router.get('/tag/:tag', eventTagsController.getEventsByEventTag);
+router.post('/', eventTagsController.createEventTag);
+router.delete('/:event_id/:tag_id', eventTagsController.deleteEventTag);
 
 module.exports = router;

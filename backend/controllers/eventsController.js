@@ -1,10 +1,112 @@
 const pool = require('../db');
 const table = "events";
 
+// Helper formatters to match frontend expected shape
+function formatDateISO(date) {
+  if (!date) return null;
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatTimeHM(date) {
+  if (!date) return null;
+  const d = new Date(date);
+  let hours = d.getHours();
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12; // 0 => 12
+  return `${hours}:${minutes} ${ampm}`;
+}
+
+function formatTimeRange(start, end) {
+  if (!start) return '';
+  const startStr = formatTimeHM(start);
+  if (!end) return startStr;
+  const startD = new Date(start);
+  const endD = new Date(end);
+  const sameDay =
+    startD.getFullYear() === endD.getFullYear() &&
+    startD.getMonth() === endD.getMonth() &&
+    startD.getDate() === endD.getDate();
+  if (!sameDay) return startStr; // keep simple if multi-day
+  return `${startStr} - ${formatTimeHM(end)}`;
+}
+
+function formatPriceTag(price) {
+  if (price == null || Number(price) === 0) return 'FREE';
+  const n = Number(price);
+  // If integer, no decimals; else keep up to 2 decimals
+  const str = Number.isInteger(n) ? `${n}` : n.toFixed(2).replace(/\.00$/, '');
+  return `$${str}`;
+}
+
+function deriveVenue(location) {
+  if (!location) return 'Off-Campus';
+  const loc = String(location);
+  const l = loc.toLowerCase();
+  if (l.includes('zoom') || l.includes('virtual') || l.includes('online')) return 'Online';
+  if (l.includes('connex')) return 'Connex';
+  if (l.includes('lkcsb')) return 'LKCSB';
+  if (l.includes('soe') || l.includes('scis')) return 'SOE/SCIS';
+  return 'Off-Campus';
+}
+
 exports.getAllEvents = async (req, res) => {
   try {
-    const result = await pool.query(`SELECT * FROM ${table}`);
-    res.json(result.rows);
+    const query = `
+      SELECT 
+        e.id,
+        e.title,
+        e.description,
+        e.datetime,
+        e.enddatetime,
+        e.location,
+        e.category,
+        e.capacity,
+        e.image_url,
+        e.price,
+        p.name AS organiser_name,
+        COALESCE(t.tags, '{}') AS tags,
+        COALESCE(r.attendees, 0) AS attendees
+      FROM ${table} e
+      LEFT JOIN profiles p ON p.id = e.owner_id
+      LEFT JOIN (
+        SELECT etm.event_id, array_agg(DISTINCT et.tag_name) AS tags
+        FROM event_tag_map etm
+        JOIN event_tags et ON et.id = etm.tag_id
+        GROUP BY etm.event_id
+      ) t ON t.event_id = e.id
+      LEFT JOIN (
+        SELECT event_id, COUNT(*) AS attendees
+        FROM rsvps
+        GROUP BY event_id
+      ) r ON r.event_id = e.id
+      ORDER BY e.datetime ASC
+    `;
+    const result = await pool.query(query);
+
+    const shaped = result.rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      organiser: row.organiser_name || 'Unknown',
+      category: row.category || '',
+      tags: Array.isArray(row.tags) ? row.tags : [],
+      price: formatPriceTag(row.price),
+      date: formatDateISO(row.datetime),
+      time: formatTimeRange(row.datetime, row.enddatetime),
+      location: row.location || '',
+      venue: deriveVenue(row.location),
+      attendees: Number(row.attendees) || 0,
+      maxAttendees: row.capacity != null ? Number(row.capacity) : null,
+      description: row.description || '',
+      image: row.image_url || ''
+    }));
+
+    res.json(shaped);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -13,9 +115,57 @@ exports.getAllEvents = async (req, res) => {
 
 exports.getEventById = async (req, res) => {
   try {
-    const result = await pool.query(`SELECT * FROM ${table} WHERE id = $1`, [req.params.id]);
+    const query = `
+      SELECT 
+        e.id,
+        e.title,
+        e.description,
+        e.datetime,
+        e.enddatetime,
+        e.location,
+        e.category,
+        e.capacity,
+        e.image_url,
+        e.price,
+        p.name AS organiser_name,
+        COALESCE(t.tags, '{}') AS tags,
+        COALESCE(r.attendees, 0) AS attendees
+      FROM ${table} e
+      LEFT JOIN profiles p ON p.id = e.owner_id
+      LEFT JOIN (
+        SELECT etm.event_id, array_agg(DISTINCT et.tag_name) AS tags
+        FROM event_tag_map etm
+        JOIN event_tags et ON et.id = etm.tag_id
+        GROUP BY etm.event_id
+      ) t ON t.event_id = e.id
+      LEFT JOIN (
+        SELECT event_id, COUNT(*) AS attendees
+        FROM rsvps
+        GROUP BY event_id
+      ) r ON r.event_id = e.id
+      WHERE e.id = $1
+      LIMIT 1
+    `;
+    const result = await pool.query(query, [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Event not found' });
-    res.json(result.rows[0]);
+    const row = result.rows[0];
+    const shaped = {
+      id: row.id,
+      title: row.title,
+      organiser: row.organiser_name || 'Unknown',
+      category: row.category || '',
+      tags: Array.isArray(row.tags) ? row.tags : [],
+      price: formatPriceTag(row.price),
+      date: formatDateISO(row.datetime),
+      time: formatTimeRange(row.datetime, row.enddatetime),
+      location: row.location || '',
+      venue: deriveVenue(row.location),
+      attendees: Number(row.attendees) || 0,
+      maxAttendees: row.capacity != null ? Number(row.capacity) : null,
+      description: row.description || '',
+      image: row.image_url || ''
+    };
+    res.json(shaped);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
