@@ -15,8 +15,13 @@ const recommendedEvents = computed(() => store.getters.recommendedEvents);
 const savedEvents = computed(() => store.getters.userSavedEvents);
 
 // Fetch data on mount
-onMounted(() => {
-  store.dispatch('fetchAllEvents');
+onMounted(async () => {
+  const userId = currentUser.value.id;
+  
+  // Fetch all data
+  await store.dispatch('fetchAllEvents');
+  await store.dispatch('fetchUserStats', userId);
+  await store.dispatch('fetchUserRSVPs', userId);
 });
 
 // Format date for display

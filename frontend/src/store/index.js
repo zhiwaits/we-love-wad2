@@ -197,6 +197,14 @@ export default createStore({
       state.filters.searchQuery = query;
     },
 
+    SET_USER_STATS(state, stats) {
+      state.userStats = stats;
+    },
+
+    SET_USER_RSVPS(state, eventIds) {
+      state.userRSVPs = eventIds;
+    },
+
     // Toggle category selection
     TOGGLE_CATEGORY(state, category) {
       const index = state.filters.selectedCategories.indexOf(category);
@@ -259,6 +267,28 @@ export default createStore({
         commit('setAllEvents', response.data);
       } catch (error) {
         console.error(error);
+      }
+    },
+
+    async fetchUserStats({ commit }, userId) {
+      try {
+        const { getUserStats } = await import('../services/statsService');
+        const response = await getUserStats(userId);
+        commit('SET_USER_STATS', response.data);
+      } catch (error) {
+        console.error('Error fetching user stats:', error);
+      }
+    },
+
+    async fetchUserRSVPs({ commit }, userId) {
+      try {
+        const { getRsvpsByUserId } = await import('../services/rsvpService');
+        const response = await getRsvpsByUserId(userId);
+        // Extract event IDs from RSVPs
+        const eventIds = response.data.map(rsvp => rsvp.event_id);
+        commit('SET_USER_RSVPS', eventIds);
+      } catch (error) {
+        console.error('Error fetching user RSVPs:', error);
       }
     },
 
