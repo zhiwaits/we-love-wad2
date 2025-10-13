@@ -114,6 +114,9 @@
   --space-20: 20px;
   --space-24: 24px;
   --space-32: 32px;
+  --space-48: 48px;  
+  --space-56: 56px; 
+  --space-64: 64px; 
 
   /* Border Radius */
   --radius-sm: 6px;

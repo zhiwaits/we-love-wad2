@@ -11,6 +11,7 @@ const rsvpsRoutes = require('./routes/rsvps');
 const eventTagsRoutes = require('./routes/eventTags');
 const followsRoutes = require('./routes/follows');
 const tagsRoutes = require('./routes/tags');
+const statsRoutes = require('./routes/stats');
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -20,6 +21,7 @@ app.use('/rsvps', rsvpsRoutes);
 app.use('/eventTags', eventTagsRoutes);
 app.use('/follows', followsRoutes);
 app.use('/tags', tagsRoutes);
+app.use('/stats', statsRoutes);
 
 
 
