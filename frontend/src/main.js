@@ -5,8 +5,10 @@ import 'bootstrap/dist/css/bootstrap.min.css'
 import 'bootstrap/dist/js/bootstrap.bundle'
 import axios from 'axios'
 import App from './App.vue'
-import store from './store'  // ← Import the Vuex store
+import store from './store'
+import router from './router'  
 
 const app = createApp(App)
-app.use(store)  // ← Register the store with Vue
+app.use(store)
+app.use(router)  
 app.mount('#app')
