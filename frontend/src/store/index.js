@@ -6,22 +6,6 @@ export default createStore({
     // All events from your EventsGrid
     allEvents: [],
 
-    currentUser: {
-      id: 1,
-      name: 'Aryan Singh',
-      email: 'aryan.singh.2024@scis.smu.edu.sg'
-    },
-
-    userStats: {
-      upcomingRSVPs: 5,
-      totalAttended: 12,
-      savedCount: 3,
-      clubsFollowed: 8
-    },
-
-    userRSVPs: [1, 2, 3], // Will hold event IDs user has RSVP'd to
-    savedEvents: [4, 5], // Will hold event IDs user has saved
-
     // Filters state
     filters: {
       searchQuery: '',
@@ -158,32 +142,7 @@ export default createStore({
     // Get results count
     resultsCount: (state, getters) => {
       return getters.filteredEvents.length;
-    },
-    
-    // Dashboard-specific getters
-    upcomingUserEvents: (state) => {
-      const now = new Date();
-      // Filter events where user has RSVP'd and event is in the future
-      return state.allEvents
-        .filter(event => {
-          const eventDate = new Date(event.date);
-          return eventDate > now && state.userRSVPs.includes(event.id);
-        })
-        .sort((a, b) => new Date(a.date) - new Date(b.date))
-        .slice(0, 6); // Show max 6 upcoming events
-    },
-
-    recommendedEvents: (state) => {
-      // Simple recommendation: filter out events user already RSVP'd to
-      return state.allEvents
-        .filter(event => !state.userRSVPs.includes(event.id))
-        .slice(0, 6); // Show 6 recommendations
-    },
-
-    userSavedEvents: (state) => {
-      return state.allEvents
-        .filter(event => state.savedEvents.includes(event.id));
-    },
+    }
   },
 
   mutations: {
@@ -195,14 +154,6 @@ export default createStore({
     // Update search query
     SET_SEARCH_QUERY(state, query) {
       state.filters.searchQuery = query;
-    },
-
-    SET_USER_STATS(state, stats) {
-      state.userStats = stats;
-    },
-
-    SET_USER_RSVPS(state, eventIds) {
-      state.userRSVPs = eventIds;
     },
 
     // Toggle category selection
@@ -267,28 +218,6 @@ export default createStore({
         commit('setAllEvents', response.data);
       } catch (error) {
         console.error(error);
-      }
-    },
-
-    async fetchUserStats({ commit }, userId) {
-      try {
-        const { getUserStats } = await import('../services/statsService');
-        const response = await getUserStats(userId);
-        commit('SET_USER_STATS', response.data);
-      } catch (error) {
-        console.error('Error fetching user stats:', error);
-      }
-    },
-
-    async fetchUserRSVPs({ commit }, userId) {
-      try {
-        const { getRsvpsByUserId } = await import('../services/rsvpService');
-        const response = await getRsvpsByUserId(userId);
-        // Extract event IDs from RSVPs
-        const eventIds = response.data.map(rsvp => rsvp.event_id);
-        commit('SET_USER_RSVPS', eventIds);
-      } catch (error) {
-        console.error('Error fetching user RSVPs:', error);
       }
     },
 

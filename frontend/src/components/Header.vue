@@ -7,9 +7,9 @@
           <p class="tagline">Discover amazing events</p>
         </div>
         <nav class="nav">
-          <router-link to="/" class="nav-link">Browse Events</router-link>
-          <router-link to="/dashboard" class="nav-link">My Dashboard</router-link>
-          <a href="#" class="nav-link">Create Event</a>
+          <a href="#" class="nav-link ">Browse Events</a>
+          <a href="#" class="nav-link ">Categories</a>
+          <a href="#" class="nav-link ">Create Event</a>
         </nav>
         <button class="btn btn--primary">Sign In</button>
       </div>
