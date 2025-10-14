@@ -1,8 +1,19 @@
 <script>
 import { mapGetters, mapActions, mapState } from 'vuex';
+import EventDetailModal from './EventDetailModal.vue';
 
 export default {
     name: 'EventsGrid',
+    components: {
+        EventDetailModal
+    },
+
+    data() {
+        return {
+            selectedEvent: null,
+            showEventModal: false
+        };
+    },
 
     mounted() {
         this.$store.dispatch('fetchAllEvents');
@@ -44,6 +55,21 @@ export default {
             window.scrollTo({ top: 0, behavior: 'smooth' });
         },
 
+        handleTagFromModal(tag) {
+            this.handleTagClick(tag);
+            this.closeEventModal();
+        },
+
+        openEventModal(event) {
+            this.selectedEvent = event;
+            this.showEventModal = true;
+        },
+
+        closeEventModal() {
+            this.showEventModal = false;
+            this.selectedEvent = null;
+        },
+
         // Check if tag is selected
         isTagSelected(tag) {
             return this.filters.selectedTags.includes(tag);
@@ -63,7 +89,16 @@ export default {
 
             <!-- Events Grid -->
             <div v-else class="events-container">
-                <div v-for="event in events" :key="event.id" class="event-card">
+                <div
+                    v-for="event in events"
+                    :key="event.id"
+                    class="event-card"
+                    role="button"
+                    tabindex="0"
+                    @click="openEventModal(event)"
+                    @keyup.enter.prevent="openEventModal(event)"
+                    @keyup.space.prevent="openEventModal(event)"
+                >
                     <div class="event-image">
                         <img v-if="event.image" :src="event.image" alt="Event Image" class="event-img" />
                         <div v-else class="event-image-placeholder"></div>
@@ -109,6 +144,12 @@ export default {
                 </div>
             </div>
         </div>
+        <EventDetailModal
+            :visible="showEventModal"
+            :event="selectedEvent"
+            @close="closeEventModal"
+            @tag-click="handleTagFromModal"
+        />
     </section>
 </template>
 

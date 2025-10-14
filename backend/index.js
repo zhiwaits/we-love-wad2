@@ -12,6 +12,7 @@ const eventTagsRoutes = require('./routes/eventTags');
 const followsRoutes = require('./routes/follows');
 const tagsRoutes = require('./routes/tags');
 const statsRoutes = require('./routes/stats');
+const savedRoutes = require('./routes/savedEvents');
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -22,6 +23,7 @@ app.use('/eventTags', eventTagsRoutes);
 app.use('/follows', followsRoutes);
 app.use('/tags', tagsRoutes);
 app.use('/stats', statsRoutes);
+app.use('/savedEvents', savedRoutes);
 
 
 
