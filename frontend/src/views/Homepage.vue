@@ -1,7 +1,7 @@
 <script setup>
-import Hero from "../components/HeroEvents.vue";
+import Hero from "../components/HeroClubs.vue";
 import Search from "../components/SearchEvents.vue";
-import FilterPanel from "../components/FilterPanel.vue";
+import FilterPanel from "../components/EventsFilterPanel.vue";
 import EventsGrid from "../components/EventsGrid.vue";
 </script>
 

@@ -13,6 +13,7 @@ const followsRoutes = require('./routes/follows');
 const tagsRoutes = require('./routes/tags');
 const statsRoutes = require('./routes/stats');
 const savedRoutes = require('./routes/savedEvents');
+const clubCategories = require('./routes/clubCategories');
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -24,6 +25,7 @@ app.use('/follows', followsRoutes);
 app.use('/tags', tagsRoutes);
 app.use('/stats', statsRoutes);
 app.use('/savedEvents', savedRoutes);
+app.use('/clubCategories', clubCategories);
 
 
 

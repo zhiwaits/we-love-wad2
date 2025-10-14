@@ -66,6 +66,7 @@ exports.getAllEvents = async (req, res) => {
         e.category,
         e.capacity,
         e.image_url,
+        e.owner_id,
         e.price,
         p.name AS organiser_name,
         COALESCE(t.tags, '{}') AS tags,
@@ -101,7 +102,8 @@ exports.getAllEvents = async (req, res) => {
       attendees: Number(row.attendees) || 0,
       maxAttendees: row.capacity != null ? Number(row.capacity) : null,
       description: row.description || '',
-      image: row.image_url || ''
+      image: row.image_url || '',
+      ownerId: row.owner_id || null
     }));
 
     res.json(shaped);
@@ -124,6 +126,7 @@ exports.getEventById = async (req, res) => {
         e.category,
         e.capacity,
         e.image_url,
+        e.owner_id,
         e.price,
         p.name AS organiser_name,
         COALESCE(t.tags, '{}') AS tags,
@@ -161,7 +164,8 @@ exports.getEventById = async (req, res) => {
       attendees: Number(row.attendees) || 0,
       maxAttendees: row.capacity != null ? Number(row.capacity) : null,
       description: row.description || '',
-      image: row.image_url || ''
+      image: row.image_url || '',
+      ownerId: row.owner_id || null
     };
     res.json(shaped);
   } catch (err) {

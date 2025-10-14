@@ -55,6 +55,22 @@ exports.createUserProfile = async (req, res) => {
   }
 };
 
+exports.createClubProfile = async (req, res) => {
+  try {
+    const {
+      username, email, password
+    } = req.body;
+    const result = await pool.query(
+      `INSERT INTO ${table} (username, email, password, club_description, club_category_id, club_image, account_type)
+       VALUES ($1, $2, $3, $4, $5, $6, 'club') RETURNING *`,
+      [username, email, password]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 
 exports.updateUserProfile = async (req, res) => {
   const { id } = req.params;
@@ -80,7 +96,7 @@ exports.updateClubProfile = async (req, res) => {
   } = req.body;
   try {
     const result = await pool.query(
-      `UPDATE ${table} SET username=$1, email=$2, password=$3, club_description=$4, club_category=$5, club_image=$6 WHERE id=$7 AND account_type='club' RETURNING *`,
+      `UPDATE ${table} SET username=$1, email=$2, password=$3, club_description=$4, club_category_id=$5, club_image=$6 WHERE id=$7 AND account_type='club' RETURNING *`,
       [username, email, password, club_description, club_category, club_image, id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Club profile not found' });

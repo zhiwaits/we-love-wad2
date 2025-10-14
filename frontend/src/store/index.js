@@ -1,5 +1,6 @@
 import { createStore } from 'vuex';
 import { getAllEvents } from "../services/eventService.js";
+import clubs from './clubs';
 
 let toastTimer = null;
 
@@ -370,5 +371,9 @@ export default createStore({
       }
       commit('HIDE_TOAST');
     }
+  },
+
+  modules: {
+    clubs
   }
 });

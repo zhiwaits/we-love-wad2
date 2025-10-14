@@ -1,7 +1,7 @@
 <script setup>
 import Hero from "../components/HeroEvents.vue";
-import Search from "../components/SearchEvents.vue";
-import EventsGrid from "../components/EventsGrid.vue";
+import Search from "../components/SearchClubs.vue";
+import ClubsGrid from "../components/ClubsGrid.vue";
 </script>
 
 <template>
@@ -12,8 +12,8 @@ import EventsGrid from "../components/EventsGrid.vue";
         <div class="container-fluid main-content">
 
 
-                <div class="events-area">
-                    <EventsGrid></EventsGrid>
+                <div class="clubs-area">
+                    <ClubsGrid></ClubsGrid>
                 </div>
         
         </div>
@@ -46,7 +46,7 @@ import EventsGrid from "../components/EventsGrid.vue";
     height: fit-content;
 }
 
-.events-area {
+.clubs-area {
     min-width: 0;
 }
 
