@@ -7,6 +7,6 @@ router.get('/event/:id', rsvpsController.getRsvpsByEventId);
 router.get('/user/:id', rsvpsController.getRsvpsByUserId);
 router.post('/', rsvpsController.createRsvp);
 router.put('/:id', rsvpsController.updateRsvp);
-router.delete('/:id', rsvpsController.deleteRsvp);
+router.delete('/:event_id/:user_id', rsvpsController.deleteRsvp);
 
 module.exports = router;

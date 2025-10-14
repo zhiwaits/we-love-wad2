@@ -50,11 +50,11 @@ exports.createFollow = async (req, res) => {
 
 
 exports.deleteFollow = async (req, res) => {
-  try {
-    const result = await pool.query(`DELETE FROM ${table} WHERE id = $1 RETURNING *`, [req.params.id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Follow not found' });
-    res.json({ message: 'Follow deleted', follow: result.rows[0] });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+    try {
+        const result = await pool.query(`DELETE FROM ${table} WHERE follower_id = $1 AND followed_club_id = $2 RETURNING *`, [req.params.follower_id, req.params.followed_club_id]);
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Follow not found' });
+        res.json({ message: 'Follow deleted', event_tag: result.rows[0] });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 };

@@ -318,6 +318,10 @@ body {
   color: var(--color-text);
 }
 
+body.modal-open {
+  overflow: hidden;
+}
+
 *,
 *::before,
 *::after {

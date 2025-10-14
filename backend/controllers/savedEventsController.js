@@ -1,7 +1,7 @@
 const pool = require('../db');
-const table = "rsvps";
+const table = "event_saved";
 
-exports.getAllRsvps = async (req, res) => {
+exports.getAllSaved = async (req, res) => {
     try {
         const result = await pool.query(`SELECT * FROM ${table}`);
         res.json(result.rows);
@@ -11,7 +11,7 @@ exports.getAllRsvps = async (req, res) => {
 };
 
 
-exports.getRsvpsByEventId = async (req, res) => {
+exports.getSavedByUserId = async (req, res) => {
     try {
         const result = await pool.query(`SELECT * FROM ${table} WHERE event_id = $1`, [req.params.id]);
         if (result.rows.length === 0) return res.status(404).json({ error: 'Rsvp not found' });
@@ -21,7 +21,7 @@ exports.getRsvpsByEventId = async (req, res) => {
     }
 };
 
-exports.getRsvpsByUserId = async (req, res) => {
+exports.getSavedByEventId = async (req, res) => {
     try {
         const result = await pool.query(`SELECT * FROM ${table} WHERE user_id = $1`, [req.params.id]);
         if (result.rows.length === 0) return res.status(404).json({ error: 'Rsvp not found' });
@@ -32,15 +32,15 @@ exports.getRsvpsByUserId = async (req, res) => {
 };
 
 
-exports.createRsvp = async (req, res) => {
+exports.createSaved = async (req, res) => {
     try {
         const {
-           event_id, user_id, status
+           event_id, user_id
         } = req.body;
         const result = await pool.query(
-            `INSERT INTO ${table} (event_id, user_id, status)
-       VALUES ($1, $2, $3) RETURNING *`,
-            [event_id, user_id, status]
+            `INSERT INTO ${table} (event_id, user_id)
+       VALUES ($1, $2) RETURNING *`,
+            [event_id, user_id]
         );
         res.status(201).json(result.rows[0]);
     } catch (err) {
@@ -48,30 +48,11 @@ exports.createRsvp = async (req, res) => {
     }
 };
 
-
-exports.updateRsvp = async (req, res) => {
-    const { id } = req.params;
-    const {
-        status
-    } = req.body;
-    try {
-        const result = await pool.query(
-            `UPDATE ${table} SET status=$1 WHERE id=$2 RETURNING *`,
-            [status, id]
-        );
-        if (result.rows.length === 0) return res.status(404).json({ error: 'Rsvp not found' });
-        res.json(result.rows[0]);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-};
-
-
-exports.deleteRsvp = async (req, res) => {
+exports.deleteSaved = async (req, res) => {
     try {
         const result = await pool.query(`DELETE FROM ${table} WHERE event_id = $1 AND user_id = $2 RETURNING *`, [req.params.event_id, req.params.user_id]);
-        if (result.rows.length === 0) return res.status(404).json({ error: 'Rsvp not found' });
-        res.json({ message: 'Rsvp deleted', event_tag: result.rows[0] });
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Saved event not found' });
+        res.json({ message: 'Saved event deleted', event_tag: result.rows[0] });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
