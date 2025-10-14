@@ -135,7 +135,8 @@ export default {
 
 .events-container {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(280px, 360px));
+    justify-content: center;
     gap: var(--space-24);
     width: 100%;
 }
