@@ -135,8 +135,9 @@ export default {
 
 .events-container {
     display: grid;
-    grid-template-columns: repeat(3, minmax(350px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: var(--space-24);
+    width: 100%;
 }
 
 .event-card {

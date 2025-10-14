@@ -26,19 +26,19 @@ import EventsGrid from "../components/EventsGrid.vue";
 
 <style scoped>
 .main-content {
-    padding: var(--space-32, 32px) 0;
+    padding: var(--space-32, 32px) var(--space-16, 16px);
 }
 
 .content-layout {
     display: grid;
-    grid-template-columns: 22vw 1fr;
-    gap: var(--space-32, 32px);
+    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+    gap: clamp(var(--space-16, 16px), 3vw, var(--space-32, 32px));
+    align-items: start;
 }
 
 .sidebar {
     position: sticky;
     top: var(--space-24, 20px);
-    margin-left: 4vw;
     height: fit-content;
 }
 
@@ -49,7 +49,7 @@ import EventsGrid from "../components/EventsGrid.vue";
 /* Responsive Design */
 @media (max-width: 1024px) {
     .content-layout {
-        grid-template-columns: 250px 1fr;
+        grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
         gap: var(--space-24, 24px);
     }
 }
