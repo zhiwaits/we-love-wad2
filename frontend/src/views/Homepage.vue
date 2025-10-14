@@ -25,8 +25,14 @@ import EventsGrid from "../components/EventsGrid.vue";
 </template>
 
 <style scoped>
+.home-page {
+    background-color: var(--color-background);
+    color: var(--color-text);
+}
+
 .main-content {
     padding: var(--space-32, 32px) var(--space-16, 16px);
+    background-color: inherit;
 }
 
 .content-layout {
@@ -34,6 +40,8 @@ import EventsGrid from "../components/EventsGrid.vue";
     grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
     gap: clamp(var(--space-16, 16px), 3vw, var(--space-32, 32px));
     align-items: start;
+    background-color: inherit;
+    color: inherit;
 }
 
 .sidebar {
