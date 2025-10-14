@@ -11,16 +11,5 @@ export async function shareEventLink(event) {
         return shareUrl;
     }
 
-    // Fallback for very old browsers
-    const textArea = document.createElement('textarea');
-    textArea.value = shareUrl;
-    textArea.setAttribute('readonly', '');
-    textArea.style.position = 'absolute';
-    textArea.style.left = '-9999px';
-    document.body.appendChild(textArea);
-    textArea.select();
-    document.execCommand('copy');
-    document.body.removeChild(textArea);
-
     return shareUrl;
 }

@@ -1,7 +1,6 @@
 <script setup>
 import Hero from "../components/HeroEvents.vue";
 import Search from "../components/SearchEvents.vue";
-import FilterPanel from "../components/FilterPanel.vue";
 import EventsGrid from "../components/EventsGrid.vue";
 </script>
 
@@ -11,15 +10,12 @@ import EventsGrid from "../components/EventsGrid.vue";
         <Search></Search>
 
         <div class="container-fluid main-content">
-            <div class="content-layout">
-                <div class="sidebar">
-                    <FilterPanel></FilterPanel>
-                </div>
+
 
                 <div class="events-area">
                     <EventsGrid></EventsGrid>
                 </div>
-            </div>
+        
         </div>
     </div>
 </template>
