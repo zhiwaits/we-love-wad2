@@ -1,6 +1,7 @@
 <script>
 import { mapGetters, mapActions, mapState } from 'vuex';
 import EventDetailModal from './EventDetailModal.vue';
+import { shareEventLink } from '../utils/shareEvent';
 
 export default {
     name: 'EventsGrid',
@@ -58,6 +59,24 @@ export default {
         handleTagFromModal(tag) {
             this.handleTagClick(tag);
             this.closeEventModal();
+        },
+
+        async handleShare() {
+            if (!this.selectedEvent) return;
+
+            try {
+                await shareEventLink(this.selectedEvent);
+                this.$store.dispatch('showToast', {
+                    message: 'Event link copied to your clipboard.',
+                    type: 'success'
+                });
+            } catch (error) {
+                console.error('Unable to share event', error);
+                this.$store.dispatch('showToast', {
+                    message: 'Unable to share this event. Please try again.',
+                    type: 'error'
+                });
+            }
         },
 
         openEventModal(event) {
@@ -149,6 +168,7 @@ export default {
             :event="selectedEvent"
             @close="closeEventModal"
             @tag-click="handleTagFromModal"
+            @share="handleShare"
         />
     </section>
 </template>

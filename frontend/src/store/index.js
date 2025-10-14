@@ -1,6 +1,8 @@
 import { createStore } from 'vuex';
 import { getAllEvents } from "../services/eventService.js";
 
+let toastTimer = null;
+
 export default createStore({
   state: {
     // All events from your EventsGrid
@@ -37,7 +39,13 @@ export default createStore({
     categories: ['Academic', 'Performance', 'Workshop', 'Recreation', 'Career', 'Social', 'Sports'],
 
     // All unique tags from events
-    availableTags: []
+    availableTags: [],
+
+    toast: {
+      message: '',
+      type: 'info',
+      visible: false
+    }
   },
 
   getters: {
@@ -184,6 +192,8 @@ export default createStore({
       return state.allEvents
         .filter(event => state.savedEvents.includes(event.id));
     },
+
+    toast: (state) => state.toast
   },
 
   mutations: {
@@ -256,6 +266,18 @@ export default createStore({
         venueFilter: 'all',
         locationQuery: ''
       };
+    },
+
+    SHOW_TOAST(state, { message, type }) {
+      state.toast.message = message;
+      state.toast.type = type;
+      state.toast.visible = true;
+    },
+
+    HIDE_TOAST(state) {
+      state.toast.visible = false;
+      state.toast.message = '';
+      state.toast.type = 'info';
     }
   },
 
@@ -330,6 +352,23 @@ export default createStore({
     // Action to reset filters
     resetFilters({ commit }) {
       commit('RESET_FILTERS');
+    },
+
+    showToast({ commit }, { message, type = 'info', duration = 3000 } = {}) {
+      if (toastTimer) clearTimeout(toastTimer);
+      commit('SHOW_TOAST', { message, type });
+      toastTimer = setTimeout(() => {
+        commit('HIDE_TOAST');
+        toastTimer = null;
+      }, duration);
+    },
+
+    hideToast({ commit }) {
+      if (toastTimer) {
+        clearTimeout(toastTimer);
+        toastTimer = null;
+      }
+      commit('HIDE_TOAST');
     }
   }
 });

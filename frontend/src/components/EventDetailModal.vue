@@ -92,7 +92,7 @@
                         <button type="button" class="btn btn-primary">Join Event</button>
                         <div class="secondary-actions">
                             <button type="button" class="btn btn-outline">Save</button>
-                            <button type="button" class="btn btn-outline">Share</button>
+                            <button type="button" class="btn btn-outline" @click="$emit('share')">Share</button>
                         </div>
                     </footer>
                 </div>
@@ -114,7 +114,7 @@ export default {
             default: false
         }
     },
-    emits: ['close', 'tag-click'],
+    emits: ['close', 'tag-click', 'share'],
     computed: {
         spotsRemaining() {
             if (this.event?.maxAttendees == null) return null;

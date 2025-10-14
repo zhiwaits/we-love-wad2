@@ -1,5 +1,6 @@
 <script setup>
 import Header from "./components/Header.vue";
+import Toast from "./components/Toast.vue";
 </script>
 
 <template>
@@ -8,6 +9,8 @@ import Header from "./components/Header.vue";
         
         <!-- Router View - This displays the current route's component -->
         <router-view></router-view>
+
+        <Toast />
     </div>
 </template>
 

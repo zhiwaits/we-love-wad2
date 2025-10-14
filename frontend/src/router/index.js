@@ -11,6 +11,11 @@ const routes = [
     component: () => import('../views/Homepage.vue')  // ← Correct
   },
   {
+    path: '/events/:id',
+    name: 'EventDetail',
+    component: () => import('../views/EventDetailPage.vue')
+  },
+  {
     path: '/dashboard',
     name: 'Dashboard',
     component: Dashboard,
