@@ -16,6 +16,8 @@ const statsRoutes = require('./routes/stats');
 const savedRoutes = require('./routes/savedEvents');
 const clubCategories = require('./routes/clubCategories');
 const authRoutes = require('./routes/auth');
+const eventCategories = require('./routes/eventCategories');
+const eventVenues = require('./routes/eventVenues');
 
 app.use(cors());
 app.use(bodyParser.json({ limit: '5mb' }));
@@ -30,6 +32,8 @@ app.use('/stats', statsRoutes);
 app.use('/savedEvents', savedRoutes);
 app.use('/clubCategories', clubCategories);
 app.use('/', authRoutes);
+app.use('/eventCategories', eventCategories);
+app.use('/eventVenues', eventVenues)
 
 
 

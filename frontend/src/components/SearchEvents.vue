@@ -80,13 +80,20 @@ export default {
       'updateDateFilter',
       'updateVenueFilter',
       'updateLocationQuery',
-      'resetFilters'
+      'resetFilters',
+      'fetchEventCategories',
+      'fetchEventVenues'
     ]),
     
     // Clear all filters
     handleResetFilters() {
       this.resetFilters();
     }
+  },
+
+  created() {
+    this.fetchEventCategories();
+    this.fetchEventVenues();
   }
 }
 </script>

@@ -32,7 +32,7 @@ export default {
   },
   
   methods: {
-    ...mapActions(['toggleCategory', 'toggleTag', 'resetFilters']),
+    ...mapActions(['toggleCategory', 'toggleTag', 'resetFilters', 'fetchEventCategories']),
     
     // Handle category checkbox click
     handleCategoryToggle(category) {
@@ -53,6 +53,10 @@ export default {
     toggleTagSection() {
       this.showTags = !this.showTags;
     }
+  },
+
+  created() {
+    this.fetchEventCategories();
   }
 }
 </script>

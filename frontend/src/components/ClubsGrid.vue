@@ -168,8 +168,10 @@ export default {
 .no-results { text-align: center; padding: var(--space-64) var(--space-24); color: var(--color-text-secondary); }
 .no-results h3 { font-size: var(--font-size-2xl); color: var(--color-text); margin-bottom: var(--space-16); }
 .cards-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 360px)); justify-content: center; gap: var(--space-24); width: 100%; }
-.club-card { background-color: var(--color-surface); border-radius: var(--radius-lg); border: 1px solid var(--color-card-border); box-shadow: var(--shadow-sm); overflow: hidden; transition: all var(--duration-normal) var(--ease-standard); display: flex; flex-direction: column; height: 100%; }
-.club-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
+.club-card { background-color: var(--color-surface); border-radius: var(--radius-lg); border: 1px solid var(--color-card-border); box-shadow: var(--shadow-sm); overflow: hidden; transition: transform var(--duration-normal) var(--ease-standard), box-shadow var(--duration-normal) var(--ease-standard), border-color var(--duration-normal) var(--ease-standard); display: flex; flex-direction: column; height: 100%; position: relative; opacity: 0; transform: translateY(12px); animation: card-enter 0.45s var(--ease-standard) forwards; }
+.club-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--color-primary); transform: scaleX(0); transition: transform var(--duration-normal) var(--ease-standard); }
+.club-card:hover { box-shadow: var(--shadow-md); transform: translateY(-4px); border-color: var(--color-primary); }
+.club-card:hover::before { transform: scaleX(1); }
 .club-image { position: relative; height: 200px; background: var(--color-bg-1); flex-shrink: 0; }
 .club-img { width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
 .club-img--placeholder { object-fit: contain; background: linear-gradient(135deg, var(--color-bg-1) 0%, var(--color-bg-2) 100%); }
@@ -196,6 +198,11 @@ export default {
 .btn-dark { background: #111; color: #fff; border: 1px solid #111; }
 .btn-dark.following { background: transparent; color: #111; border-color: #111; }
 .btn-outline-dark { background: transparent; color: #111; border: 1px solid #111; }
+
+@keyframes card-enter {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
 
 @media (max-width: 768px) {
     .cards-container { grid-template-columns: 1fr; }

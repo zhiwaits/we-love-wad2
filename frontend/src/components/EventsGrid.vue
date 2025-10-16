@@ -208,16 +208,37 @@ export default {
     border: 1px solid var(--color-card-border);
     box-shadow: var(--shadow-sm);
     overflow: hidden;
-    transition: all var(--duration-normal) var(--ease-standard);
+    transition: transform var(--duration-normal) var(--ease-standard), box-shadow var(--duration-normal) var(--ease-standard), border-color var(--duration-normal) var(--ease-standard);
     cursor: pointer;
     display: flex;
     flex-direction: column;
     height: 100%;
+    position: relative;
+    opacity: 0;
+    transform: translateY(12px);
+    animation: card-enter 0.45s var(--ease-standard) forwards;
+}
+
+.event-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--color-primary);
+    transform: scaleX(0);
+    transition: transform var(--duration-normal) var(--ease-standard);
 }
 
 .event-card:hover {
-    box-shadow: var(--shadow-lg);
-    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-4px);
+    border-color: var(--color-primary);
+}
+
+.event-card:hover::before {
+    transform: scaleX(1);
 }
 
 .event-image {
@@ -385,6 +406,11 @@ export default {
     background-color: var(--color-primary, #007bff);
     color: white;
     border-color: var(--color-primary, #007bff);
+}
+
+@keyframes card-enter {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 /* Responsive Design */

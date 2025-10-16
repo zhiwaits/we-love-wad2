@@ -42,17 +42,6 @@ function formatPriceTag(price) {
   return `$${str}`;
 }
 
-function deriveVenue(location) {
-  if (!location) return 'Off-Campus';
-  const loc = String(location);
-  const l = loc.toLowerCase();
-  if (l.includes('zoom') || l.includes('virtual') || l.includes('online')) return 'Online';
-  if (l.includes('connex')) return 'Connex';
-  if (l.includes('lkcsb')) return 'LKCSB';
-  if (l.includes('soe') || l.includes('scis')) return 'SOE/SCIS';
-  return 'Off-Campus';
-}
-
 exports.getAllEvents = async (req, res) => {
   try {
     const query = `
@@ -68,11 +57,13 @@ exports.getAllEvents = async (req, res) => {
         e.image_url,
         e.owner_id,
         e.price,
+        e.venue,
         p.name AS organiser_name,
         COALESCE(t.tags, '{}') AS tags,
         COALESCE(r.attendees, 0) AS attendees
       FROM ${table} e
       LEFT JOIN profiles p ON p.id = e.owner_id
+      LEFT JOIN event_venues ev ON ev.name = e.venue
       LEFT JOIN (
         SELECT etm.event_id, array_agg(DISTINCT et.tag_name) AS tags
         FROM event_tag_map etm
@@ -98,7 +89,7 @@ exports.getAllEvents = async (req, res) => {
       date: formatDateISO(row.datetime),
       time: formatTimeRange(row.datetime, row.enddatetime),
       location: row.location || '',
-      venue: deriveVenue(row.location),
+      venue: row.venue || '',
       attendees: Number(row.attendees) || 0,
       maxAttendees: row.capacity != null ? Number(row.capacity) : null,
       description: row.description || '',
@@ -128,11 +119,13 @@ exports.getEventById = async (req, res) => {
         e.image_url,
         e.owner_id,
         e.price,
+        e.venue,
         p.name AS organiser_name,
         COALESCE(t.tags, '{}') AS tags,
         COALESCE(r.attendees, 0) AS attendees
       FROM ${table} e
       LEFT JOIN profiles p ON p.id = e.owner_id
+      LEFT JOIN event_venues ev ON ev.name = e.venue
       LEFT JOIN (
         SELECT etm.event_id, array_agg(DISTINCT et.tag_name) AS tags
         FROM event_tag_map etm
@@ -160,7 +153,7 @@ exports.getEventById = async (req, res) => {
       date: formatDateISO(row.datetime),
       time: formatTimeRange(row.datetime, row.enddatetime),
       location: row.location || '',
-      venue: deriveVenue(row.location),
+      venue: row.venue || '',
       attendees: Number(row.attendees) || 0,
       maxAttendees: row.capacity != null ? Number(row.capacity) : null,
       description: row.description || '',
@@ -177,12 +170,12 @@ exports.getEventById = async (req, res) => {
 exports.createEvent = async (req, res) => {
   try {
     const {
-      title, description, datetime, location, category, capacity, image_url, owner_id, enddatetime, price
+      title, description, datetime, location, category, capacity, image_url, owner_id, venue, enddatetime, price
     } = req.body;
     const result = await pool.query(
-      `INSERT INTO ${table} (title, description, datetime, location, category, capacity, image_url, owner_id, enddatetime, price)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-      [title, description, datetime, location, category, capacity, image_url, owner_id, enddatetime, price]
+      `INSERT INTO ${table} (title, description, datetime, location, category, capacity, image_url, owner_id, venue, enddatetime, price)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+      [title, description, datetime, location, category, capacity, image_url, owner_id, venue, enddatetime, price]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -194,13 +187,13 @@ exports.createEvent = async (req, res) => {
 exports.updateEvent = async (req, res) => {
   const { id } = req.params;
   const {
-    title, description, datetime, location, category, capacity, image_url, owner_id, enddatetime, price
+    title, description, datetime, location, category, capacity, image_url, owner_id, venue, enddatetime, price
   } = req.body;
   try {
     const result = await pool.query(
       `UPDATE ${table} SET title=$1, description=$2, datetime=$3, location=$4,
-       category=$5, capacity=$6, image_url=$7, owner_id=$8, enddatetime=$10, price=$11 WHERE id=$9 RETURNING *`,
-      [title, description, datetime, location, category, capacity, image_url, owner_id, id, enddatetime, price]
+       category=$5, capacity=$6, image_url=$7, owner_id=$8, venue=$9, enddatetime=$10, price=$11 WHERE id=$12 RETURNING *`,
+      [title, description, datetime, location, category, capacity, image_url, owner_id, venue, enddatetime, price, id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Event not found' });
     res.json(result.rows[0]);

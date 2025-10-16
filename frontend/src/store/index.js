@@ -1,6 +1,8 @@
 import auth from './modules/auth'; 
 import { createStore } from 'vuex';
 import { getAllEvents } from "../services/eventService.js";
+import { getAllEventCategories } from '../services/eventCategoryService.js';
+import { getAllEventVenues } from '../services/eventVenueService.js';
 import clubs from './modules/clubs';
 
 let toastTimer = null;
@@ -32,8 +34,9 @@ export default createStore({
       locationQuery: ''
     },
 
-    // Available options for filters
-    categories: ['Academic', 'Performance', 'Workshop', 'Recreation', 'Career', 'Social', 'Sports'],
+  // Available options for filters
+  categories: [],
+  venues: [],
 
     // All unique tags from events
     availableTags: [],
@@ -155,9 +158,14 @@ export default createStore({
 
     // Get unique venues
     allVenues: (state) => {
+      if (state.venues && state.venues.length > 0) {
+        return state.venues;
+      }
       const venueSet = new Set();
       state.allEvents.forEach(event => {
-        venueSet.add(event.venue);
+        if (event.venue) {
+          venueSet.add(event.venue);
+        }
       });
       return Array.from(venueSet).sort();
     },
@@ -199,6 +207,14 @@ export default createStore({
 
     setAllEvents(state, events) {
       state.allEvents = events;
+    },
+
+    SET_EVENT_CATEGORIES(state, categories) {
+      state.categories = categories;
+    },
+
+    SET_EVENT_VENUES(state, venues) {
+      state.venues = venues;
     },
 
     // Update search query
@@ -281,6 +297,38 @@ export default createStore({
   },
 
   actions: {
+
+    async fetchEventCategories({ state, commit }) {
+      if (state.categories.length > 0) {
+        return;
+      }
+      try {
+        const response = await getAllEventCategories();
+        const names = Array.isArray(response.data)
+          ? response.data.map((item) => item?.name?.trim()).filter(Boolean)
+          : [];
+        commit('SET_EVENT_CATEGORIES', names.sort());
+      } catch (error) {
+        console.error('Failed to load event categories', error);
+        commit('SET_EVENT_CATEGORIES', []);
+      }
+    },
+
+    async fetchEventVenues({ state, commit }) {
+      if (state.venues.length > 0) {
+        return;
+      }
+      try {
+        const response = await getAllEventVenues();
+        const names = Array.isArray(response.data)
+          ? response.data.map((item) => item?.name?.trim()).filter(Boolean)
+          : [];
+        commit('SET_EVENT_VENUES', names.sort());
+      } catch (error) {
+        console.error('Failed to load event venues', error);
+        commit('SET_EVENT_VENUES', []);
+      }
+    },
 
     async fetchAllEvents({ commit }) {
       try {
