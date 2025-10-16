@@ -5,8 +5,8 @@ import StatCard from './StatCard.vue';
 
 const store = useStore();
 
-// User data
-const currentUser = computed(() => store.state.currentUser);
+// NEW - Get user from auth module with fallback
+const currentUser = computed(() => store.getters['auth/currentUser'] || { name: 'User', id: 1 });
 const userStats = computed(() => store.state.userStats);
 
 // Dashboard sections
@@ -47,7 +47,7 @@ const formatAttendees = (event) => {
     <div class="container">
         <div class="header-content">
         <div>
-            <h1 class="dashboard-title">Welcome back, {{ currentUser.name }}!</h1>
+            <h1 class="dashboard-title">Welcome back, {{ currentUser?.name || 'User' }}!</h1>
             <p class="dashboard-subtitle">Here's your personalized event overview</p>
         </div>
         <div class="header-actions">
