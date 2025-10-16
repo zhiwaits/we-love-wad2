@@ -1,24 +1,15 @@
 import auth from './modules/auth'; 
 import { createStore } from 'vuex';
 import { getAllEvents } from "../services/eventService.js";
-import clubs from './clubs';
+import clubs from './modules/clubs';
 
 let toastTimer = null;
 
 export default createStore({
-   modules: {
-    auth,  // ← ADD THIS
-  },
 
   state: {
     // All events from your EventsGrid
     allEvents: [],
-
-    //currentUser: {
-    //  id: 1,
-    //  name: 'Aryan Singh',
-    //  email: 'aryan.singh.2024@scis.smu.edu.sg'
-    //},
 
     userStats: {
       upcomingRSVPs: 5,
@@ -381,6 +372,7 @@ export default createStore({
   },
 
   modules: {
-    clubs
+    auth,
+    clubs,
   }
 });

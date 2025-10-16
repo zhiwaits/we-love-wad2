@@ -210,6 +210,9 @@ export default {
     overflow: hidden;
     transition: all var(--duration-normal) var(--ease-standard);
     cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
 }
 
 .event-card:hover {
@@ -221,6 +224,7 @@ export default {
     position: relative;
     height: 200px;
     background: var(--color-bg-1);
+    flex-shrink: 0;
 }
 
 .event-img {
@@ -259,6 +263,10 @@ export default {
 
 .event-content {
     padding: var(--space-20);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-12);
+    flex: 1;
 }
 
 .event-header {
@@ -321,17 +329,19 @@ export default {
     font-size: var(--font-size-base);
     color: var(--color-text-secondary);
     line-height: var(--line-height-normal);
-    margin: 0 0 var(--space-12) 0;
+    margin: 0;
     display: -webkit-box;
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
+    flex: 1;
 }
 
 .event-tags {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-8);
+    margin-top: auto;
 }
 
 .tag-badge {

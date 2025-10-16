@@ -1,5 +1,5 @@
 <script setup>
-import Hero from "../components/HeroEvents.vue";
+import Hero from "../components/HeroClubs.vue";
 import Search from "../components/SearchClubs.vue";
 import ClubsGrid from "../components/ClubsGrid.vue";
 </script>

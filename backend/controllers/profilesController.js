@@ -1,5 +1,41 @@
 const pool = require('../db');
 const table = "profiles";
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+
+exports.checkAvailability = async (req, res) => {
+  try {
+    const { email, username } = req.query;
+
+    if (!email && !username) {
+      return res.status(400).json({ error: 'Email or username is required' });
+    }
+
+    let emailTaken = false;
+    let usernameTaken = false;
+
+    if (email) {
+      const emailResult = await pool.query(
+        `SELECT 1 FROM ${table} WHERE LOWER(email) = LOWER($1) LIMIT 1`,
+        [email]
+      );
+      emailTaken = emailResult.rows.length > 0;
+    }
+
+    if (username) {
+      const usernameResult = await pool.query(
+        `SELECT 1 FROM ${table} WHERE LOWER(username) = LOWER($1) LIMIT 1`,
+        [username]
+      );
+      usernameTaken = usernameResult.rows.length > 0;
+    }
+
+    res.json({ emailTaken, usernameTaken });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
 
 exports.getAllProfiles = async (req, res) => {
   try {
@@ -41,13 +77,15 @@ exports.getProfileById = async (req, res) => {
 
 exports.createUserProfile = async (req, res) => {
   try {
-    const {
-      username, email, password
-    } = req.body;
+    const { name, username, email, password } = req.body;
+    if (!username || !email || !password) {
+      return res.status(400).json({ error: 'name, username, email, and password are required' });
+    }
+    const passwordHash = crypto.createHash('sha256').update(String(password)).digest('hex');
     const result = await pool.query(
-      `INSERT INTO ${table} (username, email, password, account_type)
-       VALUES ($1, $2, $3, 'user') RETURNING *`,
-      [username, email, password]
+      `INSERT INTO ${table} (name, username, email, password, account_type)
+       VALUES ($1, $2, $3, $4, 'user') RETURNING *`,
+      [name, username, email, passwordHash]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -57,13 +95,37 @@ exports.createUserProfile = async (req, res) => {
 
 exports.createClubProfile = async (req, res) => {
   try {
-    const {
-      username, email, password
-    } = req.body;
+    const { name, username, email, password, club_description, club_category_id, imageBase64, imageOriginalName } = req.body;
+    if (!username || !email || !password || !club_description || !club_category_id) {
+      return res.status(400).json({ error: 'Missing required fields for club profile' });
+    }
+
+    let storedImageUrl = null;
+    if (imageBase64 && imageOriginalName) {
+      const uploadDir = path.resolve(__dirname, '../uploads/club');
+      try { fs.mkdirSync(uploadDir, { recursive: true }); } catch {}
+
+      const safeUsername = (username || 'club')
+        .toString()
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/gi, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '') || 'club';
+
+      const fileName = `${safeUsername}.png`;
+      const filePath = path.join(uploadDir, fileName);
+      try { fs.unlinkSync(filePath); } catch {}
+      const data = imageBase64.split(',')[1] || imageBase64;
+      fs.writeFileSync(filePath, Buffer.from(data, 'base64'));
+      storedImageUrl = `/uploads/club/${fileName}`;
+    }
+
+    const passwordHash = crypto.createHash('sha256').update(String(password)).digest('hex');
+
     const result = await pool.query(
-      `INSERT INTO ${table} (username, email, password, club_description, club_category_id, club_image, account_type)
-       VALUES ($1, $2, $3, $4, $5, $6, 'club') RETURNING *`,
-      [username, email, password]
+      `INSERT INTO ${table} (name, username, email, password, club_description, club_category_id, club_image, account_type)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'club') RETURNING *`,
+      [name, username, email, passwordHash, club_description, club_category_id, storedImageUrl]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {

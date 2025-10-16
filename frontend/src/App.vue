@@ -16,6 +16,10 @@ const showHeader = computed(() => {
 
 // Check authentication and redirect
 const checkAuthAndRedirect = async () => {
+  // Do not auto-restore or redirect on auth pages
+  if (route.name === 'Login' || route.name === 'Register') {
+    return;
+  }
   const token = localStorage.getItem('token');
   
   if (token) {

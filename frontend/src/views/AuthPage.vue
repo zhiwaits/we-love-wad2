@@ -27,11 +27,13 @@ onMounted(() => {
 
 // Switch between login and register
 const switchToLogin = () => {
+  store.dispatch('auth/clearError');
   activeView.value = 'login';
   router.push('/login');
 };
 
 const switchToRegister = () => {
+  store.dispatch('auth/clearError');
   activeView.value = 'register';
   router.push('/register');
 };
@@ -129,12 +131,6 @@ const switchToRegister = () => {
             </Transition>
           </div>
 
-          <!-- Back to Home Link -->
-          <div class="back-link">
-            <router-link to="/" class="link">
-              ← Back to Home
-            </router-link>
-          </div>
         </div>
       </div>
     </div>

@@ -82,7 +82,7 @@ const handleKeyPress = (event) => {
 
     <!-- Quick Test Accounts (only in mock mode) -->
     <div class="test-accounts">
-      <p class="test-accounts-title">Quick Test (Mock Mode):</p>
+      <p class="test-accounts-title">Quick Test:</p>
       <div class="test-accounts-grid">
         <button 
           class="test-account-btn" 

@@ -7,5 +7,4 @@ export const getFollowsByUserId = (userId) => axios.get(`${BASE_URL}/follows/use
 export const getFollowersByClubId = (clubId) => axios.get(`${BASE_URL}/follows/club/${clubId}`);
 export const createFollow = (followData) => axios.post(`${BASE_URL}/follows`, followData);
 export const deleteFollow = (id) => axios.delete(`${BASE_URL}/follows/${id}`);
-// Delete a follow using both follower_id and followed_club_id to match backend route
 export const deleteFollowByIds = (followerId, clubId) => axios.delete(`${BASE_URL}/follows/${followerId}/${clubId}`);

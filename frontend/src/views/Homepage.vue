@@ -1,5 +1,5 @@
 <script setup>
-import Hero from "../components/HeroClubs.vue";
+import Hero from "../components/HeroEvents.vue";
 import Search from "../components/SearchEvents.vue";
 import FilterPanel from "../components/EventsFilterPanel.vue";
 import EventsGrid from "../components/EventsGrid.vue";

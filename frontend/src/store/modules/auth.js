@@ -60,16 +60,17 @@ const actions = {
   /**
    * Register a new user
    */
-  async register({ commit }, { email, password, name, role }) {
+  async register({ commit }, { email, password, name, username, role, club_description, club_category_id, imageBase64, imageOriginalName }) {
     commit('SET_LOADING', true);
     commit('CLEAR_ERROR');
     
     try {
-      const response = await authService.register(email, password, name, role);
+  const response = await authService.register(email, password, name, username, role, { club_description, club_category_id, imageBase64, imageOriginalName });
       
-      const { user, token } = response.data;
+  const { user, token } = response.data;
+  const normalizedUser = { ...user, role: user?.role || user?.account_type };
       
-      commit('SET_USER', user);
+  commit('SET_USER', normalizedUser);
       commit('SET_TOKEN', token);
       commit('SET_LOADING', false);
       
@@ -91,9 +92,10 @@ const actions = {
     try {
       const response = await authService.login(email, password);
       
-      const { user, token } = response.data;
+  const { user, token } = response.data;
+  const normalizedUser = { ...user, role: user?.role || user?.account_type };
       
-      commit('SET_USER', user);
+  commit('SET_USER', normalizedUser);
       commit('SET_TOKEN', token);
       commit('SET_LOADING', false);
       
@@ -140,9 +142,10 @@ const actions = {
     
     try {
       const response = await authService.getCurrentUser();
-      const { user } = response.data;
+  const { user } = response.data;
+  const normalizedUser = { ...user, role: user?.role || user?.account_type };
       
-      commit('SET_USER', user);
+  commit('SET_USER', normalizedUser);
       commit('SET_LOADING', false);
       
       return { success: true, user };

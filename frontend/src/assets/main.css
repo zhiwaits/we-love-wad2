@@ -44,3 +44,14 @@
     justify-content: center;
   }
 }
+
+input::-webkit-credentials-auto-fill-button {
+  visibility: hidden;
+  display: none;
+  pointer-events: none;
+}
+
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}

@@ -1,7 +1,7 @@
-import { getClubProfiles } from '../services/profileService';
-import { getFollowersByClubId, getFollowsByUserId, createFollow, deleteFollowByIds } from '../services/followService';
-import { getAllClubCategories } from '../services/clubCategoryService';
-import { getAllEvents } from '../services/eventService';
+import { getClubProfiles } from '../../services/profileService';
+import { getFollowersByClubId, getFollowsByUserId, createFollow, deleteFollowByIds } from '../../services/followService';
+import { getAllClubCategories } from '../../services/clubCategoryService';
+import { getAllEvents } from '../../services/eventService';
 
 export default {
   namespaced: true,
@@ -9,13 +9,13 @@ export default {
     clubs: [], 
     followersCount: {}, 
     followingClubIds: [], 
-    categoriesById: {}, // { [id]: name }
+    categoriesById: {}, 
     filters: {
       searchQuery: '',
-      categoryId: 'all', // 'all' or numeric id
+      categoryId: 'all', 
       onlyWithUpcoming: false,
     },
-    events: [], // all events (shaped from backend)
+    events: [], 
     loading: false,
     error: null,
   }),
@@ -46,16 +46,17 @@ export default {
       today.setHours(0, 0, 0, 0);
 
       return s.clubs.filter(club => {
-        const name = (club.username || club.name || '').toLowerCase();
-        const matchesName = q ? name.includes(q) : true;
+        const username = (club.username || '').toLowerCase();
+        const displayName = (club.name || '').toLowerCase();
+        const matchesName = q ? (username.includes(q) || displayName.includes(q)) : true;
         const byCat = catId === 'all' ? true : Number(club.club_category_id) === Number(catId);
         if (!matchesName || !byCat) return false;
 
-        // Evaluate events associated to this club by ownerId
+       
         const clubIdNum = Number(club.id);
         const clubEvents = g.eventsByOwnerId.get(clubIdNum) || [];
 
-        // Only clubs with upcoming events
+     
         if (onlyUpcoming) {
           const hasUpcoming = clubEvents.some(ev => {
             if (!ev.date) return false;
@@ -90,7 +91,7 @@ export default {
     async loadClubs({ commit, dispatch }) {
       commit('setLoading', true); commit('setError', null);
       try {
-        // load categories first for mapping
+       
         try {
           const catRes = await getAllClubCategories();
           commit('setCategories', catRes.data || []);
@@ -100,7 +101,7 @@ export default {
         const clubs = res.data || [];
         commit('setClubs', clubs);
 
-        // also ensure events and tags for filtering
+       
         try {
           const evRes = await getAllEvents();
           commit('setEvents', evRes.data || []);

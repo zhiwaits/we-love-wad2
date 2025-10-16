@@ -1,24 +1,37 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useStore } from 'vuex';
 import { useRouter } from 'vue-router';
+import { getAllClubCategories } from '../services/clubCategoryService';
+import { checkAvailability } from '../services/authService';
 
 const store = useStore();
 const router = useRouter();
 
 // Form data
 const name = ref('');
+const username = ref('');
 const email = ref('');
 const password = ref('');
 const confirmPassword = ref('');
-const role = ref('user'); // Default to 'user'
+const role = ref('user'); 
+const clubDescription = ref('');
+const clubCategoryId = ref('');
+const categories = ref([]);
+const imageFile = ref(null);
+const imagePreview = ref('');
+const currentStep = ref(1);
 
 // Local error state
 const localError = ref('');
+const isCheckingAvailability = ref(false);
+const availabilityChecked = ref(false);
 
 // Loading and error from store
 const isLoading = computed(() => store.getters['auth/isLoading']);
 const authError = computed(() => store.getters['auth/authError']);
+const isClub = computed(() => role.value === 'club');
+const isProcessing = computed(() => isLoading.value || isCheckingAvailability.value);
 
 // Combined error message
 const errorMessage = computed(() => localError.value || authError.value);
@@ -26,115 +39,184 @@ const errorMessage = computed(() => localError.value || authError.value);
 // Emit event to parent to switch to login
 const emit = defineEmits(['switch-to-login']);
 
-// Password strength calculation
-const passwordStrength = computed(() => {
-  const pwd = password.value;
-  if (!pwd) return { level: 0, text: '', color: '' };
 
-  let strength = 0;
-  if (pwd.length >= 8) strength++;
-  if (pwd.length >= 12) strength++;
-  if (/[a-z]/.test(pwd) && /[A-Z]/.test(pwd)) strength++;
-  if (/\d/.test(pwd)) strength++;
-  if (/[^a-zA-Z0-9]/.test(pwd)) strength++;
-
-  if (strength <= 2) {
-    return { level: strength, text: 'Weak', color: 'var(--color-error)' };
-  } else if (strength <= 3) {
-    return { level: strength, text: 'Fair', color: 'var(--color-warning)' };
-  } else {
-    return { level: strength, text: 'Strong', color: 'var(--color-success)' };
-  }
-});
-
-// Show password strength indicator
-const showPasswordStrength = computed(() => {
-  return password.value.length > 0;
-});
-
-// Password match validation
 const passwordsMatch = computed(() => {
-  if (!confirmPassword.value) return true; // Don't show error if not touched yet
+  if (!confirmPassword.value) return true; 
   return password.value === confirmPassword.value;
 });
 
-// Form validation
-const isFormValid = computed(() => {
-  return (
-    name.value.trim() !== '' &&
-    email.value.trim() !== '' &&
-    password.value.trim() !== '' &&
-    confirmPassword.value.trim() !== '' &&
-    passwordsMatch.value &&
-    role.value !== ''
-  );
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function validateStepOne() {
+  if (!name.value.trim()) return 'Name is required';
+  if (!username.value.trim()) return 'Username is required';
+  if (!email.value.trim()) return 'Email is required';
+  if (!emailRegex.test(email.value.trim())) return 'Please enter a valid email address';
+  if (!password.value.trim()) return 'Password is required';
+  if (!confirmPassword.value.trim()) return 'Please confirm your password';
+  if (!passwordsMatch.value) return 'Passwords do not match';
+  if (!role.value) return 'Please select a role';
+  return '';
+}
+
+function validateStepTwo() {
+  if (role.value !== 'club') return '';
+  if (!clubDescription.value.trim()) return 'Club description is required';
+  if (!clubCategoryId.value) return 'Club category is required';
+  return '';
+}
+
+const stepOneError = computed(() => validateStepOne());
+const stepTwoError = computed(() => validateStepTwo());
+
+const isFormValid = computed(() => !stepOneError.value && !stepTwoError.value);
+
+watch(role, (newRole, oldRole) => {
+  if (newRole === oldRole) return;
+  currentStep.value = 1;
+  availabilityChecked.value = false;
+  localError.value = '';
+  if (newRole !== 'club') {
+    clubDescription.value = '';
+    clubCategoryId.value = '';
+    imageFile.value = null;
+    imagePreview.value = '';
+  }
 });
 
-// Handle registration
+watch([email, username], () => {
+  availabilityChecked.value = false;
+  localError.value = '';
+});
+
+watch(currentStep, (newStep, oldStep) => {
+  if (newStep === oldStep) return;
+  localError.value = '';
+  store.dispatch('auth/clearError');
+});
+onMounted(async () => {
+  try {
+    const res = await getAllClubCategories();
+    categories.value = res.data || [];
+  } catch (e) {
+    categories.value = [];
+  }
+});
+
+const onImageChange = async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  imageFile.value = file;
+  const reader = new FileReader();
+  reader.onload = () => {
+    imagePreview.value = reader.result;
+  };
+  reader.readAsDataURL(file);
+};
+
+
 const handleRegister = async () => {
-  // Clear previous errors
   localError.value = '';
   store.dispatch('auth/clearError');
 
-  // Validation
+
   if (!name.value.trim()) {
     localError.value = 'Name is required';
     return;
   }
 
-  if (!email.value.trim()) {
-    localError.value = 'Email is required';
+  const ensureAvailability = async () => {
+    if (availabilityChecked.value) return true;
+    isCheckingAvailability.value = true;
+    try {
+      const data = await checkAvailability({
+        email: email.value.trim(),
+        username: username.value.trim(),
+      });
+
+      if (data.emailTaken) {
+        localError.value = 'Email is already registered';
+        return false;
+      }
+
+      if (data.usernameTaken) {
+        localError.value = 'Username is already taken';
+        return false;
+      }
+
+      availabilityChecked.value = true;
+      return true;
+    } catch (error) {
+      localError.value = error.message || 'Unable to verify email and username';
+      return false;
+    } finally {
+      isCheckingAvailability.value = false;
+    }
+  };
+
+  const stepOneValidationError = stepOneError.value;
+  if (stepOneValidationError) {
+    localError.value = stepOneValidationError;
+    currentStep.value = 1;
     return;
   }
 
-  // Basic email format validation
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email.value)) {
-    localError.value = 'Please enter a valid email address';
+  const availabilityOk = await ensureAvailability();
+  if (!availabilityOk) {
+    currentStep.value = 1;
     return;
   }
 
-  if (!password.value.trim()) {
-    localError.value = 'Password is required';
+  if (isClub.value && currentStep.value === 1) {
+    currentStep.value = 2;
     return;
   }
 
-  if (password.value.length < 6) {
-    localError.value = 'Password must be at least 6 characters';
+  const stepTwoValidationError = stepTwoError.value;
+  if (stepTwoValidationError) {
+    localError.value = stepTwoValidationError;
+    currentStep.value = 2;
     return;
   }
 
-  if (!passwordsMatch.value) {
-    localError.value = 'Passwords do not match';
-    return;
-  }
-
-  if (!role.value) {
-    localError.value = 'Please select a role';
+  const availabilityBeforeSubmit = await ensureAvailability();
+  if (!availabilityBeforeSubmit) {
+    currentStep.value = isClub.value ? 1 : currentStep.value;
     return;
   }
 
   try {
     await store.dispatch('auth/register', {
       name: name.value.trim(),
+      username: username.value.trim(),
       email: email.value.trim(),
       password: password.value,
       role: role.value,
+      club_description: clubDescription.value.trim(),
+      club_category_id: clubCategoryId.value || null,
+      imageBase64: imagePreview.value || null,
+      imageOriginalName: imageFile.value?.name || null,
     });
 
-    // Success! Redirect to dashboard
+
     router.push('/');
   } catch (error) {
-    // Error is already in store
+
     console.error('Registration failed:', error);
   }
 };
 
-// Handle Enter key
+const goToPreviousStep = () => {
+  localError.value = '';
+  store.dispatch('auth/clearError');
+  currentStep.value = 1;
+};
+
+
 const handleKeyPress = (event) => {
-  if (event.key === 'Enter' && isFormValid.value) {
-    handleRegister();
-  }
+  if (event.key !== 'Enter' || isProcessing.value) return;
+  event.preventDefault();
+  handleRegister();
 };
 </script>
 
@@ -152,149 +234,201 @@ const handleKeyPress = (event) => {
     </div>
 
     <form @submit.prevent="handleRegister" class="form">
-      <!-- Role Selection -->
-      <div class="form-group">
-        <label class="form-label">I am a...</label>
-        <div class="role-selector">
-          <label class="role-option" :class="{ 'role-option--active': role === 'user' }">
-            <input
-              type="radio"
-              name="role"
-              value="user"
-              v-model="role"
-              :disabled="isLoading"
-            />
-            <div class="role-content">
-              <span class="role-icon">👤</span>
-              <div class="role-text">
-                <span class="role-title">Student</span>
-                <span class="role-description">Browse and RSVP to events</span>
+
+      <div v-if="!isClub || currentStep === 1">
+        <!-- Role Selection -->
+        <div class="form-group">
+          <label class="form-label">I am a...</label>
+          <div class="role-selector">
+            <label class="role-option" :class="{ 'role-option--active': role === 'user' }">
+              <input
+                type="radio"
+                name="role"
+                value="user"
+                v-model="role"
+                :disabled="isProcessing"
+              />
+              <div class="role-content">
+                <span class="role-icon">👤</span>
+                <div class="role-text">
+                  <span class="role-title">Student</span>
+                  <span class="role-description">Browse and RSVP to events</span>
+                </div>
               </div>
-            </div>
-          </label>
+            </label>
 
-          <label class="role-option" :class="{ 'role-option--active': role === 'club' }">
-            <input
-              type="radio"
-              name="role"
-              value="club"
-              v-model="role"
-              :disabled="isLoading"
-            />
-            <div class="role-content">
-              <span class="role-icon">🎭</span>
-              <div class="role-text">
-                <span class="role-title">Club / Organization</span>
-                <span class="role-description">Create and manage events</span>
+            <label class="role-option" :class="{ 'role-option--active': role === 'club' }">
+              <input
+                type="radio"
+                name="role"
+                value="club"
+                v-model="role"
+                :disabled="isProcessing"
+              />
+              <div class="role-content">
+                <span class="role-icon">🎭</span>
+                <div class="role-text">
+                  <span class="role-title">Club / Organization</span>
+                  <span class="role-description">Create and manage events</span>
+                </div>
               </div>
-            </div>
-          </label>
-        </div>
-      </div>
-
-      <!-- Name Input -->
-      <div class="form-group">
-        <label for="name" class="form-label">
-          {{ role === 'club' ? 'Club / Organization Name' : 'Full Name' }}
-        </label>
-        <input
-          id="name"
-          v-model="name"
-          type="text"
-          class="form-control"
-          :placeholder="role === 'club' ? 'SMU Dance Club' : 'John Doe'"
-          :disabled="isLoading"
-          @keypress="handleKeyPress"
-          autocomplete="name"
-        />
-      </div>
-
-      <!-- Email Input -->
-      <div class="form-group">
-        <label for="email" class="form-label">Email Address</label>
-        <input
-          id="email"
-          v-model="email"
-          type="email"
-          class="form-control"
-          placeholder="your.email@smu.edu.sg"
-          :disabled="isLoading"
-          @keypress="handleKeyPress"
-          autocomplete="email"
-        />
-      </div>
-
-      <!-- Password Input -->
-      <div class="form-group">
-        <label for="password" class="form-label">Password</label>
-        <input
-          id="password"
-          v-model="password"
-          type="password"
-          class="form-control"
-          placeholder="Create a strong password"
-          :disabled="isLoading"
-          @keypress="handleKeyPress"
-          autocomplete="new-password"
-        />
-        
-        <!-- Password Strength Indicator -->
-        <div v-if="showPasswordStrength" class="password-strength">
-          <div class="strength-bar">
-            <div 
-              class="strength-bar-fill" 
-              :style="{ 
-                width: `${(passwordStrength.level / 5) * 100}%`,
-                backgroundColor: passwordStrength.color
-              }"
-            ></div>
+            </label>
           </div>
-          <span class="strength-text" :style="{ color: passwordStrength.color }">
-            {{ passwordStrength.text }}
-          </span>
+        </div>
+
+        <!-- Name Input -->
+        <div class="form-group">
+          <label for="name" class="form-label">
+            {{ role === 'club' ? 'Club / Organization Name' : 'Full Name' }}
+          </label>
+          <input
+            id="name"
+            v-model="name"
+            type="text"
+            class="form-control"
+            :placeholder="role === 'club' ? 'SMU Dance Club' : 'John Doe'"
+            :disabled="isProcessing"
+            @keypress="handleKeyPress"
+          />
+        </div>
+
+        <!-- Username Input -->
+        <div class="form-group">
+          <label for="username" class="form-label">Username</label>
+          <input
+            id="username"
+            v-model="username"
+            type="text"
+            class="form-control"
+            placeholder="Choose a unique username"
+            :disabled="isProcessing"
+            @keypress="handleKeyPress"
+            autocomplete="username"
+          />
+        </div>
+
+        <!-- Email Input -->
+        <div class="form-group">
+          <label for="email" class="form-label">Email Address</label>
+          <input
+            id="email"
+            v-model="email"
+            type="email"
+            class="form-control"
+            placeholder="your.email@smu.edu.sg"
+            :disabled="isProcessing"
+            @keypress="handleKeyPress"
+          />
+        </div>
+
+        <!-- Password Input -->
+        <div class="form-group">
+          <label for="password" class="form-label">Password</label>
+          <input
+            id="password"
+            v-model="password"
+            type="password"
+            class="form-control"
+            placeholder="Enter a password"
+            :disabled="isProcessing"
+            @keypress="handleKeyPress"
+          />
+        </div>
+
+        <!-- Confirm Password Input -->
+        <div class="form-group">
+          <label for="confirmPassword" class="form-label">Confirm Password</label>
+          <input
+            id="confirmPassword"
+            v-model="confirmPassword"
+            type="password"
+            class="form-control"
+            :class="{ 'form-control--error': !passwordsMatch && confirmPassword.length > 0 }"
+            placeholder="Re-enter your password"
+            :disabled="isProcessing"
+            @keypress="handleKeyPress"
+          />
+          <p v-if="!passwordsMatch && confirmPassword.length > 0" class="field-error">
+            Passwords do not match
+          </p>
         </div>
       </div>
 
-      <!-- Confirm Password Input -->
-      <div class="form-group">
-        <label for="confirmPassword" class="form-label">Confirm Password</label>
-        <input
-          id="confirmPassword"
-          v-model="confirmPassword"
-          type="password"
-          class="form-control"
-          :class="{ 'form-control--error': !passwordsMatch && confirmPassword.length > 0 }"
-          placeholder="Re-enter your password"
-          :disabled="isLoading"
-          @keypress="handleKeyPress"
-          autocomplete="new-password"
-        />
-        <p v-if="!passwordsMatch && confirmPassword.length > 0" class="field-error">
-          Passwords do not match
-        </p>
+      <div v-if="isClub && currentStep === 2">
+        <div class="form-notice" style="margin-bottom: 16px;">
+          <p class="notice-text">Provide your club details below.</p>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="clubdesc">Club Description</label>
+          <textarea id="clubdesc" class="form-control" rows="3" v-model="clubDescription" placeholder="Describe your club"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="clubcat">Club Category</label>
+          <select id="clubcat" class="form-control" v-model="clubCategoryId">
+            <option value="" disabled>Select category</option>
+            <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="clubimg">Club Image</label>
+          <input id="clubimg" type="file" accept="image/*" class="form-control" @change="onImageChange" :disabled="isProcessing" />
+          <div v-if="imagePreview" style="margin-top:8px;">
+            <img :src="imagePreview" alt="Preview" style="max-width: 200px; border-radius: 8px;" />
+          </div>
+        </div>
       </div>
 
-      <!-- Terms and Conditions -->
-      <div class="form-notice">
-        <p class="notice-text">
-          By creating an account, you agree to our 
-          <a href="#" class="notice-link">Terms of Service</a> and 
-          <a href="#" class="notice-link">Privacy Policy</a>
-        </p>
-      </div>
 
-      <!-- Register Button -->
-      <button
-        type="submit"
-        class="btn btn--primary btn--full-width"
-        :disabled="!isFormValid || isLoading"
-      >
-        <span v-if="!isLoading">Create Account</span>
-        <span v-else class="loading-text">
-          <span class="loading-spinner"></span>
-          Creating account...
-        </span>
-      </button>
+
+      <div class="form-actions">
+        <template v-if="isClub && currentStep === 2">
+          <button
+            type="button"
+            class="btn btn--primary btn--full-width btn--outline"
+            @click="goToPreviousStep"
+            :disabled="isProcessing"
+          >
+            Back
+          </button>
+          <button
+            type="submit"
+            class="btn btn--primary btn--full-width"
+            :disabled="!isFormValid || isProcessing"
+          >
+            <span v-if="!isLoading">Create Account</span>
+            <span v-else class="loading-text">
+              <span class="loading-spinner"></span>
+              Creating account...
+            </span>
+          </button>
+        </template>
+
+        <template v-else>
+          <button
+            v-if="isClub && currentStep === 1"
+            type="submit"
+            class="btn btn--primary btn--full-width"
+            :disabled="!!stepOneError || isProcessing"
+          >
+            Next
+          </button>
+          <button
+            v-else
+            type="submit"
+            class="btn btn--primary btn--full-width"
+            :disabled="!isFormValid || isProcessing"
+          >
+            <span v-if="!isLoading">Create Account</span>
+            <span v-else class="loading-text">
+              <span class="loading-spinner"></span>
+              Creating account...
+            </span>
+          </button>
+        </template>
+      </div>
     </form>
 
     <!-- Switch to Login -->
@@ -305,7 +439,7 @@ const handleKeyPress = (event) => {
           type="button" 
           class="switch-link" 
           @click="emit('switch-to-login')"
-          :disabled="isLoading"
+          :disabled="isProcessing"
         >
           Sign In
         </button>
@@ -380,6 +514,27 @@ const handleKeyPress = (event) => {
   margin-bottom: var(--space-24);
 }
 
+.step-indicator {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: var(--space-24);
+  padding: var(--space-8) var(--space-12);
+  background-color: rgba(var(--color-primary-rgb, var(--color-teal-500-rgb)), 0.05);
+  border-radius: var(--radius-base);
+}
+
+.step-indicator__item {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.step-indicator__item--active {
+  color: var(--color-primary);
+}
+
 .form-group {
   margin-bottom: var(--space-20);
 }
@@ -403,7 +558,7 @@ const handleKeyPress = (event) => {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-base);
   transition: border-color var(--duration-fast) var(--ease-standard),
-    box-shadow var(--duration-fast) var(--ease-standard);
+  box-shadow var(--duration-fast) var(--ease-standard);
 }
 
 .form-control:focus {
@@ -503,35 +658,6 @@ const handleKeyPress = (event) => {
   line-height: 1.3;
 }
 
-/* Password Strength */
-.password-strength {
-  margin-top: var(--space-8);
-  display: flex;
-  align-items: center;
-  gap: var(--space-12);
-}
-
-.strength-bar {
-  flex: 1;
-  height: 4px;
-  background-color: var(--color-secondary);
-  border-radius: var(--radius-full);
-  overflow: hidden;
-}
-
-.strength-bar-fill {
-  height: 100%;
-  transition: width var(--duration-normal) var(--ease-standard),
-              background-color var(--duration-normal) var(--ease-standard);
-  border-radius: var(--radius-full);
-}
-
-.strength-text {
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-  flex-shrink: 0;
-}
-
 /* Form Notice */
 .form-notice {
   margin-bottom: var(--space-20);
@@ -563,6 +689,22 @@ const handleKeyPress = (event) => {
   align-items: center;
   justify-content: center;
   gap: var(--space-8);
+}
+
+.form-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.btn--outline {
+  background-color: transparent;
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+}
+
+.btn--outline:hover:not(:disabled) {
+  background-color: rgba(var(--color-primary-rgb, var(--color-teal-500-rgb)), 0.08);
 }
 
 .loading-spinner {

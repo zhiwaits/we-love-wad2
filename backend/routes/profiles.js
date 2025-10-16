@@ -5,6 +5,7 @@ const profilesController = require('../controllers/profilesController');
 router.get('/', profilesController.getAllProfiles);
 router.get('/user', profilesController.getAllUserProfiles);
 router.get('/club', profilesController.getAllClubProfiles);
+router.get('/availability', profilesController.checkAvailability);
 router.get('/:id', profilesController.getProfileById);
 router.post('/user', profilesController.createUserProfile);
 router.post('/club', profilesController.createClubProfile);
