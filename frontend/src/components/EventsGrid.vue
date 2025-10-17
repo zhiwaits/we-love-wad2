@@ -3,6 +3,9 @@ import { mapGetters, mapActions, mapState } from 'vuex';
 import EventDetailModal from './EventDetailModal.vue';
 import { shareEventLink } from '../utils/shareEvent';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const FALLBACK_PLACEHOLDER = 'https://placehold.co/600x400?text=Event';
+
 export default {
     name: 'EventsGrid',
     components: {
@@ -16,16 +19,16 @@ export default {
         };
     },
 
+
     mounted() {
         this.$store.dispatch('fetchAllEvents');
     },
 
     computed: {
-        // Get filtered events from store instead of hardcoded data
         ...mapGetters(['filteredEvents']),
+        ...mapGetters(['categoryColorMap']),
         ...mapState(['filters']),
 
-        // Alias for template clarity
         events() {
             return this.filteredEvents;
         }
@@ -33,6 +36,19 @@ export default {
 
     methods: {
         ...mapActions(['toggleTag']),
+
+        eventImageSrc(event) {
+            if (!event) return FALLBACK_PLACEHOLDER;
+            const raw = event.image || event.image_url || event.imageUrl || event.cover;
+            if (!raw) return FALLBACK_PLACEHOLDER;
+            if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+            const normalized = raw.replace('/uploads/event/event_', '/uploads/event/');
+            return `${API_BASE_URL}${normalized.startsWith('/') ? '' : '/'}${normalized}`;
+        },
+
+        handleEventImageError(eventObj, ev) {
+            if (ev && ev.target) ev.target.src = FALLBACK_PLACEHOLDER;
+        },
 
         // Format attendees display
         formatAttendees(event) {
@@ -42,17 +58,14 @@ export default {
             return `${event.attendees} attending`;
         },
 
-        // Format date for display
         formatDate(dateString) {
             const date = new Date(dateString);
             const options = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' };
             return date.toLocaleDateString('en-US', options);
         },
 
-        // Handle tag click
         handleTagClick(tag) {
             this.toggleTag(tag);
-            // Scroll to top to see filtered results
             window.scrollTo({ top: 0, behavior: 'smooth' });
         },
 
@@ -89,7 +102,6 @@ export default {
             this.selectedEvent = null;
         },
 
-        // Check if tag is selected
         isTagSelected(tag) {
             return this.filters.selectedTags.includes(tag);
         }
@@ -119,8 +131,8 @@ export default {
                     @keyup.space.prevent="openEventModal(event)"
                 >
                     <div class="event-image">
-                        <img v-if="event.image" :src="event.image" alt="Event Image" class="event-img" />
-                        <div v-else class="event-image-placeholder"></div>
+                        <img :src="eventImageSrc(event)" alt="Event Image" class="event-img" @error="handleEventImageError(event, $event)" />
+                        <div v-if="!eventImageSrc(event)" class="event-image-placeholder"></div>
                         <div class="event-price-tag" :class="{ 'price-free': event.price === 'FREE' }">
                             {{ event.price }}
                         </div>
@@ -128,7 +140,11 @@ export default {
 
                     <div class="event-content">
                         <div class="event-header">
-                            <span class="event-category">{{ event.category }}</span>
+                            <span
+                                class="event-category"
+                                :class="`badge-${(event.category||'').toLowerCase().replace(/\s+/g,'-')}`"
+                                :style="categoryColorMap && categoryColorMap[event.category] ? { backgroundColor: categoryColorMap[event.category], color: '#fff' } : {}"
+                            >{{ event.category }}</span>
                             <span v-if="event.status" class="event-status">{{ event.status }}</span>
                         </div>
 
@@ -407,6 +423,15 @@ export default {
     color: white;
     border-color: var(--color-primary, #007bff);
 }
+
+/* Category badge color fallbacks (ensure consistent palette) */
+.badge-academic { background-color: #007bff; color: #fff; }
+.badge-workshop { background-color: #28a745; color: #fff; }
+.badge-performance { background-color: #dc3545; color: #fff; }
+.badge-recreation { background-color: #ffc107; color: #222; }
+.badge-career { background-color: #17a2b8; color: #fff; }
+.badge-social { background-color: #6f42c1; color: #fff; }
+.badge-sports { background-color: #fd7e14; color: #fff; }
 
 @keyframes card-enter {
     from { opacity: 0; transform: translateY(12px); }

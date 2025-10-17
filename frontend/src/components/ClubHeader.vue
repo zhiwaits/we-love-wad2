@@ -9,7 +9,7 @@
         <nav class="nav">
           <router-link to="/events/create" class="nav-link">Create Event</router-link>
           <router-link to="/clubs" class="nav-link">My Events</router-link>
-          <router-link to="/dashboard" class="nav-link">My Dashboard</router-link>
+          <router-link to="/dashboard/club" class="nav-link">My Dashboard</router-link>
         </nav>
         <button class="btn btn--primary" @click="handleAuthClick">
           {{ isAuthenticated ? 'Sign Out' : 'Sign In' }}

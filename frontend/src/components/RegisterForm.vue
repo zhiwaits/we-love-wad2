@@ -21,6 +21,8 @@ const categories = ref([]);
 const imageFile = ref(null);
 const imagePreview = ref('');
 const currentStep = ref(1);
+const primaryButtonClass = 'btn btn--primary btn--full-width';
+const outlineButtonClass = `${primaryButtonClass} btn--outline`;
 
 // Local error state
 const localError = ref('');
@@ -387,7 +389,7 @@ const handleKeyPress = (event) => {
         <template v-if="isClub && currentStep === 2">
           <button
             type="button"
-            class="btn btn--primary btn--full-width btn--outline"
+            :class="outlineButtonClass"
             @click="goToPreviousStep"
             :disabled="isProcessing"
           >
@@ -395,7 +397,7 @@ const handleKeyPress = (event) => {
           </button>
           <button
             type="submit"
-            class="btn btn--primary btn--full-width"
+            :class="primaryButtonClass"
             :disabled="!isFormValid || isProcessing"
           >
             <span v-if="!isLoading">Create Account</span>
@@ -410,7 +412,7 @@ const handleKeyPress = (event) => {
           <button
             v-if="isClub && currentStep === 1"
             type="submit"
-            class="btn btn--primary btn--full-width"
+            :class="primaryButtonClass"
             :disabled="!!stepOneError || isProcessing"
           >
             Next
@@ -418,7 +420,7 @@ const handleKeyPress = (event) => {
           <button
             v-else
             type="submit"
-            class="btn btn--primary btn--full-width"
+            :class="primaryButtonClass"
             :disabled="!isFormValid || isProcessing"
           >
             <span v-if="!isLoading">Create Account</span>
@@ -695,6 +697,24 @@ const handleKeyPress = (event) => {
   display: flex;
   flex-direction: column;
   gap: var(--space-12);
+}
+
+.form-actions .btn--primary {
+  border: 1px solid var(--color-primary);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard),
+    background var(--duration-fast) var(--ease-standard);
+}
+
+.form-actions .btn--primary:disabled {
+  border-color: var(--color-border);
+  box-shadow: none;
+}
+
+.form-actions .btn--primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
 }
 
 .btn--outline {

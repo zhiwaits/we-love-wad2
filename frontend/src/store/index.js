@@ -1,11 +1,50 @@
-import auth from './modules/auth'; 
+import auth from './modules/auth';
 import { createStore } from 'vuex';
 import { getAllEvents } from "../services/eventService.js";
 import { getAllEventCategories } from '../services/eventCategoryService.js';
 import { getAllEventVenues } from '../services/eventVenueService.js';
+import { getAllTags } from '../services/tagService.js';
 import clubs from './modules/clubs';
 
 let toastTimer = null;
+
+
+const COLOR_PALETTE = [
+  '#1f77b4',
+  '#ff7f0e',
+  '#2ca02c',
+  '#d62728',
+  '#9467bd',
+  '#8c564b',
+  '#e377c2',
+  '#7f7f7f',
+  '#bcbd22',
+  '#17becf',
+  '#393b79', '#637939', '#8ca252', '#b5cf6b', '#6b6ecf', '#9c9ede', '#cedb9c', '#e7ba52', '#bd9e39', '#ad494a', '#a55194', '#6b6ecf', '#9c9ede', '#e7cb94'
+];
+
+function pickColorByName(name) {
+  if (!name) return COLOR_PALETTE[0];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = ((hash << 5) - hash) + name.charCodeAt(i);
+    hash |= 0;
+  }
+  const idx = Math.abs(hash) % COLOR_PALETTE.length;
+  return COLOR_PALETTE[idx];
+}
+
+function assignPalette(items) {
+  const paletteLen = COLOR_PALETTE.length;
+  let nextIdx = 0;
+  return items.map((it, i) => {
+    const name = (it && typeof it === 'string') ? it : (it && it.name) ? it.name : '';
+    const provided = it && typeof it === 'object' ? (it.color || it.color_hex || it.hex || it.hex_code || null) : null;
+    const color = provided || COLOR_PALETTE[nextIdx % paletteLen];
+    if (!provided) nextIdx++;
+    return { name, color };
+  });
+}
 
 export default createStore({
 
@@ -18,6 +57,13 @@ export default createStore({
       totalAttended: 12,
       savedCount: 3,
       clubsFollowed: 8
+    },
+
+    clubStats: {
+      upcomingEvents: 0,
+      totalEvents: 0,
+      currentRSVPs: 0,
+      followers: 0
     },
 
     userRSVPs: [1, 2, 3], // Will hold event IDs user has RSVP'd to
@@ -34,11 +80,9 @@ export default createStore({
       locationQuery: ''
     },
 
-  // Available options for filters
-  categories: [],
-  venues: [],
+    categories: [],
+    venues: [],
 
-    // All unique tags from events
     availableTags: [],
 
     toast: {
@@ -156,6 +200,28 @@ export default createStore({
       return Array.from(tagSet).sort();
     },
 
+    // Category names (for backwards-compatible v-for loops)
+    categoryNames: (state) => {
+      return Array.isArray(state.categories)
+        ? state.categories.map(c => (typeof c === 'string' ? c : c.name)).filter(Boolean)
+        : [];
+    },
+
+    // Map of category name -> color (if provided)
+    categoryColorMap: (state) => {
+      const map = {};
+      if (!Array.isArray(state.categories)) return map;
+      state.categories.forEach(c => {
+        if (!c) return;
+        const name = typeof c === 'string' ? c : c.name;
+        let color = null;
+        if (typeof c === 'string') color = pickColorByName(c);
+        else color = c.color || pickColorByName(name);
+        if (name) map[name] = color;
+      });
+      return map;
+    },
+
     // Get unique venues
     allVenues: (state) => {
       if (state.venues && state.venues.length > 0) {
@@ -174,7 +240,7 @@ export default createStore({
     resultsCount: (state, getters) => {
       return getters.filteredEvents.length;
     },
-    
+
     // Dashboard-specific getters
     upcomingUserEvents: (state) => {
       const now = new Date();
@@ -210,11 +276,35 @@ export default createStore({
     },
 
     SET_EVENT_CATEGORIES(state, categories) {
-      state.categories = categories;
+      if (!Array.isArray(categories)) {
+        state.categories = [];
+        return;
+      }
+
+      const normalized = categories.map(item => {
+        if (!item) return null;
+        if (typeof item === 'string') return item.trim();
+        const name = (item.name || item.label || item?.Name || '').trim();
+        const provided = item.color || item.color_hex || item.hex || item.hex_code || null;
+        return { name, color: provided || null };
+      }).filter(Boolean);
+
+      normalized.sort((a, b) => {
+        const na = typeof a === 'string' ? a : a.name || '';
+        const nb = typeof b === 'string' ? b : b.name || '';
+        return na.localeCompare(nb);
+      });
+
+      const assigned = assignPalette(normalized);
+      state.categories = assigned.map(c => ({ name: c.name, color: c.color }));
     },
 
     SET_EVENT_VENUES(state, venues) {
       state.venues = venues;
+    },
+
+    SET_AVAILABLE_TAGS(state, tags) {
+      state.availableTags = Array.isArray(tags) ? tags : [];
     },
 
     // Update search query
@@ -224,6 +314,10 @@ export default createStore({
 
     SET_USER_STATS(state, stats) {
       state.userStats = stats;
+    },
+
+    SET_CLUB_STATS(state, stats) {
+      state.clubStats = stats;
     },
 
     SET_USER_RSVPS(state, eventIds) {
@@ -304,10 +398,24 @@ export default createStore({
       }
       try {
         const response = await getAllEventCategories();
-        const names = Array.isArray(response.data)
-          ? response.data.map((item) => item?.name?.trim()).filter(Boolean)
-          : [];
-        commit('SET_EVENT_CATEGORIES', names.sort());
+        const raw = Array.isArray(response.data) ? response.data : [];
+        // Normalize: if backend returns objects with name and color use them; if it returns strings, keep as strings
+        const normalized = raw.map(item => {
+          if (!item) return null;
+          if (typeof item === 'string') return item.trim();
+          // prefer explicit fields
+          return {
+            name: (item.name || item.label || '').trim(),
+            color: item.color || item.color_hex || item.hex || item.hex_code || null
+          };
+        }).filter(Boolean);
+        // Sort by name
+        normalized.sort((a, b) => {
+          const na = typeof a === 'string' ? a : a.name || '';
+          const nb = typeof b === 'string' ? b : b.name || '';
+          return na.localeCompare(nb);
+        });
+        commit('SET_EVENT_CATEGORIES', normalized);
       } catch (error) {
         console.error('Failed to load event categories', error);
         commit('SET_EVENT_CATEGORIES', []);
@@ -330,6 +438,30 @@ export default createStore({
       }
     },
 
+    async fetchAvailableTags({ state, commit }, { force = false } = {}) {
+      if (!force && Array.isArray(state.availableTags) && state.availableTags.length > 0) {
+        return;
+      }
+      try {
+        const response = await getAllTags();
+        const tags = Array.isArray(response.data) ? response.data : [];
+        const names = tags
+          .map((item) => {
+            if (!item) return null;
+            if (typeof item === 'string') return item.trim();
+            return (item.tag_name || item.name || '').trim();
+          })
+          .filter(Boolean);
+        names.sort((a, b) => a.localeCompare(b));
+        commit('SET_AVAILABLE_TAGS', names);
+      } catch (error) {
+        console.error('Failed to load event tags', error);
+        if (force) {
+          commit('SET_AVAILABLE_TAGS', []);
+        }
+      }
+    },
+
     async fetchAllEvents({ commit }) {
       try {
         const response = await getAllEvents();
@@ -346,6 +478,16 @@ export default createStore({
         commit('SET_USER_STATS', response.data);
       } catch (error) {
         console.error('Error fetching user stats:', error);
+      }
+    },
+
+    async fetchClubStats({ commit }, clubId) {
+      try {
+        const { getClubStats } = await import('../services/statsService');
+        const response = await getClubStats(clubId);
+        commit('SET_CLUB_STATS', response.data);
+      } catch (error) {
+        console.error('Error fetching club stats:', error);
       }
     },
 

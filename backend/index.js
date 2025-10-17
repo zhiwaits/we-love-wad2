@@ -20,7 +20,7 @@ const eventCategories = require('./routes/eventCategories');
 const eventVenues = require('./routes/eventVenues');
 
 app.use(cors());
-app.use(bodyParser.json({ limit: '5mb' }));
+app.use(bodyParser.json({ limit: '25mb' }));
 app.use('/uploads', express.static(path.resolve(__dirname, 'uploads')));
 app.use('/events', eventsRoutes);
 app.use('/profiles', profilesRoutes);

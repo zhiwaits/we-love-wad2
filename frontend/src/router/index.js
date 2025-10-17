@@ -4,7 +4,8 @@ import store from '../store';
 // Import views
 import Homepage from '../views/Homepage.vue';
 import AuthPage from '../views/AuthPage.vue';
-import Dashboard from '../components/Dashboard.vue';
+import UserDashboard from '../components/UserDashboard.vue';
+import ClubDashboard from '../components/ClubDashboard.vue';
 
 const routes = [
   {
@@ -39,9 +40,15 @@ const routes = [
   },
   {
     path: '/dashboard',
-    name: 'Dashboard',
-    component: Dashboard,
-    meta: { requiresAuth: true }
+    name: 'UserDashboard',
+    component: UserDashboard,
+    meta: { requiresAuth: true, requiresRole: ['user'] }
+  },
+  {
+    path: '/dashboard/club',
+    name: 'ClubDashboard',
+    component: ClubDashboard,
+    meta: { requiresAuth: true, requiresRole: ['club'] }
   },
   {
     path: '/clubs',
@@ -61,8 +68,11 @@ const router = createRouter({
 });
 
 router.beforeEach(async (to, from, next) => {
-  const requiresAuth = to.meta.requiresAuth;
-  const requiredRole = to.meta.requiresRole;
+  const requiresAuth = Boolean(to.meta.requiresAuth);
+  const requiredRolesMeta = to.meta.requiresRole;
+  const requiredRoles = requiredRolesMeta
+    ? Array.isArray(requiredRolesMeta) ? requiredRolesMeta : [requiredRolesMeta]
+    : [];
 
   let isAuthenticated = store.getters['auth/isAuthenticated'];
 
@@ -82,10 +92,15 @@ router.beforeEach(async (to, from, next) => {
     }
   }
 
-  if (requiredRole) {
+  if (requiresAuth || requiredRoles.length > 0) {
     const currentUser = store.getters['auth/currentUser'];
-    const role = currentUser?.role || currentUser?.account_type;
-    if (role !== requiredRole) {
+    const role = currentUser?.role || currentUser?.account_type || null;
+
+    if (role === 'club' && to.name === 'UserDashboard') {
+      return next({ name: 'ClubDashboard' });
+    }
+
+    if (requiredRoles.length > 0 && (!role || !requiredRoles.includes(role))) {
       return next({ name: 'Home' });
     }
   }

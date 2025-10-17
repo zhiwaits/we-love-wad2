@@ -10,7 +10,6 @@ const store = useStore();
 const route = useRoute();
 const router = useRouter();
 
-// Hide header ONLY on login/register pages
 const showHeader = computed(() => !['Login', 'Register'].includes(route.name));
 
 const currentUser = computed(() => store.getters['auth/currentUser']);
@@ -21,9 +20,9 @@ const activeHeader = computed(() => {
   return role === 'club' ? ClubHeader : UserHeader;
 });
 
-// Check authentication and redirect
+
 const checkAuthAndRedirect = async () => {
-  // Do not auto-restore or redirect on auth pages
+
   if (route.name === 'Login' || route.name === 'Register') {
     return;
   }
@@ -40,30 +39,25 @@ const checkAuthAndRedirect = async () => {
     }
   }
   
-  // After checking auth, redirect if needed
   const isAuth = store.getters['auth/isAuthenticated'];
   console.log('Is authenticated:', isAuth);
   console.log('Current route:', route.name);
   
-  // If not authenticated and not on auth pages, redirect to login
   if (!isAuth && route.name !== 'Login' && route.name !== 'Register') {
     console.log('Not authenticated, redirecting to login...');
     router.push('/login');
   }
   
-  // If authenticated and on auth pages, redirect to home
   if (isAuth && (route.name === 'Login' || route.name === 'Register')) {
     console.log('Already authenticated, redirecting to home...');
     router.push('/');
   }
 };
 
-// Check on mount
 onMounted(() => {
   checkAuthAndRedirect();
 });
 
-// Watch route changes
 watch(() => route.path, () => {
   checkAuthAndRedirect();
 });
@@ -71,10 +65,11 @@ watch(() => route.path, () => {
 
 <template>
   <div id="app">
-    <!-- Show header everywhere except auth pages -->
+
   <component v-if="activeHeader" :is="activeHeader" />
     
     <router-view />
+    <Toast />
   </div>
 </template>
 

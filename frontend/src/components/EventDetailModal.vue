@@ -7,8 +7,8 @@
                     <span aria-hidden="true">×</span>
                 </button>
 
-                <div class="modal-media" v-if="event.image">
-                    <img :src="event.image" :alt="`${event.title} hero`" />
+                <div class="modal-media" v-if="event">
+                    <img :src="eventImageSrc(event)" :alt="`${event.title} hero`" @error="handleImageError" />
                     <div class="modal-chip category" v-if="event.category">{{ event.category }}</div>
                     <div class="modal-chip price" :class="{ free: event.price === 'FREE' }" v-if="event.price">
                         {{ event.price }}
@@ -102,6 +102,8 @@
 </template>
 
 <script>
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const FALLBACK_PLACEHOLDER = 'https://placehold.co/900x400?text=Event';
 export default {
     name: 'EventDetailModal',
     props: {
@@ -165,6 +167,18 @@ export default {
             if (event.key === 'Escape' && this.visible) {
                 this.emitClose();
             }
+        },
+        eventImageSrc(event) {
+            if (!event) return FALLBACK_PLACEHOLDER;
+            const raw = event.image || event.image_url || event.imageUrl || event.cover;
+            if (!raw) return FALLBACK_PLACEHOLDER;
+            if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+            const normalized = raw.replace('/uploads/event/event_', '/uploads/event/');
+            return `${API_BASE_URL}${normalized.startsWith('/') ? '' : '/'}${normalized}`;
+        },
+
+        handleImageError(ev) {
+            if (ev && ev.target) ev.target.src = FALLBACK_PLACEHOLDER;
         },
         formatDateLong(isoDate) {
             if (!isoDate) return '';

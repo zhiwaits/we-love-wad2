@@ -1,33 +1,33 @@
 <script setup>
-import Hero from "../components/HeroEvents.vue";
-import Search from "../components/SearchEvents.vue";
-import FilterPanel from "../components/EventsFilterPanel.vue";
-import EventsGrid from "../components/EventsGrid.vue";
+import CreateEvent from "../components/CreateEvent.vue";
 </script>
 
 <template>
-    <div class="home-page">
-        <Hero></Hero>
-        <Search></Search>
-
-        <div class="container-fluid main-content">
-            <div class="content-layout">
-                <div class="sidebar">
-                    <FilterPanel></FilterPanel>
-                </div>
-
-                <div class="events-area">
-                    <EventsGrid></EventsGrid>
-                </div>
-            </div>
+    <div class="club-create-page">
+        <div class="create-wrapper">
+            <CreateEvent />
         </div>
     </div>
 </template>
 
 <style scoped>
-.home-page {
+.club-create-page {
+    /* Full viewport so we can center the inner card with equal margins */
+    min-height: 100vh;
+    display: flex;
+    align-items: center; /* vertical center */
+    justify-content: center; /* horizontal center */
     background-color: var(--color-background);
     color: var(--color-text);
+    padding: var(--space-24, 24px); /* ensures equal outer spacing on very small screens */
+    box-sizing: border-box;
+}
+
+.create-wrapper {
+    /* Constrain width of the create form and allow it to size naturally */
+    width: 100%;
+    max-width: 960px; /* reasonable form width */
+    margin: auto; /* keep centered if parent layout changes */
 }
 
 .main-content {
