@@ -153,20 +153,17 @@ const handleTagFromModal = (tag) => {
         </div>
       </section>
 
-      <!-- Upcoming Events Section -->
       <section class="dashboard-section">
         <div class="section-header">
           <h2 class="section-title">My Upcoming Events</h2>
           <router-link to="/" class="section-link">Browse More →</router-link>
         </div>
 
-        <!-- Empty State -->
         <div v-if="upcomingEvents.length === 0" class="empty-state">
           <p class="empty-message">You haven't RSVP'd to any upcoming events yet</p>
           <router-link to="/" class="btn btn--primary">Browse Events</router-link>
         </div>
 
-        <!-- Events Grid -->
         <div v-else class="events-grid">
           <div
             v-for="event in upcomingEvents"
