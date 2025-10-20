@@ -19,7 +19,6 @@
                     <header class="modal-header">
                         <h2 class="event-title">{{ event.title }}</h2>
                         <p class="event-organiser" v-if="event.organiser">
-
                             By {{ event.organiser }}
                         </p>
                     </header>
@@ -67,6 +66,36 @@
                         </div>
                     </section>
 
+                    <!-- Travel Time Section -->
+                    <section class="travel-time-section" v-if="loadingTravelTime || travelTime || locationError">
+                        <div v-if="loadingTravelTime" class="travel-loading">
+                            <div class="spinner"></div>
+                            <span>Calculating travel time from your location...</span>
+                        </div>
+                        
+                        <div v-else-if="travelTime" class="travel-info">
+                            <div class="travel-header">
+                                <span class="icon">🚗</span>
+                                <span>Travel Information</span>
+                            </div>
+                            <div class="travel-details">
+                                <div class="travel-item">
+                                    <span class="travel-label">Estimated Time</span>
+                                    <span class="travel-value">{{ travelTime.duration }}</span>
+                                </div>
+                                <div class="travel-item">
+                                    <span class="travel-label">Distance</span>
+                                    <span class="travel-value">{{ travelTime.distance }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div v-else-if="locationError" class="travel-error">
+                            <span class="icon">⚠️</span>
+                            <span>{{ locationError }}</span>
+                        </div>
+                    </section>
+
                     <section class="event-status" v-if="statusVariant">
                         <span class="status-pill" :class="statusVariant">
                             {{ statusText }}
@@ -88,8 +117,27 @@
                         </div>
                     </section>
 
+                    <!-- Success/Error Messages -->
+                    <div v-if="successMessage" class="alert alert-success">
+                        <span class="icon">✓</span>
+                        {{ successMessage }}
+                    </div>
+                    
+                    <div v-if="errorMessage" class="alert alert-error">
+                        <span class="icon">✕</span>
+                        {{ errorMessage }}
+                    </div>
+
                     <footer class="modal-actions">
-                        <button type="button" class="btn btn-primary">Join Event</button>
+                        <button 
+                            type="button" 
+                            class="btn btn-primary"
+                            @click="handleReserve"
+                            :disabled="isReserving"
+                        >
+                            <span v-if="isReserving">Reserving...</span>
+                            <span v-else>Join Event</span>
+                        </button>
                         <div class="secondary-actions">
                             <button type="button" class="btn btn-outline">Save</button>
                             <button type="button" class="btn btn-outline">Share</button>
@@ -102,6 +150,8 @@
 </template>
 
 <script>
+import { createRsvp } from '../services/rsvpService.js';
+
 export default {
     name: 'EventDetailModal',
     props: {
@@ -115,6 +165,20 @@ export default {
         }
     },
     emits: ['close', 'tag-click'],
+    
+    data() {
+        return {
+            isReserving: false,
+            loadingTravelTime: false,
+            travelTime: null,
+            locationError: null,
+            successMessage: '',
+            errorMessage: '',
+            userLocation: null,
+            currentUserId: 1 // TODO: Get from Vuex auth state
+        };
+    },
+    
     computed: {
         spotsRemaining() {
             if (this.event?.maxAttendees == null) return null;
@@ -142,30 +206,40 @@ export default {
             return 'success';
         }
     },
+    
     watch: {
         visible(val) {
             document.body.classList.toggle('modal-open', val);
+            if (val && this.event) {
+                this.resetMessages();
+                this.fetchLocationAndTravelTime();
+            }
         }
     },
+    
     mounted() {
         if (this.visible) {
             document.body.classList.add('modal-open');
         }
         window.addEventListener('keyup', this.handleEsc, { passive: true });
     },
+    
     beforeUnmount() {
         document.body.classList.remove('modal-open');
         window.removeEventListener('keyup', this.handleEsc);
     },
+    
     methods: {
         emitClose() {
             this.$emit('close');
         },
+        
         handleEsc(event) {
             if (event.key === 'Escape' && this.visible) {
                 this.emitClose();
             }
         },
+        
         formatDateLong(isoDate) {
             if (!isoDate) return '';
             try {
@@ -177,6 +251,165 @@ export default {
                 });
             } catch (e) {
                 return isoDate;
+            }
+        },
+        
+        resetMessages() {
+            this.successMessage = '';
+            this.errorMessage = '';
+            this.locationError = null;
+            this.travelTime = null;
+        },
+        
+        async getUserLocation() {
+            return new Promise((resolve, reject) => {
+                if ('geolocation' in navigator) {
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            resolve({
+                                lat: position.coords.latitude,
+                                lng: position.coords.longitude
+                            });
+                        },
+                        (error) => {
+                            let errorMsg = 'Unable to get your location';
+                            switch(error.code) {
+                                case error.PERMISSION_DENIED:
+                                    errorMsg = 'Location permission denied';
+                                    break;
+                                case error.POSITION_UNAVAILABLE:
+                                    errorMsg = 'Location information unavailable';
+                                    break;
+                                case error.TIMEOUT:
+                                    errorMsg = 'Location request timed out';
+                                    break;
+                            }
+                            reject(errorMsg);
+                        },
+                        {
+                            enableHighAccuracy: true,
+                            timeout: 5000,
+                            maximumAge: 0
+                        }
+                    );
+                } else {
+                    reject('Geolocation not supported by your browser');
+                }
+            });
+        },
+        
+        async calculateTravelTime(userLat, userLng, eventLat, eventLng) {
+            try {
+                const response = await fetch('http://localhost:3000/api/travel-time', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        origin: { lat: userLat, lng: userLng },
+                        destination: { lat: eventLat, lng: eventLng }
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to calculate travel time');
+                }
+                
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('Error calculating travel time:', error);
+                return null;
+            }
+        },
+        
+        async fetchLocationAndTravelTime() {
+            this.loadingTravelTime = true;
+            
+            try {
+                this.userLocation = await this.getUserLocation();
+                
+                // Check if event has coordinates
+                if (this.event.latitude && this.event.longitude) {
+                    const result = await this.calculateTravelTime(
+                        this.userLocation.lat,
+                        this.userLocation.lng,
+                        this.event.latitude,
+                        this.event.longitude
+                    );
+                    
+                    if (result) {
+                        this.travelTime = result;
+                    } else {
+                        this.locationError = 'Could not calculate travel time';
+                    }
+                } else {
+                    // If no coordinates, skip silently (don't show error)
+                    this.locationError = null;
+                }
+            } catch (error) {
+                this.locationError = error;
+            } finally {
+                this.loadingTravelTime = false;
+            }
+        },
+        
+        // Add this to the <script> section of EventDetailModal.vue
+
+        async handleReserve() {
+            this.isReserving = true;
+            this.errorMessage = '';
+            this.successMessage = '';
+            
+            try {
+                // TODO: Get actual userId from Vuex auth state or localStorage
+                // For now, let's check if we have a valid userId
+                const userId = this.currentUserId || this.$store.state.user?.id || localStorage.getItem('userId');
+                
+                if (!userId) {
+                    this.errorMessage = 'Please log in to reserve an event';
+                    this.isReserving = false;
+                    return;
+                }
+                
+                const rsvpData = {
+                    eventId: this.event.id,
+                    userId: parseInt(userId), // Ensure it's a number
+                    status: 'confirmed'
+                };
+                
+                console.log('Attempting to create RSVP with data:', rsvpData);
+                
+                const response = await createRsvp(rsvpData);
+                
+                if (response.status === 200 || response.status === 201) {
+                    this.successMessage = 'Successfully reserved your spot!';
+                    
+                    // Refresh events in store
+                    this.$store.dispatch('fetchAllEvents');
+                    
+                    // Close modal after 2 seconds
+                    setTimeout(() => {
+                        this.emitClose();
+                    }, 2000);
+                }
+            } catch (error) {
+                console.error('Reservation failed:', error);
+                
+                // Better error handling
+                if (error.response) {
+                    // Server responded with error
+                    const errorMsg = error.response.data?.error || error.response.data?.message;
+                    this.errorMessage = errorMsg || 'Failed to reserve event. Please try again.';
+                } else if (error.request) {
+                    // Request made but no response
+                    this.errorMessage = 'Unable to connect to server. Please check your connection.';
+                } else {
+                    // Something else happened
+                    this.errorMessage = error.message || 'An unexpected error occurred';
+                }
+            } finally {
+                this.isReserving = false;
             }
         }
     }
@@ -225,6 +458,7 @@ export default {
     display: grid;
     place-items: center;
     transition: background 0.2s ease;
+    z-index: 10;
 }
 
 .modal-close:hover {
@@ -339,6 +573,106 @@ export default {
     color: var(--color-text-secondary);
 }
 
+/* Travel Time Styles */
+.travel-time-section {
+    background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%);
+    border-radius: 16px;
+    padding: 16px;
+}
+
+.travel-loading {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #3b82f6;
+    font-size: 14px;
+}
+
+.spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(59, 130, 246, 0.3);
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.travel-info {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.travel-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--color-text);
+}
+
+.travel-details {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+}
+
+.travel-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.travel-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(0, 0, 0, 0.6);
+}
+
+.travel-value {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1e40af;
+}
+
+.travel-error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #fef2f2;
+    color: #dc2626;
+    padding: 12px;
+    border-radius: 12px;
+    font-size: 13px;
+}
+
+/* Alert Messages */
+.alert {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-radius: 12px;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.alert-success {
+    background: #d1fae5;
+    color: #059669;
+}
+
+.alert-error {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
 .event-status {
     display: flex;
     justify-content: flex-start;
@@ -424,9 +758,15 @@ export default {
     box-shadow: 0 10px 20px rgba(var(--color-teal-500-rgb, 33, 128, 141), 0.25);
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
     transform: translateY(-1px);
     box-shadow: 0 14px 24px rgba(var(--color-teal-500-rgb, 33, 128, 141), 0.28);
+}
+
+.btn-primary:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+    opacity: 0.6;
 }
 
 .btn-outline {
@@ -475,6 +815,10 @@ export default {
 
     .btn {
         width: 100%;
+    }
+    
+    .travel-details {
+        grid-template-columns: 1fr;
     }
 }
 </style>

@@ -6,6 +6,9 @@ const pool = new Pool({
     database: 'postgres',
     password: 'group7loveswad2',
     port: 5432,
+    //ssl: true, // Explicitly enable SSL
+    ssl: { rejectUnauthorized: false }// for testing purpose only, disable in production
+
 });
 
 pool.query('SELECT NOW()', (err, res) => {

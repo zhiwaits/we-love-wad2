@@ -8,8 +8,4 @@ const apiClient = axios.create({
   },
 });
 
-export default {
-  getHelloWorld() {
-    return apiClient.get('/');
-  },
-};
+export default apiClient;

@@ -67,11 +67,13 @@ exports.getAllEvents = async (req, res) => {
         e.capacity,
         e.image_url,
         e.price,
-        p.name AS organiser_name,
+        e.latitude,
+        e.longitude,
+        u.name AS organiser_name,
         COALESCE(t.tags, '{}') AS tags,
         COALESCE(r.attendees, 0) AS attendees
       FROM ${table} e
-      LEFT JOIN profiles p ON p.id = e.owner_id
+      LEFT JOIN users u ON u.id = e.owner_id
       LEFT JOIN (
         SELECT etm.event_id, array_agg(DISTINCT et.tag_name) AS tags
         FROM event_tag_map etm
@@ -98,6 +100,8 @@ exports.getAllEvents = async (req, res) => {
       time: formatTimeRange(row.datetime, row.enddatetime),
       location: row.location || '',
       venue: deriveVenue(row.location),
+      latitude: row.latitude,
+      longitude: row.longitude,
       attendees: Number(row.attendees) || 0,
       maxAttendees: row.capacity != null ? Number(row.capacity) : null,
       description: row.description || '',
@@ -125,11 +129,13 @@ exports.getEventById = async (req, res) => {
         e.capacity,
         e.image_url,
         e.price,
-        p.name AS organiser_name,
+        e.latitude,
+        e.longitude,
+        u.name AS organiser_name,
         COALESCE(t.tags, '{}') AS tags,
         COALESCE(r.attendees, 0) AS attendees
       FROM ${table} e
-      LEFT JOIN profiles p ON p.id = e.owner_id
+      LEFT JOIN users u ON u.id = e.owner_id
       LEFT JOIN (
         SELECT etm.event_id, array_agg(DISTINCT et.tag_name) AS tags
         FROM event_tag_map etm
@@ -158,6 +164,8 @@ exports.getEventById = async (req, res) => {
       time: formatTimeRange(row.datetime, row.enddatetime),
       location: row.location || '',
       venue: deriveVenue(row.location),
+      latitude: row.latitude,
+      longitude: row.longitude,
       attendees: Number(row.attendees) || 0,
       maxAttendees: row.capacity != null ? Number(row.capacity) : null,
       description: row.description || '',
@@ -173,12 +181,12 @@ exports.getEventById = async (req, res) => {
 exports.createEvent = async (req, res) => {
   try {
     const {
-      title, description, datetime, location, category, capacity, image_url, owner_id, enddatetime, price
+      title, description, datetime, location, category, capacity, image_url, owner_id, enddatetime, price, latitude, longitude
     } = req.body;
     const result = await pool.query(
-      `INSERT INTO ${table} (title, description, datetime, location, category, capacity, image_url, owner_id, enddatetime, price)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-      [title, description, datetime, location, category, capacity, image_url, owner_id, enddatetime, price]
+      `INSERT INTO ${table} (title, description, datetime, location, category, capacity, image_url, owner_id, enddatetime, price, latitude, longitude)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+      [title, description, datetime, location, category, capacity, image_url, owner_id, enddatetime, price, latitude, longitude]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -190,13 +198,13 @@ exports.createEvent = async (req, res) => {
 exports.updateEvent = async (req, res) => {
   const { id } = req.params;
   const {
-    title, description, datetime, location, category, capacity, image_url, owner_id, enddatetime, price
+    title, description, datetime, location, category, capacity, image_url, owner_id, enddatetime, price, latitude, longitude
   } = req.body;
   try {
     const result = await pool.query(
       `UPDATE ${table} SET title=$1, description=$2, datetime=$3, location=$4,
-       category=$5, capacity=$6, image_url=$7, owner_id=$8, enddatetime=$10, price=$11 WHERE id=$9 RETURNING *`,
-      [title, description, datetime, location, category, capacity, image_url, owner_id, id, enddatetime, price]
+       category=$5, capacity=$6, image_url=$7, owner_id=$8, enddatetime=$10, price=$11, latitude=$12, longitude=$13 WHERE id=$9 RETURNING *`,
+      [title, description, datetime, location, category, capacity, image_url, owner_id, id, enddatetime, price, latitude, longitude]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Event not found' });
     res.json(result.rows[0]);
