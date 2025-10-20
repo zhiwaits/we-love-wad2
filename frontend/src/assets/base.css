@@ -114,6 +114,9 @@
   --space-20: 20px;
   --space-24: 24px;
   --space-32: 32px;
+  --space-48: 48px;  
+  --space-56: 56px; 
+  --space-64: 64px; 
 
   /* Border Radius */
   --radius-sm: 6px;
@@ -311,6 +314,12 @@ html {
 body {
   margin: 0;
   padding: 0;
+  background-color: var(--color-background);
+  color: var(--color-text);
+}
+
+body.modal-open {
+  overflow: hidden;
 }
 
 *,

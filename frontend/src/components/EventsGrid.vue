@@ -1,50 +1,80 @@
 <script>
 import { mapGetters, mapActions, mapState } from 'vuex';
+import EventDetailModal from './EventDetailModal.vue';
 
 export default {
-  name: 'EventsGrid',
-  
-  computed: {
-    // Get filtered events from store instead of hardcoded data
-    ...mapGetters(['filteredEvents']),
-    ...mapState(['filters']),
-    
-    // Alias for template clarity
-    events() {
-      return this.filteredEvents;
+    name: 'EventsGrid',
+    components: {
+        EventDetailModal
+    },
+
+    data() {
+        return {
+            selectedEvent: null,
+            showEventModal: false
+        };
+    },
+
+    mounted() {
+        this.$store.dispatch('fetchAllEvents');
+    },
+
+    computed: {
+        // Get filtered events from store instead of hardcoded data
+        ...mapGetters(['filteredEvents']),
+        ...mapState(['filters']),
+
+        // Alias for template clarity
+        events() {
+            return this.filteredEvents;
+        }
+    },
+
+    methods: {
+        ...mapActions(['toggleTag']),
+
+        // Format attendees display
+        formatAttendees(event) {
+            if (event.maxAttendees) {
+                return `${event.attendees} / ${event.maxAttendees} attending`;
+            }
+            return `${event.attendees} attending`;
+        },
+
+        // Format date for display
+        formatDate(dateString) {
+            const date = new Date(dateString);
+            const options = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' };
+            return date.toLocaleDateString('en-US', options);
+        },
+
+        // Handle tag click
+        handleTagClick(tag) {
+            this.toggleTag(tag);
+            // Scroll to top to see filtered results
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        },
+
+        handleTagFromModal(tag) {
+            this.handleTagClick(tag);
+            this.closeEventModal();
+        },
+
+        openEventModal(event) {
+            this.selectedEvent = event;
+            this.showEventModal = true;
+        },
+
+        closeEventModal() {
+            this.showEventModal = false;
+            this.selectedEvent = null;
+        },
+
+        // Check if tag is selected
+        isTagSelected(tag) {
+            return this.filters.selectedTags.includes(tag);
+        }
     }
-  },
-  
-  methods: {
-    ...mapActions(['toggleTag']),
-    
-    // Format attendees display
-    formatAttendees(event) {
-      if (event.maxAttendees) {
-        return `${event.attendees} / ${event.maxAttendees} attending`;
-      }
-      return `${event.attendees} attending`;
-    },
-    
-    // Format date for display
-    formatDate(dateString) {
-      const date = new Date(dateString);
-      const options = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' };
-      return date.toLocaleDateString('en-US', options);
-    },
-    
-    // Handle tag click
-    handleTagClick(tag) {
-      this.toggleTag(tag);
-      // Scroll to top to see filtered results
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    },
-    
-    // Check if tag is selected
-    isTagSelected(tag) {
-      return this.filters.selectedTags.includes(tag);
-    }
-  }
 }
 </script>
 
@@ -56,12 +86,21 @@ export default {
                 <h3>No events found</h3>
                 <p>Try adjusting your search or filters to find what you're looking for.</p>
             </div>
-            
+
             <!-- Events Grid -->
             <div v-else class="events-container">
-                <div v-for="event in events" :key="event.id" class="event-card">
+                <div
+                    v-for="event in events"
+                    :key="event.id"
+                    class="event-card"
+                    role="button"
+                    tabindex="0"
+                    @click="openEventModal(event)"
+                    @keyup.enter.prevent="openEventModal(event)"
+                    @keyup.space.prevent="openEventModal(event)"
+                >
                     <div class="event-image">
-                        <img v-if="event.image" :src="event.image" alt="Event Image" class="event-img"/>
+                        <img v-if="event.image" :src="event.image" alt="Event Image" class="event-img" />
                         <div v-else class="event-image-placeholder"></div>
                         <div class="event-price-tag" :class="{ 'price-free': event.price === 'FREE' }">
                             {{ event.price }}
@@ -92,17 +131,12 @@ export default {
                         </div>
 
                         <p class="event-description">{{ event.description }}</p>
-                        
+
                         <!-- Tags Display -->
                         <!-- Tags Display - Now Clickable! -->
                         <div class="event-tags">
-                            <span 
-                                v-for="tag in event.tags" 
-                                :key="tag" 
-                                class="tag-badge"
-                                @click.stop="handleTagClick(tag)"
-                                :class="{ 'tag-selected': isTagSelected(tag) }"
-                            >
+                            <span v-for="tag in event.tags" :key="tag" class="tag-badge"
+                                @click.stop="handleTagClick(tag)" :class="{ 'tag-selected': isTagSelected(tag) }">
                                 #{{ tag }}
                             </span>
                         </div>
@@ -110,6 +144,12 @@ export default {
                 </div>
             </div>
         </div>
+        <EventDetailModal
+            :visible="showEventModal"
+            :event="selectedEvent"
+            @close="closeEventModal"
+            @tag-click="handleTagFromModal"
+        />
     </section>
 </template>
 
@@ -136,8 +176,10 @@ export default {
 
 .events-container {
     display: grid;
-    grid-template-columns: repeat(3, minmax(350px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(280px, 360px));
+    justify-content: center;
     gap: var(--space-24);
+    width: 100%;
 }
 
 .event-card {
@@ -236,13 +278,13 @@ export default {
     margin-bottom: var(--space-16);
 }
 
-.event-details > div {
+.event-details>div {
     margin-bottom: var(--space-8);
     font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
 }
 
-.event-details > div:last-child {
+.event-details>div:last-child {
     margin-bottom: 0;
 }
 

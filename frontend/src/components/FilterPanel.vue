@@ -157,11 +157,12 @@ export default {
 
 <style scoped>
 .filter-panel {
-  background-color: var(--color-surface, #fff);
+  background-color: var(--color-surface);
   border-radius: var(--radius-lg, 8px);
   padding: var(--space-24, 24px);
-  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.1));
-  border: 1px solid var(--color-border, #e0e0e0);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
 }
 
 .filter-panel-header {
@@ -170,19 +171,19 @@ export default {
   align-items: center;
   margin-bottom: var(--space-24, 24px);
   padding-bottom: var(--space-16, 16px);
-  border-bottom: 2px solid var(--color-border, #e0e0e0);
+  border-bottom: 2px solid var(--color-border);
 }
 
 .filter-panel-header h3 {
   margin: 0;
   font-size: var(--font-size-xl, 1.25rem);
-  color: var(--color-text, #333);
+  color: var(--color-text);
   font-weight: var(--font-weight-bold, 700);
 }
 
 .clear-btn {
-  background-color: var(--color-danger, #dc3545);
-  color: white;
+  background-color: var(--color-error);
+  color: var(--color-btn-primary-text);
   border: none;
   padding: var(--space-8, 8px) var(--space-16, 16px);
   border-radius: var(--radius-base, 4px);
@@ -193,7 +194,8 @@ export default {
 }
 
 .clear-btn:hover {
-  background-color: #c82333;
+  background-color: var(--color-error);
+  filter: brightness(0.9);
 }
 
 .filter-section {
@@ -219,14 +221,14 @@ export default {
 .filter-section-header h4 {
   margin: 0;
   font-size: var(--font-size-base, 1rem);
-  color: var(--color-text, #333);
+  color: var(--color-text);
   font-weight: var(--font-weight-semibold, 600);
 }
 
 .toggle-icon {
   font-size: var(--font-size-xl, 1.25rem);
   font-weight: bold;
-  color: var(--color-text-secondary, #6c757d);
+  color: var(--color-text-secondary);
 }
 
 .filter-section-content {
@@ -269,7 +271,7 @@ export default {
 .checkbox-text {
   flex: 1;
   font-size: var(--font-size-base, 1rem);
-  color: var(--color-text, #333);
+  color: var(--color-text);
 }
 
 .category-badge {
@@ -297,8 +299,8 @@ export default {
 
 .tag-button {
   background-color: var(--color-bg-1, #f8f9fa);
-  border: 1px solid var(--color-border, #dee2e6);
-  color: var(--color-text-secondary, #6c757d);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
   padding: var(--space-6, 6px) var(--space-12, 12px);
   border-radius: var(--radius-full, 999px);
   font-size: var(--font-size-sm, 0.875rem);
@@ -309,27 +311,27 @@ export default {
 
 .tag-button:hover {
   background-color: var(--color-bg-2, #e9ecef);
-  border-color: var(--color-primary, #007bff);
-  color: var(--color-primary, #007bff);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
   transform: translateY(-1px);
 }
 
 .tag-button.tag-active {
-  background-color: var(--color-primary, #007bff);
-  border-color: var(--color-primary, #007bff);
-  color: white;
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-btn-primary-text);
 }
 
 .active-filters {
   margin-top: var(--space-24, 24px);
   padding-top: var(--space-16, 16px);
-  border-top: 1px solid var(--color-border, #e0e0e0);
+  border-top: 1px solid var(--color-border);
 }
 
 .active-filters h4 {
   margin: 0 0 var(--space-12, 12px) 0;
   font-size: var(--font-size-base, 1rem);
-  color: var(--color-text-secondary, #6c757d);
+  color: var(--color-text-secondary);
   font-weight: var(--font-weight-medium, 500);
 }
 
@@ -340,7 +342,7 @@ export default {
 .filter-label {
   display: block;
   font-size: var(--font-size-sm, 0.875rem);
-  color: var(--color-text-secondary, #6c757d);
+  color: var(--color-text-secondary);
   font-weight: var(--font-weight-medium, 500);
   margin-bottom: var(--space-8, 8px);
 }
@@ -355,8 +357,8 @@ export default {
   display: inline-flex;
   align-items: center;
   gap: var(--space-6, 6px);
-  background-color: var(--color-primary, #007bff);
-  color: white;
+  background-color: var(--color-primary);
+  color: var(--color-btn-primary-text);
   padding: var(--space-4, 4px) var(--space-8, 8px);
   border-radius: var(--radius-base, 4px);
   font-size: var(--font-size-sm, 0.875rem);
@@ -366,7 +368,7 @@ export default {
 .remove-filter {
   background: none;
   border: none;
-  color: white;
+  color: inherit;
   font-size: var(--font-size-lg, 1.125rem);
   cursor: pointer;
   padding: 0;

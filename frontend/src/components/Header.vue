@@ -7,9 +7,9 @@
           <p class="tagline">Discover amazing events</p>
         </div>
         <nav class="nav">
-          <a href="#" class="nav-link ">Browse Events</a>
-          <a href="#" class="nav-link ">Categories</a>
-          <a href="#" class="nav-link ">Create Event</a>
+          <router-link to="/" class="nav-link">Browse Events</router-link>
+          <router-link to="/dashboard" class="nav-link">My Dashboard</router-link>
+          <a href="#" class="nav-link">Create Event</a>
         </nav>
         <button class="btn btn--primary">Sign In</button>
       </div>
@@ -22,9 +22,12 @@ export default { name: 'Header' }
 
 <style scoped>
 .header {
-  background-color: var(--color-cream-50);
+  background-color: var(--color-surface);
+  color: var(--color-text);
   padding: var(--space-16) 0;
   border-bottom: 1px solid var(--color-border);
+  transition: background-color var(--duration-normal) var(--ease-standard),
+    border-color var(--duration-normal) var(--ease-standard);
 }
 
 .header-content {
@@ -40,7 +43,7 @@ export default { name: 'Header' }
 }
 
 .logo {
-  color: var(--color-black);
+  color: var(--color-text);
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
   margin: 0;
@@ -48,7 +51,7 @@ export default { name: 'Header' }
 }
 
 .tagline {
-  color: var(--color-gray-300);
+  color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
   margin: var(--space-2) 0 0 0;
 }
@@ -59,13 +62,13 @@ export default { name: 'Header' }
 }
 
 .nav-link {
-  color: var(--color-black);
+  color: var(--color-text);
   text-decoration: none;
   font-weight: var(--font-weight-medium);
   transition: color var(--duration-fast) var(--ease-standard);
 }
 
 .nav-link:hover {
-  color: var(--color-blue);
+  color: var(--color-primary);
 }
 </style>
