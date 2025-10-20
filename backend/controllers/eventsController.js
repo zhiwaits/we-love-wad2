@@ -54,119 +54,150 @@ function deriveVenue(location) {
 }
 
 exports.getAllEvents = async (req, res) => {
-  try {
-    const query = `
-      SELECT 
-        e.id,
-        e.title,
-        e.description,
-        e.datetime,
-        e.enddatetime,
-        e.location,
-        e.category,
-        e.capacity,
-        e.image_url,
-        e.price,
-        p.name AS organiser_name,
-        COALESCE(t.tags, '{}') AS tags,
-        COALESCE(r.attendees, 0) AS attendees
-      FROM ${table} e
-      LEFT JOIN profiles p ON p.id = e.owner_id
-      LEFT JOIN (
-        SELECT etm.event_id, array_agg(DISTINCT et.tag_name) AS tags
-        FROM event_tag_map etm
-        JOIN event_tags et ON et.id = etm.tag_id
-        GROUP BY etm.event_id
-      ) t ON t.event_id = e.id
-      LEFT JOIN (
-        SELECT event_id, COUNT(*) AS attendees
-        FROM rsvps
-        GROUP BY event_id
-      ) r ON r.event_id = e.id
-      ORDER BY e.datetime ASC
-    `;
-    const result = await pool.query(query);
+    try {
+        const query = `
+            SELECT
+                e.id,
+                e.title,
+                e.description,
+                e.datetime,
+                e.enddatetime,
+                e.location,
+                e.category,
+                e.capacity,
+                e.image_url,
+                e.price,
+                p.name AS organiser_name,
+                COALESCE(t.tags, '{}') AS tags,
+                COALESCE(r.attendees, 0) AS attendees,
+                v.latitude,
+                v.altitude
+            FROM ${table} e
+            LEFT JOIN profiles p ON p.id = e.owner_id
+            LEFT JOIN event_venues v ON v.name = CASE
+                WHEN LOWER(e.location) LIKE '%zoom%' OR LOWER(e.location) LIKE '%online%' OR LOWER(e.location) LIKE '%virtual%' THEN 'Virtual'
+                WHEN LOWER(e.location) LIKE '%connex%' THEN 'Connexion'
+                WHEN LOWER(e.location) LIKE '%lkcsb%' THEN 'LKCSB'
+                WHEN LOWER(e.location) LIKE '%soe%' OR LOWER(e.location) LIKE '%scis%' THEN 'SOE/SCIS2'
+                WHEN LOWER(e.location) LIKE '%business%' THEN 'SOB'
+                WHEN LOWER(e.location) LIKE '%jetty%' THEN 'Off-Campus'
+                ELSE 'Off-Campus'
+            END
+            LEFT JOIN (
+                SELECT etm.event_id, array_agg(DISTINCT et.tag_name) AS tags
+                FROM event_tag_map etm
+                JOIN event_tags et ON et.id = etm.tag_id
+                GROUP BY etm.event_id
+            ) t ON t.event_id = e.id
+            LEFT JOIN (
+                SELECT event_id, COUNT(*) AS attendees
+                FROM rsvps
+                GROUP BY event_id
+            ) r ON r.event_id = e.id
+            ORDER BY e.datetime ASC
+        `;
 
-    const shaped = result.rows.map((row) => ({
-      id: row.id,
-      title: row.title,
-      organiser: row.organiser_name || 'Unknown',
-      category: row.category || '',
-      tags: Array.isArray(row.tags) ? row.tags : [],
-      price: formatPriceTag(row.price),
-      date: formatDateISO(row.datetime),
-      time: formatTimeRange(row.datetime, row.enddatetime),
-      location: row.location || '',
-      venue: deriveVenue(row.location),
-      attendees: Number(row.attendees) || 0,
-      maxAttendees: row.capacity != null ? Number(row.capacity) : null,
-      description: row.description || '',
-      image: row.image_url || ''
-    }));
+        const result = await pool.query(query);
 
-    res.json(shaped);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+        const shaped = result.rows.map((row) => ({
+            id: row.id,
+            title: row.title,
+            organiser: row.organiser_name || 'Unknown',
+            category: row.category || '',
+            tags: Array.isArray(row.tags) ? row.tags : [],
+            price: formatPriceTag(row.price),
+            date: formatDateISO(row.datetime),
+            time: formatTimeRange(row.datetime, row.enddatetime),
+            location: row.location || '',
+            venue: deriveVenue(row.location),
+            attendees: Number(row.attendees) || 0,
+            maxAttendees: row.capacity != null ? Number(row.capacity) : null,
+            description: row.description || '',
+            image: row.image_url || '',
+            latitude: row.latitude,
+            altitude: row.altitude
+        }));
+
+        res.json(shaped);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 };
 
-
 exports.getEventById = async (req, res) => {
-  try {
-    const query = `
-      SELECT 
-        e.id,
-        e.title,
-        e.description,
-        e.datetime,
-        e.enddatetime,
-        e.location,
-        e.category,
-        e.capacity,
-        e.image_url,
-        e.price,
-        p.name AS organiser_name,
-        COALESCE(t.tags, '{}') AS tags,
-        COALESCE(r.attendees, 0) AS attendees
-      FROM ${table} e
-      LEFT JOIN profiles p ON p.id = e.owner_id
-      LEFT JOIN (
-        SELECT etm.event_id, array_agg(DISTINCT et.tag_name) AS tags
-        FROM event_tag_map etm
-        JOIN event_tags et ON et.id = etm.tag_id
-        GROUP BY etm.event_id
-      ) t ON t.event_id = e.id
-      LEFT JOIN (
-        SELECT event_id, COUNT(*) AS attendees
-        FROM rsvps
-        GROUP BY event_id
-      ) r ON r.event_id = e.id
-      WHERE e.id = $1
-      LIMIT 1
-    `;
-    const result = await pool.query(query, [req.params.id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Event not found' });
-    const row = result.rows[0];
-    const shaped = {
-      id: row.id,
-      title: row.title,
-      organiser: row.organiser_name || 'Unknown',
-      category: row.category || '',
-      tags: Array.isArray(row.tags) ? row.tags : [],
-      price: formatPriceTag(row.price),
-      date: formatDateISO(row.datetime),
-      time: formatTimeRange(row.datetime, row.enddatetime),
-      location: row.location || '',
-      venue: deriveVenue(row.location),
-      attendees: Number(row.attendees) || 0,
-      maxAttendees: row.capacity != null ? Number(row.capacity) : null,
-      description: row.description || '',
-      image: row.image_url || ''
-    };
-    res.json(shaped);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+    try {
+        const query = `
+            SELECT
+                e.id,
+                e.title,
+                e.description,
+                e.datetime,
+                e.enddatetime,
+                e.location,
+                e.category,
+                e.capacity,
+                e.image_url,
+                e.price,
+                p.name AS organiser_name,
+                COALESCE(t.tags, '{}') AS tags,
+                COALESCE(r.attendees, 0) AS attendees,
+                v.latitude,
+                v.altitude
+            FROM ${table} e
+            LEFT JOIN profiles p ON p.id = e.owner_id
+            LEFT JOIN event_venues v ON v.name = CASE
+                WHEN LOWER(e.location) LIKE '%zoom%' OR LOWER(e.location) LIKE '%online%' OR LOWER(e.location) LIKE '%virtual%' THEN 'Virtual'
+                WHEN LOWER(e.location) LIKE '%connex%' THEN 'Connexion'
+                WHEN LOWER(e.location) LIKE '%lkcsb%' THEN 'LKCSB'
+                WHEN LOWER(e.location) LIKE '%soe%' OR LOWER(e.location) LIKE '%scis%' THEN 'SOE/SCIS2'
+                WHEN LOWER(e.location) LIKE '%business%' THEN 'SOB'
+                WHEN LOWER(e.location) LIKE '%jetty%' THEN 'Off-Campus'
+                ELSE 'Off-Campus'
+            END
+            LEFT JOIN (
+                SELECT etm.event_id, array_agg(DISTINCT et.tag_name) AS tags
+                FROM event_tag_map etm
+                JOIN event_tags et ON et.id = etm.tag_id
+                GROUP BY etm.event_id
+            ) t ON t.event_id = e.id
+            LEFT JOIN (
+                SELECT event_id, COUNT(*) AS attendees
+                FROM rsvps
+                GROUP BY event_id
+            ) r ON r.event_id = e.id
+            WHERE e.id = $1
+            LIMIT 1
+        `;
+
+        const result = await pool.query(query, [req.params.id]);
+
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Event not found' });
+
+        const row = result.rows[0];
+
+        const shaped = {
+            id: row.id,
+            title: row.title,
+            organiser: row.organiser_name || 'Unknown',
+            category: row.category || '',
+            tags: Array.isArray(row.tags) ? row.tags : [],
+            price: formatPriceTag(row.price),
+            date: formatDateISO(row.datetime),
+            time: formatTimeRange(row.datetime, row.enddatetime),
+            location: row.location || '',
+            venue: deriveVenue(row.location),
+            attendees: Number(row.attendees) || 0,
+            maxAttendees: row.capacity != null ? Number(row.capacity) : null,
+            description: row.description || '',
+            image: row.image_url || '',
+            latitude: row.latitude,
+            altitude: row.altitude
+        };
+
+        res.json(shaped);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 };
 
 

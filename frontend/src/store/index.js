@@ -7,7 +7,7 @@ export default createStore({
     allEvents: [],
 
     currentUser: {
-      id: 1,
+      id: 16,
       name: 'Aryan Singh',
       email: 'aryan.singh.2024@scis.smu.edu.sg'
     },

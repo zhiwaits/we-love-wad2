@@ -19,7 +19,6 @@
                     <header class="modal-header">
                         <h2 class="event-title">{{ event.title }}</h2>
                         <p class="event-organiser" v-if="event.organiser">
-
                             By {{ event.organiser }}
                         </p>
                     </header>
@@ -73,6 +72,30 @@
                         </span>
                     </section>
 
+                    <!-- NEW: Google Maps Section -->
+                    <section class="event-map" v-if="hasValidCoordinates">
+                        <h3>Location & Travel Time</h3>
+                        
+                        <!-- Travel Time Display -->
+                        <div v-if="travelInfo.duration" class="travel-info">
+                            <span class="travel-icon">🚗</span>
+                            <span class="travel-text">
+                                <strong>{{ travelInfo.duration }}</strong> 
+                                <span class="travel-distance">({{ travelInfo.distance }})</span>
+                                from your location
+                            </span>
+                        </div>
+                        <div v-else-if="travelInfo.loading" class="travel-info loading">
+                            Calculating travel time...
+                        </div>
+                        <div v-else-if="travelInfo.error" class="travel-info error">
+                            {{ travelInfo.error }}
+                        </div>
+
+                        <!-- Map Container -->
+                        <div ref="mapContainer" class="map-container"></div>
+                    </section>
+
                     <section class="event-description" v-if="event.description">
                         <h3>About this event</h3>
                         <p>{{ event.description }}</p>
@@ -89,7 +112,23 @@
                     </section>
 
                     <footer class="modal-actions">
-                        <button type="button" class="btn btn-primary">Join Event</button>
+                        <!-- UPDATED: Join Event Button -->
+                        <button 
+                            type="button" 
+                            class="btn btn-primary" 
+                            @click="handleJoinEvent"
+                            :disabled="isJoining || hasJoined"
+                        >
+                            <span v-if="isJoining">Joining...</span>
+                            <span v-else-if="hasJoined">✓ Joined</span>
+                            <span v-else>Join Event</span>
+                        </button>
+                        
+                        <!-- Error/Success Messages -->
+                        <div v-if="rsvpMessage" class="rsvp-message" :class="rsvpMessageType">
+                            {{ rsvpMessage }}
+                        </div>
+
                         <div class="secondary-actions">
                             <button type="button" class="btn btn-outline">Save</button>
                             <button type="button" class="btn btn-outline">Share</button>
@@ -100,8 +139,10 @@
         </div>
     </transition>
 </template>
-
 <script>
+import { createRsvp } from '@/services/rsvpService';
+import { mapState, mapMutations } from 'vuex';
+
 export default {
     name: 'EventDetailModal',
     props: {
@@ -114,18 +155,44 @@ export default {
             default: false
         }
     },
-    emits: ['close', 'tag-click'],
+    emits: ['close', 'tag-click', 'rsvp-created'],
+    
+    data() {
+        return {
+            // RSVP State
+            isJoining: false,
+            hasJoined: false,
+            rsvpMessage: '',
+            rsvpMessageType: '',
+            
+            // Map State
+            map: null,
+            marker: null,
+            userLocation: null,
+            travelInfo: {
+                duration: null,
+                distance: null,
+                loading: false,
+                error: null
+            }
+        };
+    },
+
     computed: {
+        ...mapState(['currentUser', 'userRSVPs']), // Use your existing state
+        
         spotsRemaining() {
             if (this.event?.maxAttendees == null) return null;
             const remaining = this.event.maxAttendees - (this.event.attendees || 0);
             return remaining >= 0 ? remaining : 0;
         },
+        
         remainingPercent() {
             if (this.event?.maxAttendees == null || this.event.maxAttendees === 0) return null;
             const percent = (this.spotsRemaining / this.event.maxAttendees) * 100;
             return Math.max(0, Math.min(100, Math.round(percent)));
         },
+        
         statusText() {
             if (this.remainingPercent === null) return '';
             const suffix = `${this.remainingPercent}% spots remaining`;
@@ -134,38 +201,86 @@ export default {
             if (this.remainingPercent <= 60) return `Seats Available · ${suffix}`;
             return `Plenty of Spots · ${suffix}`;
         },
+        
         statusVariant() {
             if (this.remainingPercent === null) return null;
             if (this.remainingPercent <= 10) return 'danger';
             if (this.remainingPercent <= 30) return 'warning';
             if (this.remainingPercent <= 60) return 'info';
             return 'success';
+        },
+
+        hasValidCoordinates() {
+            const hasCoords = this.event?.latitude != null && 
+                   this.event?.altitude != null &&
+                   this.event.venue !== 'Virtual';
+
+            console.log('🗺️ hasValidCoordinates check:');
+            console.log('  - event:', this.event);
+            console.log('  - latitude:', this.event?.latitude);
+            console.log('  - altitude:', this.event?.altitude);
+            console.log('  - venue:', this.event?.venue);
+            console.log('  - result:', hasCoords);
+            
+            return hasCoords;
         }
     },
+
     watch: {
         visible(val) {
             document.body.classList.toggle('modal-open', val);
+            if (val && this.hasValidCoordinates) {
+                this.$nextTick(() => {
+                    this.initMap();
+                });
+            }
+        },
+
+        event(newEvent) {
+            if (newEvent && this.visible) {
+                // Check if user has already RSVP'd to this event
+                this.hasJoined = this.userRSVPs.includes(newEvent.id);
+                this.rsvpMessage = '';
+                
+                if (this.hasValidCoordinates) {
+                    this.$nextTick(() => {
+                        this.initMap();
+                    });
+                }
+            }
         }
     },
+
     mounted() {
         if (this.visible) {
             document.body.classList.add('modal-open');
+            // Check if user has already RSVP'd
+            if (this.event) {
+                this.hasJoined = this.userRSVPs.includes(this.event.id);
+            }
         }
         window.addEventListener('keyup', this.handleEsc, { passive: true });
+        this.loadGoogleMapsScript();
     },
+
     beforeUnmount() {
         document.body.classList.remove('modal-open');
         window.removeEventListener('keyup', this.handleEsc);
     },
+
     methods: {
+        ...mapMutations(['SET_USER_RSVPS']),
+        
         emitClose() {
             this.$emit('close');
         },
+
         handleEsc(event) {
             if (event.key === 'Escape' && this.visible) {
                 this.emitClose();
             }
         },
+
         formatDateLong(isoDate) {
             if (!isoDate) return '';
             try {
@@ -178,12 +293,354 @@ export default {
             } catch (e) {
                 return isoDate;
             }
-        }
+        },
+
+        // Handle Join Event Button Click
+        async handleJoinEvent() {
+            if (this.isJoining || this.hasJoined) return;
+
+            // Check if user is logged in
+            if (!this.currentUser || !this.currentUser.id) {
+                this.rsvpMessage = 'Please log in to join events';
+                this.rsvpMessageType = 'error';
+                setTimeout(() => {
+                    this.rsvpMessage = '';
+                }, 3000);
+                return;
+            }
+
+            this.isJoining = true;
+            this.rsvpMessage = '';
+
+            try {
+                const rsvpData = {
+                    event_id: this.event.id,
+                    user_id: this.currentUser.id,
+                    status: 'confirmed',
+                    rsvp_date: new Date().toISOString().split('T')[0]
+                };
+
+                const response = await createRsvp(rsvpData);
+                
+                this.hasJoined = true;
+                this.rsvpMessage = 'Successfully joined the event!';
+                this.rsvpMessageType = 'success';
+                
+                // Update Vuex store with new RSVP
+                const updatedRSVPs = [...this.userRSVPs, this.event.id];
+                this.SET_USER_RSVPS(updatedRSVPs);
+                
+                // Emit event to parent to refresh event data
+                this.$emit('rsvp-created', response.data);
+
+                setTimeout(() => {
+                    this.rsvpMessage = '';
+                }, 3000);
+
+            } catch (error) {
+                console.error('Error creating RSVP:', error);
+                
+                if (error.response?.status === 409) {
+                    this.rsvpMessage = 'You have already joined this event';
+                    this.hasJoined = true;
+                    
+                    // Ensure userRSVPs includes this event
+                    if (!this.userRSVPs.includes(this.event.id)) {
+                        const updatedRSVPs = [...this.userRSVPs, this.event.id];
+                        this.SET_USER_RSVPS(updatedRSVPs);
+                    }
+                } else {
+                    this.rsvpMessage = error.response?.data?.error || 'Failed to join event. Please try again.';
+                }
+                
+                this.rsvpMessageType = 'error';
+                
+                setTimeout(() => {
+                    this.rsvpMessage = '';
+                }, 3000);
+            } finally {
+                this.isJoining = false;
+            }
+        },
+
+        // Load Google Maps Script
+        // Load Google Maps Script with better error handling
+loadGoogleMapsScript() {
+    if (window.google && window.google.maps) {
+        console.log('✅ Google Maps already loaded');
+        return Promise.resolve();
     }
+
+    console.log('🔄 Loading Google Maps script...');
+    
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        
+        // Replace with your actual API key
+        const apiKey = 'AIzaSyD9_8oOwKCEvgntkep-QfxBBxFMCBAqrzM';  // TODO: Replace this!
+        
+        if (!apiKey || apiKey === 'YOUR_GOOGLE_MAPS_API_KEY') {
+            console.error('❌ Google Maps API key not configured!');
+            reject(new Error('Google Maps API key not configured'));
+            return;
+        }
+        
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+        script.async = true;
+        script.defer = true;
+        
+        script.onload = () => {
+            console.log('✅ Google Maps script loaded successfully');
+            resolve();
+        };
+        
+        script.onerror = (error) => {
+            console.error('❌ Failed to load Google Maps script:', error);
+            reject(error);
+        };
+        
+        document.head.appendChild(script);
+    });
+},
+
+// Initialize Google Map with better debugging
+async initMap() {
+    console.log('🗺️ initMap called');
+    console.log('Has valid coordinates?', this.hasValidCoordinates);
+    console.log('Event:', this.event);
+    console.log('Latitude:', this.event?.latitude);
+    console.log('Altitude:', this.event?.altitude);
+    console.log('Venue:', this.event?.venue);
+    
+    if (!this.hasValidCoordinates) {
+        console.warn('⚠️ Invalid coordinates or Virtual event, skipping map');
+        return;
+    }
+    
+    if (!this.$refs.mapContainer) {
+        console.warn('⚠️ Map container ref not found');
+        return;
+    }
+
+    try {
+        await this.loadGoogleMapsScript();
+
+        const eventLocation = {
+            lat: parseFloat(this.event.latitude),
+            lng: parseFloat(this.event.altitude)
+        };
+        
+        console.log('📍 Event location:', eventLocation);
+
+        this.map = new window.google.maps.Map(this.$refs.mapContainer, {
+            center: eventLocation,
+            zoom: 16,
+            mapTypeControl: false,
+            streetViewControl: false,
+            fullscreenControl: false
+        });
+        
+        console.log('✅ Map created:', this.map);
+
+        this.marker = new window.google.maps.Marker({
+            position: eventLocation,
+            map: this.map,
+            title: this.event.title,
+            animation: window.google.maps.Animation.DROP
+        });
+        
+        console.log('✅ Marker added:', this.marker);
+
+        // Get user location and calculate travel time
+        this.getUserLocationAndCalculateTravel(eventLocation);
+
+    } catch (error) {
+        console.error('❌ Error initializing map:', error);
+        this.travelInfo.error = 'Unable to load map';
+    }
+},
+
+// Get User Location with better error handling
+getUserLocationAndCalculateTravel(destination) {
+    console.log('📍 Getting user location...');
+    
+    if (!navigator.geolocation) {
+        console.error('❌ Geolocation not supported');
+        this.travelInfo.error = 'Geolocation not supported';
+        return;
+    }
+
+    this.travelInfo.loading = true;
+
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            console.log('✅ User location obtained:', position.coords);
+            this.userLocation = {
+                lat: position.coords.latitude,
+                lng: position.coords.longitude
+            };
+            this.calculateTravelTime(this.userLocation, destination);
+        },
+        (error) => {
+            console.error('❌ Error getting location:', error);
+            this.travelInfo.loading = false;
+            
+            // More specific error messages
+            if (error.code === 1) {
+                this.travelInfo.error = 'Location access denied. Please enable location permissions.';
+            } else if (error.code === 2) {
+                this.travelInfo.error = 'Location unavailable';
+            } else if (error.code === 3) {
+                this.travelInfo.error = 'Location request timeout';
+            } else {
+                this.travelInfo.error = 'Unable to get your location';
+            }
+        },
+        {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+        }
+    );
+},
+
+// Calculate Travel Time with debugging
+calculateTravelTime(origin, destination) {
+    console.log('🚗 Calculating travel time...');
+    console.log('From:', origin);
+    console.log('To:', destination);
+    
+    if (!window.google?.maps?.DistanceMatrixService) {
+        console.error('❌ Distance Matrix Service not available');
+        this.travelInfo.loading = false;
+        this.travelInfo.error = 'Distance calculation unavailable';
+        return;
+    }
+    
+    const service = new window.google.maps.DistanceMatrixService();
+
+    service.getDistanceMatrix(
+        {
+            origins: [origin],
+            destinations: [destination],
+            travelMode: window.google.maps.TravelMode.DRIVING,
+            unitSystem: window.google.maps.UnitSystem.METRIC
+        },
+        (response, status) => {
+            console.log('Distance Matrix Response:', { response, status });
+            this.travelInfo.loading = false;
+
+            if (status === 'OK' && response.rows[0]?.elements[0]?.status === 'OK') {
+                const result = response.rows[0].elements[0];
+                this.travelInfo.duration = result.duration.text;
+                this.travelInfo.distance = result.distance.text;
+                this.travelInfo.error = null;
+                console.log('✅ Travel time calculated:', this.travelInfo);
+            } else {
+                console.error('❌ Distance Matrix Error:', status, response);
+                this.travelInfo.error = 'Unable to calculate travel time';
+            }
+        }
+    );
+
+}
+    }
+    
 };
+    
+
+
 </script>
 
+
 <style scoped>
+/* Existing styles remain the same... */
+
+/* NEW: Map Section Styles */
+.event-map {
+    margin: 20px 0;
+}
+
+.event-map h3 {
+    margin: 0 0 12px;
+    font-size: 18px;
+}
+
+.map-container {
+    width: 100%;
+    height: 250px;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    margin-top: 12px;
+}
+
+.travel-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: rgba(var(--color-info-rgb, 98, 108, 113), 0.08);
+    border-radius: 12px;
+    font-size: 14px;
+    margin-bottom: 12px;
+}
+
+.travel-info.loading {
+    background: rgba(var(--color-slate-500-rgb, 98, 108, 113), 0.08);
+    color: var(--color-text-secondary);
+}
+
+.travel-info.error {
+    background: rgba(var(--color-error-rgb, 192, 21, 47), 0.08);
+    color: var(--color-error);
+}
+
+.travel-icon {
+    font-size: 20px;
+}
+
+.travel-text {
+    flex: 1;
+}
+
+.travel-distance {
+    color: var(--color-text-secondary);
+    font-size: 13px;
+}
+
+/* NEW: RSVP Message Styles */
+.rsvp-message {
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    margin-top: 8px;
+    width: 100%;
+    text-align: center;
+}
+
+.rsvp-message.success {
+    background: rgba(var(--color-success-rgb, 33, 128, 141), 0.15);
+    color: var(--color-success);
+}
+
+.rsvp-message.error {
+    background: rgba(var(--color-error-rgb, 192, 21, 47), 0.15);
+    color: var(--color-error);
+}
+
+/* Updated Button Styles */
+.btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+.btn-primary:disabled:hover {
+    box-shadow: 0 10px 20px rgba(var(--color-teal-500-rgb, 33, 128, 141), 0.25);
+}
+
+/* Existing styles... */
 .modal-overlay {
     position: fixed;
     inset: 0;
@@ -225,6 +682,7 @@ export default {
     display: grid;
     place-items: center;
     transition: background 0.2s ease;
+    z-index: 10;
 }
 
 .modal-close:hover {
@@ -424,7 +882,7 @@ export default {
     box-shadow: 0 10px 20px rgba(var(--color-teal-500-rgb, 33, 128, 141), 0.25);
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
     transform: translateY(-1px);
     box-shadow: 0 14px 24px rgba(var(--color-teal-500-rgb, 33, 128, 141), 0.28);
 }
@@ -475,6 +933,10 @@ export default {
 
     .btn {
         width: 100%;
+    }
+
+    .map-container {
+        height: 200px;
     }
 }
 </style>

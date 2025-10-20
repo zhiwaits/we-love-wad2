@@ -73,9 +73,25 @@ export default {
         // Check if tag is selected
         isTagSelected(tag) {
             return this.filters.selectedTags.includes(tag);
+        },
+        async handleRsvpCreated(rsvpData) {
+            console.log('RSVP Created:', rsvpData);
+            
+            // Refresh the events data to get updated attendee counts
+            await this.$store.dispatch('fetchAllEvents');
+            
+            // Update the selected event with the new attendee count
+            if (this.selectedEvent) {
+                const updatedEvent = this.events.find(e => e.id === this.selectedEvent.id);
+                if (updatedEvent) {
+                    this.selectedEvent = { ...updatedEvent };
+                }
+            }
         }
     }
-}
+
+    }
+
 </script>
 
 <template>
@@ -149,6 +165,7 @@ export default {
             :event="selectedEvent"
             @close="closeEventModal"
             @tag-click="handleTagFromModal"
+            @rsvp-created="handleRsvpCreated"
         />
     </section>
 </template>
