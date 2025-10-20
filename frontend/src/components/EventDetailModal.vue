@@ -89,7 +89,9 @@
                     </section>
 
                     <footer class="modal-actions">
-                        <button type="button" class="btn btn-primary">Join Event</button>
+                        <button type="button" class="btn btn-primary" :disabled="isClub" :class="{ 'btn-disabled': isClub }">
+                            {{ isClub ? 'Clubs Cannot RSVP' : 'Join Event' }}
+                        </button>
                         <div class="secondary-actions">
                             <button type="button" class="btn btn-outline">Save</button>
                             <button type="button" class="btn btn-outline" @click="$emit('share')">Share</button>
@@ -102,6 +104,8 @@
 </template>
 
 <script>
+import { mapGetters } from 'vuex';
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 const FALLBACK_PLACEHOLDER = 'https://placehold.co/900x400?text=Event';
 export default {
@@ -118,6 +122,7 @@ export default {
     },
     emits: ['close', 'tag-click', 'share'],
     computed: {
+        ...mapGetters('auth', ['isClub']),
         spotsRemaining() {
             if (this.event?.maxAttendees == null) return null;
             const remaining = this.event.maxAttendees - (this.event.attendees || 0);
@@ -441,6 +446,21 @@ export default {
 .btn-primary:hover {
     transform: translateY(-1px);
     box-shadow: 0 14px 24px rgba(var(--color-teal-500-rgb, 33, 128, 141), 0.28);
+}
+
+.btn-primary:disabled,
+.btn-primary.btn-disabled {
+    background: rgba(var(--color-slate-500-rgb, 98, 108, 113), 0.3);
+    color: var(--color-text-secondary);
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+}
+
+.btn-primary:disabled:hover,
+.btn-primary.btn-disabled:hover {
+    transform: none;
+    box-shadow: none;
 }
 
 .btn-outline {

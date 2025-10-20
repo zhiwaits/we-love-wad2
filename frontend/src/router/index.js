@@ -39,6 +39,12 @@ const routes = [
     meta: { requiresAuth: true, requiresRole: 'club' }
   },
   {
+    path: '/events/edit',
+    name: 'EditEvents',
+    component: () => import('../views/EditEventsPage.vue'),
+    meta: { requiresAuth: true, requiresRole: 'club' }
+  },
+  {
     path: '/dashboard',
     name: 'UserDashboard',
     component: UserDashboard,

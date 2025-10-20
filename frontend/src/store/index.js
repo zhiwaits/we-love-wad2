@@ -80,6 +80,16 @@ export default createStore({
       locationQuery: ''
     },
 
+    // Club event filters (for managing club's own events)
+    clubEventFilters: {
+      searchQuery: '',
+      selectedTags: [],
+      priceFilter: 'all',
+      dateFilter: 'all',
+      venueFilter: 'all',
+      locationQuery: ''
+    },
+
     categories: [],
     venues: [],
 
@@ -241,6 +251,125 @@ export default createStore({
       return getters.filteredEvents.length;
     },
 
+    // Club Events - filtered by club owner and filters
+    filteredClubEvents: (state, getters, rootState) => {
+      const currentUser = rootState.auth.user;
+      if (!currentUser || !currentUser.id) return [];
+
+      // First, filter events owned by this club
+      let clubEvents = state.allEvents.filter(event => event.ownerId === currentUser.id);
+
+      // Check if any filters are active
+      const noFiltersActive =
+        !state.clubEventFilters.searchQuery &&
+        state.clubEventFilters.selectedTags.length === 0 &&
+        state.clubEventFilters.priceFilter === 'all' &&
+        state.clubEventFilters.dateFilter === 'all' &&
+        state.clubEventFilters.venueFilter === 'all' &&
+        !state.clubEventFilters.locationQuery;
+
+      if (noFiltersActive) {
+        return clubEvents;
+      }
+
+      let filtered = [...clubEvents];
+
+      // Search filter
+      if (state.clubEventFilters.searchQuery) {
+        const query = state.clubEventFilters.searchQuery.toLowerCase();
+        filtered = filtered.filter(event =>
+          event.title.toLowerCase().includes(query) ||
+          event.description.toLowerCase().includes(query)
+        );
+      }
+
+      // Tag filter
+      if (state.clubEventFilters.selectedTags.length > 0) {
+        filtered = filtered.filter(event =>
+          state.clubEventFilters.selectedTags.some(tag => event.tags.includes(tag))
+        );
+      }
+
+      // Price filter
+      if (state.clubEventFilters.priceFilter === 'free') {
+        filtered = filtered.filter(event => event.price === 'FREE');
+      } else if (state.clubEventFilters.priceFilter === 'paid') {
+        filtered = filtered.filter(event => event.price !== 'FREE');
+      }
+
+      // Date filter
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (state.clubEventFilters.dateFilter === 'today') {
+        filtered = filtered.filter(event => {
+          const eventDate = new Date(event.date);
+          eventDate.setHours(0, 0, 0, 0);
+          return eventDate.getTime() === today.getTime();
+        });
+      } else if (state.clubEventFilters.dateFilter === 'this-week') {
+        const weekFromNow = new Date(today);
+        weekFromNow.setDate(weekFromNow.getDate() + 7);
+        filtered = filtered.filter(event => {
+          const eventDate = new Date(event.date);
+          return eventDate >= today && eventDate <= weekFromNow;
+        });
+      } else if (state.clubEventFilters.dateFilter === 'this-month') {
+        filtered = filtered.filter(event => {
+          const eventDate = new Date(event.date);
+          return eventDate.getMonth() === today.getMonth() &&
+            eventDate.getFullYear() === today.getFullYear();
+        });
+      }
+
+      // Venue filter
+      if (state.clubEventFilters.venueFilter !== 'all') {
+        filtered = filtered.filter(event =>
+          event.venue === state.clubEventFilters.venueFilter
+        );
+      }
+
+      // Location search
+      if (state.clubEventFilters.locationQuery) {
+        const locQuery = state.clubEventFilters.locationQuery.toLowerCase();
+        filtered = filtered.filter(event =>
+          event.location.toLowerCase().includes(locQuery) ||
+          event.venue.toLowerCase().includes(locQuery)
+        );
+      }
+
+      return filtered;
+    },
+
+    // Get all unique tags from club events
+    allClubEventTags: (state, getters) => {
+      const clubEvents = getters.filteredClubEvents || [];
+      const tagSet = new Set();
+      clubEvents.forEach(event => {
+        if (event.tags) event.tags.forEach(tag => tagSet.add(tag));
+      });
+      return Array.from(tagSet).sort();
+    },
+
+    // Get unique venues from club events
+    allClubEventVenues: (state, getters, rootState) => {
+      const currentUser = rootState.auth.user;
+      if (!currentUser || !currentUser.id) return state.venues || [];
+
+      const clubEvents = state.allEvents.filter(event => event.ownerId === currentUser.id);
+      const venueSet = new Set();
+      clubEvents.forEach(event => {
+        if (event.venue) venueSet.add(event.venue);
+      });
+      const clubVenues = Array.from(venueSet).sort();
+      return clubVenues.length > 0 ? clubVenues : (state.venues || []);
+    },
+
+    // Club events results count
+    clubEventsResultsCount: (state, getters) => {
+      return getters.filteredClubEvents.length;
+    },
+
     // Dashboard-specific getters
     upcomingUserEvents: (state) => {
       const now = new Date();
@@ -369,6 +498,47 @@ export default createStore({
       state.filters = {
         searchQuery: '',
         selectedCategories: [],
+        selectedTags: [],
+        priceFilter: 'all',
+        dateFilter: 'all',
+        venueFilter: 'all',
+        locationQuery: ''
+      };
+    },
+
+    // Club Event Filter Mutations
+    SET_CLUB_EVENT_SEARCH_QUERY(state, query) {
+      state.clubEventFilters.searchQuery = query;
+    },
+
+    TOGGLE_CLUB_EVENT_TAG(state, tag) {
+      const index = state.clubEventFilters.selectedTags.indexOf(tag);
+      if (index > -1) {
+        state.clubEventFilters.selectedTags.splice(index, 1);
+      } else {
+        state.clubEventFilters.selectedTags.push(tag);
+      }
+    },
+
+    SET_CLUB_EVENT_PRICE_FILTER(state, priceFilter) {
+      state.clubEventFilters.priceFilter = priceFilter;
+    },
+
+    SET_CLUB_EVENT_DATE_FILTER(state, dateFilter) {
+      state.clubEventFilters.dateFilter = dateFilter;
+    },
+
+    SET_CLUB_EVENT_VENUE_FILTER(state, venue) {
+      state.clubEventFilters.venueFilter = venue;
+    },
+
+    SET_CLUB_EVENT_LOCATION_QUERY(state, query) {
+      state.clubEventFilters.locationQuery = query;
+    },
+
+    RESET_CLUB_EVENT_FILTERS(state) {
+      state.clubEventFilters = {
+        searchQuery: '',
         selectedTags: [],
         priceFilter: 'all',
         dateFilter: 'all',
@@ -541,6 +711,35 @@ export default createStore({
     // Action to reset filters
     resetFilters({ commit }) {
       commit('RESET_FILTERS');
+    },
+
+    // Club Event Filter Actions
+    updateClubEventSearch({ commit }, query) {
+      commit('SET_CLUB_EVENT_SEARCH_QUERY', query);
+    },
+
+    toggleClubEventTag({ commit }, tag) {
+      commit('TOGGLE_CLUB_EVENT_TAG', tag);
+    },
+
+    updateClubEventPriceFilter({ commit }, filter) {
+      commit('SET_CLUB_EVENT_PRICE_FILTER', filter);
+    },
+
+    updateClubEventDateFilter({ commit }, filter) {
+      commit('SET_CLUB_EVENT_DATE_FILTER', filter);
+    },
+
+    updateClubEventVenueFilter({ commit }, venue) {
+      commit('SET_CLUB_EVENT_VENUE_FILTER', venue);
+    },
+
+    updateClubEventLocationQuery({ commit }, query) {
+      commit('SET_CLUB_EVENT_LOCATION_QUERY', query);
+    },
+
+    resetClubEventFilters({ commit }) {
+      commit('RESET_CLUB_EVENT_FILTERS');
     },
 
     showToast({ commit }, { message, type = 'info', duration = 3000 } = {}) {

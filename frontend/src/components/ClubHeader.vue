@@ -8,7 +8,7 @@
         </div>
         <nav class="nav">
           <router-link to="/events/create" class="nav-link">Create Event</router-link>
-          <router-link to="/club/events" class="nav-link">My Events</router-link>
+          <router-link to="/events/edit" class="nav-link">Edit Events</router-link>
           <router-link to="/dashboard/club" class="nav-link">My Dashboard</router-link>
         </nav>
         <button class="btn btn--primary" @click="handleAuthClick">

@@ -5,7 +5,7 @@ import ClubEventsGrid from "../components/ClubEventsGrid.vue";
 </script>
 
 <template>
-    <div class="club-home-page">
+    <div class="edit-events-page">
         <HeroClubEvents></HeroClubEvents>
         <SearchClubEvents></SearchClubEvents>
 
@@ -20,10 +20,9 @@ import ClubEventsGrid from "../components/ClubEventsGrid.vue";
 </template>
 
 <style scoped>
-.club-home-page {
+.edit-events-page {
     background-color: var(--color-background);
     color: var(--color-text);
-    min-height: 100vh;
 }
 
 .main-content {
