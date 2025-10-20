@@ -1,510 +1,215 @@
-// ============================================
-// RabbitMQ Configuration and Setup
-// ============================================
+require('dotenv').config();
+const nodemailer = require('nodemailer');
+const { createClient } = require('@supabase/supabase-js');
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
-const amqp = require('amqplib');
+//read env
+const SMTP_USER = process.env.SMTP_USER
+const SMTP_PASS = process.env.SMTP_PASS
 
-// RabbitMQ connection configuration
-const RABBITMQ_CONFIG = {
-  url: process.env.RABBITMQ_URL || 'amqp://localhost',
-  exchanges: {
-    events: 'events.exchange',
-    notifications: 'notifications.exchange'
-  },
-  queues: {
-    eventConfirmations: 'event.confirmations',
-    eventReminders: 'event.reminders',
-    weeklyDigest: 'event.weekly.digest',
-    announcements: 'event.announcements',
-    rsvpUpdates: 'event.rsvp.updates',
-    waitlistNotifications: 'event.waitlist'
-  }
-};
-
-// ============================================
-// Message Producer - Publishes messages to RabbitMQ
-// ============================================
-
-class EventMessageProducer {
-  constructor() {
-    this.connection = null;
-    this.channel = null;
-  }
-
-  async connect() {
-    try {
-      this.connection = await amqp.connect(RABBITMQ_CONFIG.url);
-      this.channel = await this.connection.createChannel();
-      
-      // Assert exchanges
-      await this.channel.assertExchange(
-        RABBITMQ_CONFIG.exchanges.notifications,
-        'topic',
-        { durable: true }
-      );
-      
-      console.log('RabbitMQ Producer connected successfully');
-    } catch (error) {
-      console.error('Failed to connect to RabbitMQ:', error);
-      throw error;
-    }
-  }
-
-  async publishMessage(routingKey, message) {
-    try {
-      if (!this.channel) {
-        await this.connect();
-      }
-
-      const messageBuffer = Buffer.from(JSON.stringify(message));
-      
-      this.channel.publish(
-        RABBITMQ_CONFIG.exchanges.notifications,
-        routingKey,
-        messageBuffer,
-        {
-          persistent: true,
-          contentType: 'application/json',
-          timestamp: Date.now()
-        }
-      );
-
-      console.log(`Message published to ${routingKey}:`, message.type);
-    } catch (error) {
-      console.error('Error publishing message:', error);
-      throw error;
-    }
-  }
-
-  // Send event confirmation notification
-  async sendEventConfirmation(eventData, userData) {
-    const message = {
-      type: 'EVENT_CONFIRMATION',
-      timestamp: new Date().toISOString(),
-      data: {
-        userId: userData.id,
-        userEmail: userData.email,
-        userName: userData.name,
-        eventId: eventData.id,
-        eventTitle: eventData.title,
-        eventDate: eventData.date,
-        eventTime: eventData.time,
-        eventLocation: eventData.location,
-        eventDescription: eventData.description
-      }
-    };
-
-    await this.publishMessage('notification.event.confirmation', message);
-  }
-
-  // Send event reminder (24 hours before)
-  async sendEventReminder(eventData, userData) {
-    const message = {
-      type: 'EVENT_REMINDER',
-      timestamp: new Date().toISOString(),
-      data: {
-        userId: userData.id,
-        userEmail: userData.email,
-        userName: userData.name,
-        eventId: eventData.id,
-        eventTitle: eventData.title,
-        eventDate: eventData.date,
-        eventTime: eventData.time,
-        eventLocation: eventData.location,
-        mapsLink: eventData.mapsLink
-      }
-    };
-
-    await this.publishMessage('notification.event.reminder', message);
-  }
-
-  // Send weekly digest of recommended events
-  async sendWeeklyDigest(userData, recommendedEvents) {
-    const message = {
-      type: 'WEEKLY_DIGEST',
-      timestamp: new Date().toISOString(),
-      data: {
-        userId: userData.id,
-        userEmail: userData.email,
-        userName: userData.name,
-        events: recommendedEvents,
-        weekStart: new Date().toISOString()
-      }
-    };
-
-    await this.publishMessage('notification.weekly.digest', message);
-  }
-
-  // Send organizer announcement
-  async sendAnnouncement(eventData, announcement, attendees) {
-    const message = {
-      type: 'ORGANIZER_ANNOUNCEMENT',
-      timestamp: new Date().toISOString(),
-      data: {
-        eventId: eventData.id,
-        eventTitle: eventData.title,
-        announcement: announcement,
-        attendees: attendees
-      }
-    };
-
-    await this.publishMessage('notification.announcement', message);
-  }
-
-  // Send waitlist status update
-  async sendWaitlistUpdate(eventData, userData, status) {
-    const message = {
-      type: 'WAITLIST_UPDATE',
-      timestamp: new Date().toISOString(),
-      data: {
-        userId: userData.id,
-        userEmail: userData.email,
-        userName: userData.name,
-        eventId: eventData.id,
-        eventTitle: eventData.title,
-        status: status, // 'ADDED', 'APPROVED', 'SPOT_AVAILABLE'
-        eventDate: eventData.date,
-        eventTime: eventData.time
-      }
-    };
-
-    await this.publishMessage('notification.waitlist.update', message);
-  }
-
-  // Send RSVP update (cancellation, event changes)
-  async sendRsvpUpdate(eventData, userData, updateType, changes) {
-    const message = {
-      type: 'RSVP_UPDATE',
-      timestamp: new Date().toISOString(),
-      data: {
-        userId: userData.id,
-        userEmail: userData.email,
-        userName: userData.name,
-        eventId: eventData.id,
-        eventTitle: eventData.title,
-        updateType: updateType, // 'EVENT_UPDATED', 'EVENT_CANCELLED', 'RSVP_CANCELLED'
-        changes: changes
-      }
-    };
-
-    await this.publishMessage('notification.rsvp.update', message);
-  }
-
-  async close() {
-    if (this.channel) await this.channel.close();
-    if (this.connection) await this.connection.close();
-  }
+//validation
+if (!SMTP_USER || !SMTP_PASS) {
+  console.error(
+    'SMTP Error'
+  );
+  process.exit(1);
 }
 
-// ============================================
-// Message Consumer - Processes messages from RabbitMQ
-// ============================================
-
-class EventMessageConsumer {
-  constructor(emailService) {
-    this.connection = null;
-    this.channel = null;
-    this.emailService = emailService; // Your email sending service
-  }
-
-  async connect() {
-    try {
-      this.connection = await amqp.connect(RABBITMQ_CONFIG.url);
-      this.channel = await this.connection.createChannel();
-      
-      // Assert exchange
-      await this.channel.assertExchange(
-        RABBITMQ_CONFIG.exchanges.notifications,
-        'topic',
-        { durable: true }
-      );
-
-      console.log('RabbitMQ Consumer connected successfully');
-    } catch (error) {
-      console.error('Failed to connect to RabbitMQ:', error);
-      throw error;
-    }
-  }
-
-  async setupQueue(queueName, routingKey, messageHandler) {
-    try {
-      // Assert queue
-      await this.channel.assertQueue(queueName, {
-        durable: true,
-        arguments: {
-          'x-message-ttl': 86400000 // 24 hours
-        }
-      });
-
-      // Bind queue to exchange
-      await this.channel.bindQueue(
-        queueName,
-        RABBITMQ_CONFIG.exchanges.notifications,
-        routingKey
-      );
-
-      // Set prefetch to 1 to ensure even distribution
-      await this.channel.prefetch(1);
-
-      // Consume messages
-      await this.channel.consume(queueName, async (msg) => {
-        if (msg !== null) {
-          try {
-            const messageContent = JSON.parse(msg.content.toString());
-            console.log(`Processing ${messageContent.type} message`);
-            
-            await messageHandler(messageContent);
-            
-            // Acknowledge message
-            this.channel.ack(msg);
-          } catch (error) {
-            console.error('Error processing message:', error);
-            // Reject and requeue if processing fails
-            this.channel.nack(msg, false, true);
-          }
-        }
-      });
-
-      console.log(`Listening to queue: ${queueName}`);
-    } catch (error) {
-      console.error(`Error setting up queue ${queueName}:`, error);
-      throw error;
-    }
-  }
-
-  // Start all consumers
-  async startConsuming() {
-    await this.connect();
-
-    // Event Confirmation Consumer
-    await this.setupQueue(
-      RABBITMQ_CONFIG.queues.eventConfirmations,
-      'notification.event.confirmation',
-      async (message) => {
-        await this.emailService.sendEventConfirmationEmail(message.data);
-      }
-    );
-
-    // Event Reminder Consumer
-    await this.setupQueue(
-      RABBITMQ_CONFIG.queues.eventReminders,
-      'notification.event.reminder',
-      async (message) => {
-        await this.emailService.sendEventReminderEmail(message.data);
-      }
-    );
-
-    // Weekly Digest Consumer
-    await this.setupQueue(
-      RABBITMQ_CONFIG.queues.weeklyDigest,
-      'notification.weekly.digest',
-      async (message) => {
-        await this.emailService.sendWeeklyDigestEmail(message.data);
-      }
-    );
-
-    // Announcement Consumer
-    await this.setupQueue(
-      RABBITMQ_CONFIG.queues.announcements,
-      'notification.announcement',
-      async (message) => {
-        await this.emailService.sendAnnouncementEmail(message.data);
-      }
-    );
-
-    // Waitlist Update Consumer
-    await this.setupQueue(
-      RABBITMQ_CONFIG.queues.waitlistNotifications,
-      'notification.waitlist.update',
-      async (message) => {
-        await this.emailService.sendWaitlistUpdateEmail(message.data);
-      }
-    );
-
-    // RSVP Update Consumer
-    await this.setupQueue(
-      RABBITMQ_CONFIG.queues.rsvpUpdates,
-      'notification.rsvp.update',
-      async (message) => {
-        await this.emailService.sendRsvpUpdateEmail(message.data);
-      }
-    );
-  }
-
-  async close() {
-    if (this.channel) await this.channel.close();
-    if (this.connection) await this.connection.close();
-  }
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  console.error('Supabase Error');
+  process.exit(1);
 }
 
-// ============================================
-// Email Service Implementation
-// ============================================
-
-class EmailService {
-  constructor() {
-    // You can use nodemailer, SendGrid, AWS SES, or any email service
-    // This is a placeholder implementation
-  }
-
-  async sendEventConfirmationEmail(data) {
-    console.log(`Sending confirmation email to ${data.userEmail}`);
-    
-    const emailContent = {
-      to: data.userEmail,
-      subject: `Event Confirmation: ${data.eventTitle}`,
-      html: `
-        <h2>Event RSVP Confirmed!</h2>
-        <p>Hi ${data.userName},</p>
-        <p>Your RSVP for <strong>${data.eventTitle}</strong> has been confirmed.</p>
-        <p><strong>Date:</strong> ${data.eventDate}</p>
-        <p><strong>Time:</strong> ${data.eventTime}</p>
-        <p><strong>Location:</strong> ${data.eventLocation}</p>
-        <p>${data.eventDescription}</p>
-        <p>See you there!</p>
-      `
-    };
-
-    // Send email using your preferred service
-    // await this.mailService.send(emailContent);
-  }
-
-  async sendEventReminderEmail(data) {
-    console.log(`Sending reminder email to ${data.userEmail}`);
-    // Implementation here
-  }
-
-  async sendWeeklyDigestEmail(data) {
-    console.log(`Sending weekly digest to ${data.userEmail}`);
-    // Implementation here
-  }
-
-  async sendAnnouncementEmail(data) {
-    console.log(`Sending announcement to attendees`);
-    // Implementation here
-  }
-
-  async sendWaitlistUpdateEmail(data) {
-    console.log(`Sending waitlist update to ${data.userEmail}`);
-    // Implementation here
-  }
-
-  async sendRsvpUpdateEmail(data) {
-    console.log(`Sending RSVP update to ${data.userEmail}`);
-    // Implementation here
-  }
-}
-
-// ============================================
-// Express API Integration Example
-// ============================================
-
-// In your Express routes file
-const express = require('express');
-const router = express.Router();
-
-// Initialize producer
-const messageProducer = new EventMessageProducer();
-messageProducer.connect();
-
-// RSVP endpoint
-router.post('/api/events/:eventId/rsvp', async (req, res) => {
-  try {
-    const { eventId } = req.params;
-    const userId = req.user.id; // From authentication middleware
-
-    // Save RSVP to database (Supabase)
-    // const rsvp = await saveRsvpToDatabase(eventId, userId);
-
-    // Fetch event and user data
-    const eventData = {
-      id: eventId,
-      title: 'SMU Career Fair 2025',
-      date: '2025-10-20',
-      time: '10:00 AM - 4:00 PM',
-      location: 'SMU Campus Green',
-      description: 'Meet with top employers and explore career opportunities.'
-    };
-
-    const userData = {
-      id: userId,
-      email: req.user.email,
-      name: req.user.name
-    };
-
-    // Send confirmation message to queue
-    await messageProducer.sendEventConfirmation(eventData, userData);
-
-    res.json({
-      success: true,
-      message: 'RSVP confirmed. Confirmation email will be sent shortly.'
-    });
-  } catch (error) {
-    console.error('Error processing RSVP:', error);
-    res.status(500).json({ error: 'Failed to process RSVP' });
+//create transporter
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS
   }
 });
 
-// ============================================
-// Scheduled Jobs for Reminders
-// ============================================
+// Create Supabase client
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const cron = require('node-cron');
+// Email test
+// async function sendEmail() {
+//   const info = await transporter.sendMail({
+//     from: `"SMU Events Hub" <${process.env.SMTP_USER}>`,
+//     to: 'terry.yeo.2024@scis.smu.edu.sg',
+//     subject: 'Hello!',
+//     text: 'SMU Events Hub Testing.'
+//   });
 
-// Run every hour to check for events happening in 24 hours
-cron.schedule('0 * * * *', async () => {
-  console.log('Checking for events requiring reminders...');
-  
-  // Query database for events happening in 24 hours with RSVPs
-  // const upcomingEvents = await getEventsIn24Hours();
-  
-  // for (const event of upcomingEvents) {
-  //   for (const attendee of event.attendees) {
-  //     await messageProducer.sendEventReminder(event, attendee);
-  //   }
-  // }
-});
+//   console.log('Email sent:');
+// }
 
-// Run every Monday at 9 AM for weekly digest
-cron.schedule('0 9 * * 1', async () => {
-  console.log('Sending weekly digests...');
-  
-  // Get all users and their recommended events
-  // const users = await getAllActiveUsers();
-  
-  // for (const user of users) {
-  //   const recommendedEvents = await getRecommendedEvents(user.id);
-  //   await messageProducer.sendWeeklyDigest(user, recommendedEvents);
-  // }
-});
+// sendEmail().catch(console.error);
 
-// ============================================
-// Consumer Worker (separate process)
-// ============================================
-
-// Run this in a separate worker process/container
-async function startWorker() {
-  const emailService = new EmailService();
-  const consumer = new EventMessageConsumer(emailService);
-  
-  await consumer.startConsuming();
-  
-  console.log('Message consumer worker started');
-  
-  // Graceful shutdown
-  process.on('SIGINT', async () => {
-    console.log('Shutting down consumer...');
-    await consumer.close();
-    process.exit(0);
+// Send confirmation email when user registers
+async function sendRegistrationConfirmation(userEmail, userName, eventTitle, eventDatetime, eventLocation, eventVenue) {
+  const info = await transporter.sendMail({
+    from: `"SMU Events Hub" <${SMTP_USER}>`,
+    to: userEmail,
+    subject: `Registration Confirmed: ${eventTitle}`,
+    html: `
+      <h2>Registration Confirmed!</h2>
+      <p>Hi ${userName},</p>
+      <p>You have successfully registered for <strong>${eventTitle}</strong>.</p>
+      <p><strong>Event Date:</strong> ${new Date(eventDatetime).toLocaleString()}</p>
+      ${eventLocation ? `<p><strong>Location:</strong> ${eventLocation}</p>` : ''}
+      ${eventVenue ? `<p><strong>Venue:</strong> ${eventVenue}</p>` : ''}
+      <p>We look forward to seeing you there!</p>
+      <br>
+      <p>Best regards,<br>SMU Events Hub</p>
+    `
   });
+
+  console.log('Confirmation email sent to:', userEmail);
+  return info;
 }
 
-// Uncomment to start worker
-// startWorker();
+// Send reminder email 24h before event
+async function sendEventReminder(userEmail, userName, eventTitle, eventDatetime, eventLocation, eventVenue) {
+  const info = await transporter.sendMail({
+    from: `"SMU Events Hub" <${SMTP_USER}>`,
+    to: userEmail,
+    subject: `Reminder: ${eventTitle} is Tomorrow!`,
+    html: `
+      <h2>Event Reminder</h2>
+      <p>Hi ${userName},</p>
+      <p>This is a friendly reminder that you're registered for <strong>${eventTitle}</strong>.</p>
+      <p><strong>Event Date:</strong> ${new Date(eventDatetime).toLocaleString()}</p>
+      ${eventLocation ? `<p><strong>Location:</strong> ${eventLocation}</p>` : ''}
+      ${eventVenue ? `<p><strong>Venue:</strong> ${eventVenue}</p>` : ''}
+      <p>See you soon!</p>
+      <br>
+      <p>Best regards,<br>SMU Events Hub</p>
+    `
+  });
 
-module.exports = {
-  EventMessageProducer,
-  EventMessageConsumer,
-  EmailService,
-  RABBITMQ_CONFIG
-};
+  console.log('Reminder email sent to:', userEmail);
+  return info;
+}
+
+// Send confirmation email based on user_id and event_id
+async function sendConfirmationEmail(userId, eventId) {
+  try {
+    // Get user profile
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('email, name')
+      .eq('id', userId)
+      .single();
+
+    if (profileError) throw profileError;
+
+    // Get event details
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('title, datetime, location, venue')
+      .eq('id', eventId)
+      .single();
+
+    if (eventError) throw eventError;
+
+    await sendRegistrationConfirmation(
+      profile.email,
+      profile.name,
+      event.title,
+      event.datetime,
+      event.location,
+      event.venue
+    );
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error sending confirmation:', error);
+    throw error;
+  }
+}
+
+// Check for events happening in 24 hours and send reminders
+async function sendRemindersFor24HourEvents() {
+  try {
+    // Calculate the time window (24 hours from now, with 1 hour buffer)
+    const now = new Date();
+    const twentyFourHoursFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const twentyThreeHoursFromNow = new Date(now.getTime() + 23 * 60 * 60 * 1000);
+
+    // Fetch events happening in 24 hours
+    const { data: upcomingEvents, error: eventsError } = await supabase
+      .from('events')
+      .select('*')
+      .gte('datetime', twentyThreeHoursFromNow.toISOString())
+      .lte('datetime', twentyFourHoursFromNow.toISOString());
+
+    if (eventsError) throw eventsError;
+
+    console.log(`Found ${upcomingEvents?.length || 0} events in the next 24 hours`);
+
+    if (!upcomingEvents || upcomingEvents.length === 0) {
+      console.log('No upcoming events to send reminders for');
+      return;
+    }
+
+    let reminderCount = 0;
+
+    // For each upcoming event, get all RSVPs
+    for (const event of upcomingEvents) {
+      // Get RSVPs for this event
+      const { data: rsvps, error: rsvpsError } = await supabase
+        .from('rsvps')
+        .select('user_id')
+        .eq('event_id', event.id)
+        .eq('status', 'confirmed');
+
+      if (rsvpsError) {
+        console.error(`Error fetching RSVPs for event ${event.id}:`, rsvpsError);
+        continue;
+      }
+
+      // Get unique user IDs
+      const userIds = rsvps.map(rsvp => rsvp.user_id);
+
+      if (userIds.length === 0) continue;
+
+      // Fetch all user profiles for these RSVPs
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, email, name')
+        .in('id', userIds);
+
+      if (profilesError) {
+        console.error(`Error fetching profiles for event ${event.id}:`, profilesError);
+        continue;
+      }
+
+      // Send reminder to each registered user
+      for (const profile of profiles || []) {
+        try {
+          await sendEventReminder(
+            profile.email,
+            profile.name,
+            event.title,
+            event.datetime,
+            event.location,
+            event.venue
+          );
+          reminderCount++;
+        } catch (emailError) {
+          console.error(`Failed to send reminder to ${profile.email}:`, emailError);
+        }
+      }
+    }
+
+    console.log(`Sent ${reminderCount} reminder emails successfully`);
+  } catch (error) {
+    console.error('Error sending reminders:', error);
+  }
+}
+
+if (require.main === module) {
+  sendRemindersFor24HourEvents().catch(console.error);
+}
