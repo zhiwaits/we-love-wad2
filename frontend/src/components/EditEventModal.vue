@@ -157,8 +157,8 @@
 <script>
 import { mapGetters } from 'vuex';
 import { updateEvent, getEventById } from '../services/eventService';
-import { createEventTag, deleteEventTag } from '../services/eventTagService';
-import { createTag } from '../services/tagService';
+import { createEventTag, deleteEventTag, getEventTagsByEventId } from '../services/eventTagService';
+import { createTag, getAllTags } from '../services/tagService';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 const MAX_TAGS = 10;
@@ -292,17 +292,41 @@ export default {
                 const response = await getEventById(this.event.id);
                 const eventData = response.data;
 
-                // Parse datetime from ISO format
-                const parseDateTime = (isoString) => {
-                    if (!isoString) return '';
-                    const date = new Date(isoString);
-                    const year = date.getFullYear();
-                    const month = String(date.getMonth() + 1).padStart(2, '0');
-                    const day = String(date.getDate()).padStart(2, '0');
-                    const hours = String(date.getHours()).padStart(2, '0');
-                    const minutes = String(date.getMinutes()).padStart(2, '0');
-                    return `${year}-${month}-${day}T${hours}:${minutes}`;
+                // Fetch tags for this event
+                const eventTagsResponse = await getEventTagsByEventId(this.event.id);
+                const tagsResponse = await getAllTags();
+                const eventTags = eventTagsResponse.data;
+                const tags = tagsResponse.data;
+
+                // Create tag map
+                const tagMap = {};
+                tags.forEach(tag => {
+                    tagMap[tag.id] = tag.tag_name;
+                });
+
+                // Get tag names for this event
+                const tagNames = eventTags.map(et => tagMap[et.tag_id]).filter(Boolean);
+                eventData.tags = tagNames;
+
+                // Parse time from formatted string like '8:00 AM' or '8:00 AM - 10:00 AM'
+                const parseTime = (timeStr) => {
+                    if (!timeStr) return { hours: 0, minutes: 0 };
+                    const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+                    if (!match) return { hours: 0, minutes: 0 };
+                    let hours = parseInt(match[1]);
+                    const minutes = parseInt(match[2]);
+                    const ampm = match[3].toUpperCase();
+                    if (ampm === 'PM' && hours !== 12) hours += 12;
+                    if (ampm === 'AM' && hours === 12) hours = 0;
+                    return { hours, minutes };
                 };
+
+                // Combine date and time for start datetime
+                const startTimeStr = eventData.time ? eventData.time.split(' - ')[0].trim() : '';
+                const { hours: startHours, minutes: startMinutes } = parseTime(startTimeStr);
+                const startDate = new Date(eventData.date);
+                startDate.setHours(startHours, startMinutes, 0, 0);
+                const startDateTime = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}T${String(startDate.getHours()).padStart(2, '0')}:${String(startDate.getMinutes()).padStart(2, '0')}`;
 
                 // Parse price from formatted string
                 const parsePrice = (priceStr) => {
@@ -313,7 +337,7 @@ export default {
                 this.form = {
                     title: eventData.title || '',
                     description: eventData.description || '',
-                    start: parseDateTime(eventData.date),
+                    start: startDateTime,
                     end: '', // Backend doesn't provide separate end time in the shaped response
                     location: eventData.location || '',
                     venue: eventData.venue || '',
