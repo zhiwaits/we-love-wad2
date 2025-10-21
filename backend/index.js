@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const app = express();
+const path = require('path');
 const port = 3000;
 
 const eventsRoutes = require('./routes/events');
@@ -13,9 +14,14 @@ const followsRoutes = require('./routes/follows');
 const tagsRoutes = require('./routes/tags');
 const statsRoutes = require('./routes/stats');
 const savedRoutes = require('./routes/savedEvents');
+const clubCategories = require('./routes/clubCategories');
+const authRoutes = require('./routes/auth');
+const eventCategories = require('./routes/eventCategories');
+const eventVenues = require('./routes/eventVenues');
 
 app.use(cors());
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '25mb' }));
+app.use('/uploads', express.static(path.resolve(__dirname, 'uploads')));
 app.use('/events', eventsRoutes);
 app.use('/profiles', profilesRoutes);
 app.use('/rsvps', rsvpsRoutes);
@@ -24,6 +30,10 @@ app.use('/follows', followsRoutes);
 app.use('/tags', tagsRoutes);
 app.use('/stats', statsRoutes);
 app.use('/savedEvents', savedRoutes);
+app.use('/clubCategories', clubCategories);
+app.use('/', authRoutes);
+app.use('/eventCategories', eventCategories);
+app.use('/eventVenues', eventVenues)
 
 
 

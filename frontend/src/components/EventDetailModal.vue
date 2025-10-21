@@ -7,8 +7,8 @@
                     <span aria-hidden="true">×</span>
                 </button>
 
-                <div class="modal-media" v-if="event.image">
-                    <img :src="event.image" :alt="`${event.title} hero`" />
+                <div class="modal-media" v-if="event">
+                    <img :src="eventImageSrc(event)" :alt="`${event.title} hero`" @error="handleImageError" />
                     <div class="modal-chip category" v-if="event.category">{{ event.category }}</div>
                     <div class="modal-chip price" :class="{ free: event.price === 'FREE' }" v-if="event.price">
                         {{ event.price }}
@@ -112,14 +112,16 @@
                     </section>
 
                     <footer class="modal-actions">
-                        <!-- UPDATED: Join Event Button -->
+                        <!-- UPDATED: Join Event Button with Club Restriction -->
                         <button 
                             type="button" 
                             class="btn btn-primary" 
                             @click="handleJoinEvent"
-                            :disabled="isJoining || hasJoined"
+                            :disabled="isJoining || hasJoined || isClub"
+                            :class="{ 'btn-disabled': isClub }"
                         >
-                            <span v-if="isJoining">Joining...</span>
+                            <span v-if="isClub">Clubs Cannot RSVP</span>
+                            <span v-else-if="isJoining">Joining...</span>
                             <span v-else-if="hasJoined">✓ Joined</span>
                             <span v-else>Join Event</span>
                         </button>
@@ -131,7 +133,7 @@
 
                         <div class="secondary-actions">
                             <button type="button" class="btn btn-outline">Save</button>
-                            <button type="button" class="btn btn-outline">Share</button>
+                            <button type="button" class="btn btn-outline" @click="$emit('share')">Share</button>
                         </div>
                     </footer>
                 </div>
@@ -141,8 +143,10 @@
 </template>
 <script>
 import { createRsvp } from '@/services/rsvpService';
-import { mapState, mapMutations } from 'vuex';
+import { mapState, mapMutations, mapGetters } from 'vuex';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const FALLBACK_PLACEHOLDER = 'https://placehold.co/900x400?text=Event';
 export default {
     name: 'EventDetailModal',
     props: {
@@ -155,7 +159,7 @@ export default {
             default: false
         }
     },
-    emits: ['close', 'tag-click', 'rsvp-created'],
+    emits: ['close', 'tag-click', 'rsvp-created', 'share'],
     
     data() {
         return {
@@ -180,7 +184,7 @@ export default {
 
     computed: {
         ...mapState(['currentUser', 'userRSVPs']), // Use your existing state
-        
+        ...mapGetters('auth', ['isClub']),
         spotsRemaining() {
             if (this.event?.maxAttendees == null) return null;
             const remaining = this.event.maxAttendees - (this.event.attendees || 0);
@@ -281,6 +285,18 @@ export default {
             }
         },
 
+        eventImageSrc(event) {
+            if (!event) return FALLBACK_PLACEHOLDER;
+            const raw = event.image || event.image_url || event.imageUrl || event.cover;
+            if (!raw) return FALLBACK_PLACEHOLDER;
+            if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+            const normalized = raw.replace('/uploads/event/event_', '/uploads/event/');
+            return `${API_BASE_URL}${normalized.startsWith('/') ? '' : '/'}${normalized}`;
+        },
+
+        handleImageError(ev) {
+            if (ev && ev.target) ev.target.src = FALLBACK_PLACEHOLDER;
+        },
         formatDateLong(isoDate) {
             if (!isoDate) return '';
             try {
@@ -885,6 +901,21 @@ calculateTravelTime(origin, destination) {
 .btn-primary:hover:not(:disabled) {
     transform: translateY(-1px);
     box-shadow: 0 14px 24px rgba(var(--color-teal-500-rgb, 33, 128, 141), 0.28);
+}
+
+.btn-primary:disabled,
+.btn-primary.btn-disabled {
+    background: rgba(var(--color-slate-500-rgb, 98, 108, 113), 0.3);
+    color: var(--color-text-secondary);
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+}
+
+.btn-primary:disabled:hover,
+.btn-primary.btn-disabled:hover {
+    transform: none;
+    box-shadow: none;
 }
 
 .btn-outline {

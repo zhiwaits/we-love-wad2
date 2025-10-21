@@ -1,18 +1,27 @@
 <script setup>
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useStore } from 'vuex';
 import StatCard from './StatCard.vue';
+import EventDetailModal from './EventDetailModal.vue';
+import { shareEventLink } from '../utils/shareEvent';
 
 const store = useStore();
 
-// User data
-const currentUser = computed(() => store.state.currentUser);
+// NEW - Get user from auth module with fallback
+const currentUser = computed(() => store.getters['auth/currentUser'] || { name: 'User', id: 1 });
 const userStats = computed(() => store.state.userStats);
+const categoryColorMap = computed(() => store.getters['categoryColorMap'] || {});
 
 // Dashboard sections
 const upcomingEvents = computed(() => store.getters.upcomingUserEvents);
 const recommendedEvents = computed(() => store.getters.recommendedEvents);
 const savedEvents = computed(() => store.getters.userSavedEvents);
+
+const selectedEvent = ref(null);
+const showEventModal = ref(false);
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const FALLBACK_PLACEHOLDER = 'https://placehold.co/600x400?text=Event';
 
 // Fetch data on mount
 onMounted(async () => {
@@ -38,6 +47,55 @@ const formatAttendees = (event) => {
   }
   return `${event.attendees}`;
 };
+
+const eventImageSrc = (event) => {
+  if (!event) return FALLBACK_PLACEHOLDER;
+  const raw = event.image || event.image_url || event.imageUrl || event.cover;
+  if (!raw) return FALLBACK_PLACEHOLDER;
+  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+  const normalized = raw.replace('/uploads/event/event_', '/uploads/event/');
+  return `${API_BASE_URL}${normalized.startsWith('/') ? '' : '/'}${normalized}`;
+};
+
+const handleEventImageError = (ev) => {
+  if (ev?.target) ev.target.src = FALLBACK_PLACEHOLDER;
+};
+
+const openEventModal = (event) => {
+  selectedEvent.value = event;
+  showEventModal.value = true;
+};
+
+const closeEventModal = () => {
+  showEventModal.value = false;
+  selectedEvent.value = null;
+};
+
+const handleShare = async () => {
+  if (!selectedEvent.value) return;
+  try {
+    await shareEventLink(selectedEvent.value);
+    store.dispatch('showToast', {
+      message: 'Event link copied to your clipboard.',
+      type: 'success'
+    });
+  } catch (error) {
+    console.error('Unable to share event', error);
+    store.dispatch('showToast', {
+      message: 'Unable to share this event. Please try again.',
+      type: 'error'
+    });
+  }
+};
+
+const handleTagClick = (tag) => {
+  store.dispatch('toggleTag', tag);
+};
+
+const handleTagFromModal = (tag) => {
+  handleTagClick(tag);
+  closeEventModal();
+};
 </script>
 
 <template>
@@ -47,7 +105,7 @@ const formatAttendees = (event) => {
     <div class="container">
         <div class="header-content">
         <div>
-            <h1 class="dashboard-title">Welcome back, {{ currentUser.name }}!</h1>
+            <h1 class="dashboard-title">Welcome back, {{ currentUser?.name || 'User' }}!</h1>
             <p class="dashboard-subtitle">Here's your personalized event overview</p>
         </div>
         <div class="header-actions">
@@ -105,10 +163,18 @@ const formatAttendees = (event) => {
 
         <!-- Events Grid -->
         <div v-else class="events-grid">
-          <div v-for="event in upcomingEvents" :key="event.id" class="event-card">
+          <div
+            v-for="event in upcomingEvents"
+            :key="event.id"
+            class="event-card"
+            role="button"
+            tabindex="0"
+            @click="openEventModal(event)"
+            @keyup.enter.prevent="openEventModal(event)"
+            @keyup.space.prevent="openEventModal(event)"
+          >
             <div class="event-image">
-              <img v-if="event.image" :src="event.image" :alt="event.title" class="event-img" />
-              <div v-else class="event-image-placeholder"></div>
+              <img :src="eventImageSrc(event)" :alt="event.title" class="event-img" @error="handleEventImageError" />
               <div class="event-price-tag" :class="{ 'price-free': event.price === 'FREE' }">
                 {{ event.price }}
               </div>
@@ -117,7 +183,10 @@ const formatAttendees = (event) => {
 
             <div class="event-content">
               <div class="event-header">
-                <span class="event-category">{{ event.category }}</span>
+                <span
+                  class="event-category"
+                  :style="categoryColorMap[event.category] ? { backgroundColor: categoryColorMap[event.category], color: '#fff' } : {}"
+                >{{ event.category }}</span>
               </div>
 
               <h3 class="event-title">{{ event.title }}</h3>
@@ -138,7 +207,12 @@ const formatAttendees = (event) => {
               </div>
 
               <div class="event-tags">
-                <span v-for="tag in event.tags" :key="tag" class="tag-badge">
+                <span
+                  v-for="tag in event.tags"
+                  :key="tag"
+                  class="tag-badge"
+                  @click.stop="handleTagClick(tag)"
+                >
                   #{{ tag }}
                 </span>
               </div>
@@ -155,10 +229,18 @@ const formatAttendees = (event) => {
         </div>
 
         <div class="events-grid">
-          <div v-for="event in recommendedEvents" :key="event.id" class="event-card">
+          <div
+            v-for="event in recommendedEvents"
+            :key="event.id"
+            class="event-card"
+            role="button"
+            tabindex="0"
+            @click="openEventModal(event)"
+            @keyup.enter.prevent="openEventModal(event)"
+            @keyup.space.prevent="openEventModal(event)"
+          >
             <div class="event-image">
-              <img v-if="event.image" :src="event.image" :alt="event.title" class="event-img" />
-              <div v-else class="event-image-placeholder"></div>
+              <img :src="eventImageSrc(event)" :alt="event.title" class="event-img" @error="handleEventImageError" />
               <div class="event-price-tag" :class="{ 'price-free': event.price === 'FREE' }">
                 {{ event.price }}
               </div>
@@ -166,7 +248,10 @@ const formatAttendees = (event) => {
 
             <div class="event-content">
               <div class="event-header">
-                <span class="event-category">{{ event.category }}</span>
+                <span
+                  class="event-category"
+                  :style="categoryColorMap[event.category] ? { backgroundColor: categoryColorMap[event.category], color: '#fff' } : {}"
+                >{{ event.category }}</span>
               </div>
 
               <h3 class="event-title">{{ event.title }}</h3>
@@ -184,7 +269,12 @@ const formatAttendees = (event) => {
               </div>
 
               <div class="event-tags">
-                <span v-for="tag in event.tags" :key="tag" class="tag-badge">
+                <span
+                  v-for="tag in event.tags"
+                  :key="tag"
+                  class="tag-badge"
+                  @click.stop="handleTagClick(tag)"
+                >
                   #{{ tag }}
                 </span>
               </div>
@@ -193,6 +283,14 @@ const formatAttendees = (event) => {
         </div>
       </section>
     </div>
+
+    <EventDetailModal
+      :visible="showEventModal"
+      :event="selectedEvent"
+      @close="closeEventModal"
+      @share="handleShare"
+      @tag-click="handleTagFromModal"
+    />
   </div>
 </template>
 

@@ -12,8 +12,9 @@ export default {
   },
   
   computed: {
-    ...mapState(['categories', 'filters']),
-    ...mapGetters(['allTags']),
+    // categories list as simple names
+    ...mapState(['filters']),
+    ...mapGetters(['allTags', 'categoryNames', 'categoryColorMap']),
     
     // Check if a category is selected
     isCategorySelected() {
@@ -32,7 +33,7 @@ export default {
   },
   
   methods: {
-    ...mapActions(['toggleCategory', 'toggleTag', 'resetFilters']),
+    ...mapActions(['toggleCategory', 'toggleTag', 'resetFilters', 'fetchEventCategories']),
     
     // Handle category checkbox click
     handleCategoryToggle(category) {
@@ -52,7 +53,28 @@ export default {
     // Toggle tag section
     toggleTagSection() {
       this.showTags = !this.showTags;
+    },
+
+    // Determine whether a hex color is light (returns true) for contrast
+    isLightColor(hex) {
+      if (!hex) return false;
+      try {
+        const cleaned = hex.replace('#','');
+        const bigint = parseInt(cleaned.length === 3 ? cleaned.split('').map(c=>c+c).join('') : cleaned, 16);
+        const r = (bigint >> 16) & 255;
+        const g = (bigint >> 8) & 255;
+        const b = bigint & 255;
+        // Perceived luminance
+        const luminance = 0.299*r + 0.587*g + 0.114*b;
+        return luminance > 186; // threshold
+      } catch (e) {
+        return false;
+      }
     }
+  },
+
+  created() {
+    this.fetchEventCategories();
   }
 }
 </script>
@@ -79,7 +101,7 @@ export default {
       
       <div v-show="showCategories" class="filter-section-content">
         <label 
-          v-for="category in categories" 
+          v-for="category in categoryNames" 
           :key="category" 
           class="checkbox-label"
         >
@@ -89,7 +111,7 @@ export default {
             @change="handleCategoryToggle(category)"
           >
           <span class="checkbox-text">{{ category }}</span>
-          <span class="category-badge" :class="`badge-${category.toLowerCase()}`">
+          <span class="category-badge" :class="`badge-${category.toLowerCase()}`" :style="categoryColorMap && categoryColorMap[category] ? { backgroundColor: categoryColorMap[category], color: (isLightColor(categoryColorMap[category]) ? '#222' : '#fff') } : {}">
             {{ category }}
           </span>
         </label>
