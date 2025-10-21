@@ -570,7 +570,9 @@ export default {
                     price: this.form.price ? Number(this.form.price) : 0,
                     owner_id: this.currentUser.id,
                     venue: this.form.venue,
-                    image_url: this.originalImageUrl // Keep existing image URL
+                    image_url: this.originalImageUrl, // Keep existing image URL
+                    latitude: null,
+                    altitude: null
                 };
 
                 // If a new image was selected, include it

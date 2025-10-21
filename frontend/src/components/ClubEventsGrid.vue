@@ -33,6 +33,7 @@ export default {
         ...mapState({ currentUser: state => state.auth.user }),
 
         events() {
+            console.log('ClubEventsGrid - events computed:', this.filteredClubEvents);
             return this.filteredClubEvents;
         }
     },

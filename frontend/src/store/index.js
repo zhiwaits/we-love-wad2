@@ -267,10 +267,16 @@ export default createStore({
     // Club Events - filtered by club owner and filters
     filteredClubEvents: (state, getters, rootState) => {
       const currentUser = rootState.auth.user;
-      if (!currentUser || !currentUser.id) return [];
+      console.log('filteredClubEvents - currentUser:', currentUser);
+      if (!currentUser || !currentUser.id) {
+        console.log('filteredClubEvents - no currentUser or id, returning []');
+        return [];
+      }
 
       // First, filter events owned by this club
       let clubEvents = state.allEvents.filter(event => event.ownerId === currentUser.id);
+      console.log('filteredClubEvents - allEvents:', state.allEvents);
+      console.log('filteredClubEvents - clubEvents (filtered by ownerId):', clubEvents);
 
       // Check if any filters are active
       const noFiltersActive =
@@ -705,9 +711,10 @@ export default createStore({
     async fetchAllEvents({ commit }) {
       try {
         const response = await getAllEvents();
+        console.log('fetchAllEvents - response data:', response.data);
         commit('setAllEvents', response.data);
       } catch (error) {
-        console.error(error);
+        console.error('fetchAllEvents - error:', error);
       }
     },
 

@@ -251,12 +251,9 @@ const previewClubCategory = computed(() => {
         <div class="header-content">
         <div>
             <h1 class="dashboard-title">Welcome back, {{ currentUser?.name || 'User' }}!</h1>
-            <p class="dashboard-subtitle">Here's your personalized event overview</p>
+            <p class="dashboard-subtitle">Here's your club overview</p>
         </div>
         <div class="header-actions">
-            <router-link to="/" class="btn btn--outline">
-            Browse Events
-            </router-link>
         </div>
         </div>
     </div>

@@ -248,7 +248,9 @@ const handleSubmit = async () => {
 			capacity: form.value.capacity ? Number(form.value.capacity) : null,
 			price: form.value.price ? Number(form.value.price) : 0,
 			owner_id: ownerId.value,
-			venue: form.value.venue
+			venue: form.value.venue,
+			latitude: null,
+			altitude: null
 		};
 		const tagsPayload = selectedTags.value.slice(0, MAX_TAGS);
 
