@@ -43,7 +43,7 @@ function pickImageExtension(imageBase64, originalName) {
 
 function formatDateISO(date) {
   if (!date) return null;
-  const d = new Date(date);
+  const d = new Date(date + '+08:00');
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
@@ -52,7 +52,7 @@ function formatDateISO(date) {
 
 function formatTimeHM(date) {
   if (!date) return null;
-  const d = new Date(date);
+  const d = new Date(date + '+08:00');
   let hours = d.getHours();
   const minutes = String(d.getMinutes()).padStart(2, '0');
   const ampm = hours >= 12 ? 'PM' : 'AM';
@@ -65,8 +65,8 @@ function formatTimeRange(start, end) {
   if (!start) return '';
   const startStr = formatTimeHM(start);
   if (!end) return startStr;
-  const startD = new Date(start);
-  const endD = new Date(end);
+  const startD = new Date(start + '+08:00');
+  const endD = new Date(end + '+08:00');
   const sameDay =
     startD.getFullYear() === endD.getFullYear() &&
     startD.getMonth() === endD.getMonth() &&
@@ -80,6 +80,12 @@ function formatPriceTag(price) {
   const n = Number(price);
   const str = Number.isInteger(n) ? `${n}` : n.toFixed(2).replace(/\.00$/, '');
   return `$${str}`;
+}
+
+function convertToSGTime(isoString) {
+  if (!isoString) return null;
+  const date = new Date(isoString);
+  return date.toLocaleString('sv-SE', { timeZone: 'Asia/Singapore' }).replace(',', '');
 }
 
 exports.getAllEvents = async (req, res) => {
@@ -194,7 +200,10 @@ exports.createEvent = async (req, res) => {
       latitude = null, altitude = null, imageBase64, imageOriginalName, tags
     } = req.body;
 
-    if (!title || !description || !datetime || !location || !category || !owner_id || !venue) {
+    const sgDatetime = convertToSGTime(datetime);
+    const sgEnddatetime = convertToSGTime(enddatetime);
+
+    if (!title || !description || !sgDatetime || !location || !category || !owner_id || !venue) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
     if (!imageBase64) {
@@ -205,7 +214,7 @@ exports.createEvent = async (req, res) => {
     const insertResult = await client.query(
       `INSERT INTO ${table} (title, description, datetime, location, category, capacity, owner_id, venue, enddatetime, price, latitude, altitude)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
-      [title, description, datetime, location, category, capacity, owner_id, venue, enddatetime, price, latitude, altitude]
+      [title, description, sgDatetime, location, category, capacity, owner_id, venue, sgEnddatetime, price, latitude, altitude]
     );
     let event = insertResult.rows[0];
     console.log('[createEvent] Inserted event id:', event.id);
@@ -351,6 +360,9 @@ exports.updateEvent = async (req, res) => {
     title, description, datetime, location, category, capacity, image_url, owner_id, venue, enddatetime, price,
     latitude = null, altitude = null, imageBase64, imageOriginalName
   } = req.body;
+
+  const sgDatetime = convertToSGTime(datetime);
+  const sgEnddatetime = convertToSGTime(enddatetime);
   try {
     let finalImageUrl = image_url;
 
@@ -368,7 +380,7 @@ exports.updateEvent = async (req, res) => {
     const result = await pool.query(
       `UPDATE ${table} SET title=$1, description=$2, datetime=$3, location=$4,
        category=$5, capacity=$6, image_url=$7, owner_id=$8, venue=$9, enddatetime=$10, price=$11, latitude=$12, altitude=$13 WHERE id=$14 RETURNING *`,
-      [title, description, datetime, location, category, capacity, finalImageUrl, owner_id, venue, enddatetime, price, latitude, altitude, id]
+      [title, description, sgDatetime, location, category, capacity, finalImageUrl, owner_id, venue, sgEnddatetime, price, latitude, altitude, id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Event not found' });
     res.json(result.rows[0]);

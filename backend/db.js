@@ -6,6 +6,7 @@ const pool = new Pool({
     database: 'postgres',
     password: 'group7loveswad2',
     port: 5432,
+    timezone: 'Asia/Singapore'
 });
 
 pool.query('SELECT NOW()', (err, res) => {

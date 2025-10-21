@@ -4,6 +4,7 @@ import { getAllEvents } from "../services/eventService.js";
 import { getAllEventCategories } from '../services/eventCategoryService.js';
 import { getAllEventVenues } from '../services/eventVenueService.js';
 import { getAllTags } from '../services/tagService.js';
+import { getAllEventTags } from '../services/eventTagService.js';
 import clubs from './modules/clubs';
 
 let toastTimer = null;
@@ -710,9 +711,41 @@ export default createStore({
 
     async fetchAllEvents({ commit }) {
       try {
-        const response = await getAllEvents();
-        console.log('fetchAllEvents - response data:', response.data);
-        commit('setAllEvents', response.data);
+        const [eventsResponse, eventTagsResponse, tagsResponse] = await Promise.all([
+          getAllEvents(),
+          getAllEventTags(),
+          getAllTags()
+        ]);
+
+        const events = eventsResponse.data;
+        const eventTags = eventTagsResponse.data;
+        const tags = tagsResponse.data;
+
+        // Create a map of tag_id to tag_name
+        const tagMap = {};
+        tags.forEach(tag => {
+          tagMap[tag.id] = tag.tag_name;
+        });
+
+        // Create a map of event_id to array of tag_names
+        const eventTagMap = {};
+        eventTags.forEach(et => {
+          if (!eventTagMap[et.event_id]) {
+            eventTagMap[et.event_id] = [];
+          }
+          const tagName = tagMap[et.tag_id];
+          if (tagName) {
+            eventTagMap[et.event_id].push(tagName);
+          }
+        });
+
+        // Assign tags to events
+        events.forEach(event => {
+          event.tags = eventTagMap[event.id] || [];
+        });
+
+        console.log('fetchAllEvents - events with tags:', events);
+        commit('setAllEvents', events);
       } catch (error) {
         console.error('fetchAllEvents - error:', error);
       }
