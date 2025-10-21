@@ -154,13 +154,93 @@ exports.updateUserProfile = async (req, res) => {
 exports.updateClubProfile = async (req, res) => {
   const { id } = req.params;
   const {
-    username, email, password, club_description, club_category, club_image
+    name, username, email, password, club_description, club_category_id, club_image, imageBase64, imageOriginalName
   } = req.body;
+  
   try {
-    const result = await pool.query(
-      `UPDATE ${table} SET username=$1, email=$2, password=$3, club_description=$4, club_category_id=$5, club_image=$6 WHERE id=$7 AND account_type='club' RETURNING *`,
-      [username, email, password, club_description, club_category, club_image, id]
-    );
+    // First, get the current profile to check if username changed
+    const currentProfileResult = await pool.query(`SELECT * FROM ${table} WHERE id = $1 AND account_type = 'club'`, [id]);
+    if (currentProfileResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Club profile not found' });
+    }
+    const currentProfile = currentProfileResult.rows[0];
+    
+    let storedImageUrl = club_image; // Keep existing image by default
+    
+    // Handle username change - rename existing image file if username changed and no new image provided
+    if (username && username !== currentProfile.username && !imageBase64) {
+      const uploadDir = path.resolve(__dirname, '../uploads/club');
+      
+      const oldSafeUsername = (currentProfile.username || 'club')
+        .toString()
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/gi, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '') || 'club';
+      
+      const newSafeUsername = (username || 'club')
+        .toString()
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/gi, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '') || 'club';
+      
+      if (oldSafeUsername !== newSafeUsername) {
+        const oldFileName = `${oldSafeUsername}.png`;
+        const newFileName = `${newSafeUsername}.png`;
+        const oldFilePath = path.join(uploadDir, oldFileName);
+        const newFilePath = path.join(uploadDir, newFileName);
+        
+        try {
+          // Check if old file exists and rename it
+          if (fs.existsSync(oldFilePath)) {
+            fs.renameSync(oldFilePath, newFilePath);
+            storedImageUrl = `/uploads/club/${newFileName}`;
+          }
+        } catch (error) {
+          console.error('Error renaming club image file:', error);
+          // Continue with update even if rename fails
+        }
+      }
+    }
+    
+    // Handle new image upload if provided
+    if (imageBase64 && imageOriginalName) {
+      const uploadDir = path.resolve(__dirname, '../uploads/club');
+      try { fs.mkdirSync(uploadDir, { recursive: true }); } catch {}
+
+      const safeUsername = (username || 'club')
+        .toString()
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/gi, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '') || 'club';
+
+      const fileName = `${safeUsername}.png`;
+      const filePath = path.join(uploadDir, fileName);
+      try { fs.unlinkSync(filePath); } catch {} // Remove old file
+      const data = imageBase64.split(',')[1] || imageBase64;
+      fs.writeFileSync(filePath, Buffer.from(data, 'base64'));
+      storedImageUrl = `/uploads/club/${fileName}`;
+    }
+
+    // Handle password - only hash if provided
+    let passwordValue = password;
+    if (password) {
+      passwordValue = crypto.createHash('sha256').update(String(password)).digest('hex');
+    }
+
+    // Build dynamic query based on whether password is being updated
+    let query, params;
+    if (passwordValue) {
+      query = `UPDATE ${table} SET name=$1, username=$2, email=$3, password=$4, club_description=$5, club_category_id=$6, club_image=$7 WHERE id=$8 AND account_type='club' RETURNING *`;
+      params = [name, username, email, passwordValue, club_description, club_category_id, storedImageUrl, id];
+    } else {
+      query = `UPDATE ${table} SET name=$1, username=$2, email=$3, club_description=$4, club_category_id=$5, club_image=$6 WHERE id=$7 AND account_type='club' RETURNING *`;
+      params = [name, username, email, club_description, club_category_id, storedImageUrl, id];
+    }
+
+    const result = await pool.query(query, params);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Club profile not found' });
     res.json(result.rows[0]);
   } catch (err) {

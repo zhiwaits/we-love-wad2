@@ -60,6 +60,16 @@ export default {
         this.updateClubEventLocationQuery(value);
       }
     },
+
+    // Two-way binding for event status
+    eventStatus: {
+      get() {
+        return this.clubEventFilters.eventStatus;
+      },
+      set(value) {
+        this.updateClubEventStatus(value);
+      }
+    },
     
     // Check if "show only free events" is checked
     showOnlyFree: {
@@ -80,6 +90,7 @@ export default {
       'updateClubEventDateFilter',
       'updateClubEventVenueFilter',
       'updateClubEventLocationQuery',
+      'updateClubEventStatus',
       'resetClubEventFilters'
     ]),
     
@@ -106,6 +117,13 @@ export default {
 
             <!-- Filter Dropdowns -->
             <div class="filters-row">
+                <!-- Event Status Filter -->
+                <select class="form-control filter-select" v-model="eventStatus">
+                    <option value="both">All Events</option>
+                    <option value="upcoming">Upcoming Events</option>
+                    <option value="past">Past Events</option>
+                </select>
+
                 <!-- Price Filter -->
                 <select class="form-control filter-select" v-model="priceFilter">
                     <option value="all">All Prices</option>
@@ -151,7 +169,7 @@ export default {
                     <button 
                         class="btn btn-sm btn-outline-secondary reset-btn" 
                         @click="handleResetFilters"
-                        v-if="searchQuery || priceFilter !== 'all' || dateFilter !== 'all' || venueFilter !== 'all' || locationQuery"
+                        v-if="searchQuery || priceFilter !== 'all' || dateFilter !== 'all' || venueFilter !== 'all' || locationQuery || eventStatus !== 'both'"
                     >
                         Clear All Filters
                     </button>

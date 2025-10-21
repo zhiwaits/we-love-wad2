@@ -1,15 +1,22 @@
 <script>
 import { mapGetters, mapActions, mapState } from 'vuex';
+import ClubDetailModal from './ClubDetailModal.vue';
+import { shareClubLink } from '../utils/shareClub';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 const FALLBACK_PLACEHOLDER = 'https://placehold.co/600x400?text=Club';
 
 export default {
     name: 'ClubsGrid',
+    components: {
+        ClubDetailModal
+    },
 
     data() {
         return {
             imageErrors: {},
+            selectedClub: null,
+            modalVisible: false,
         };
     },
 
@@ -25,8 +32,10 @@ export default {
 
     methods: {
         ...mapActions('clubs', ['toggleFollow']),
-        viewClubEvents(clubId) {
+        viewClubEvents(club) {
            
+            this.$store.dispatch('updateSearch', club.name || club.username);
+            this.$store.dispatch('updateEventStatus', 'upcoming');
             this.$router.push({ name: 'Home' });
         },
         sanitizeUsername(username) {
@@ -54,8 +63,9 @@ export default {
                 if (raw.startsWith('http://') || raw.startsWith('https://')) {
                     return raw;
                 }
-                const normalized = raw.replace('/uploads/club/club_', '/uploads/club/');
-                return `${API_BASE_URL}${normalized.startsWith('/') ? '' : '/'}${normalized}`;
+                // Ensure the path starts with /uploads/club/
+                const normalized = raw.startsWith('/uploads/club/') ? raw : `/uploads/club/${raw.replace(/^\/+/, '')}`;
+                return `${API_BASE_URL}${normalized}`;
             }
 
             return this.fallbackImage(club);
@@ -105,6 +115,31 @@ export default {
         },
         formatNumber(n) {
             try { return new Intl.NumberFormat().format(n ?? 0); } catch { return `${n ?? 0}`; }
+        },
+        openClubModal(club) {
+            this.selectedClub = club;
+            this.modalVisible = true;
+        },
+        closeClubModal() {
+            this.modalVisible = false;
+            this.selectedClub = null;
+        },
+        handleViewEvents(club) {
+            this.viewClubEvents(club);
+            this.closeClubModal();
+        },
+        handleToggleFollow(clubId) {
+            this.toggleFollow(clubId);
+        },
+        async handleShare() {
+            if (!this.selectedClub) return;
+            try {
+                await shareClubLink(this.selectedClub);
+                this.$store.dispatch('showToast', { message: 'Club link copied to clipboard!', type: 'success' });
+            } catch (error) {
+                console.error('Failed to share club:', error);
+                this.$store.dispatch('showToast', { message: 'Failed to share club', type: 'error' });
+            }
         }
     }
 }
@@ -125,7 +160,7 @@ export default {
             </div>
 
             <div v-else class="cards-container">
-                <div v-for="club in filteredClubs" :key="club.id" class="club-card">
+                <div v-for="club in filteredClubs" :key="club.id" class="club-card" @click="openClubModal(club)">
                     <div class="club-image">
                         <img
                             :src="clubImageSrc(club)"
@@ -145,7 +180,7 @@ export default {
                         <p class="club-description">{{ club.club_description }}</p>
 
                         <div class="club-actions">
-                            <button class="btn btn-outline-dark" @click.stop="viewClubEvents(club.id)">
+                            <button class="btn btn-outline-dark" @click.stop="viewClubEvents(club)">
                                 View Events
                             </button>
                             <button
@@ -160,6 +195,18 @@ export default {
                 </div>
             </div>
         </div>
+
+        <ClubDetailModal
+            :club="selectedClub"
+            :visible="modalVisible"
+            :followers-count="selectedClub ? followersCount(selectedClub.id) : 0"
+            :is-following="selectedClub ? isFollowing(selectedClub.id) : false"
+            :club-category="selectedClub ? resolveCategory(selectedClub) : ''"
+            @close="closeClubModal"
+            @view-events="handleViewEvents"
+            @toggle-follow="handleToggleFollow"
+            @share="handleShare"
+        />
     </section>
 </template>
 
@@ -168,7 +215,7 @@ export default {
 .no-results { text-align: center; padding: var(--space-64) var(--space-24); color: var(--color-text-secondary); }
 .no-results h3 { font-size: var(--font-size-2xl); color: var(--color-text); margin-bottom: var(--space-16); }
 .cards-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 360px)); justify-content: center; gap: var(--space-24); width: 100%; }
-.club-card { background-color: var(--color-surface); border-radius: var(--radius-lg); border: 1px solid var(--color-card-border); box-shadow: var(--shadow-sm); overflow: hidden; transition: transform var(--duration-normal) var(--ease-standard), box-shadow var(--duration-normal) var(--ease-standard), border-color var(--duration-normal) var(--ease-standard); display: flex; flex-direction: column; height: 100%; position: relative; opacity: 0; transform: translateY(12px); animation: card-enter 0.45s var(--ease-standard) forwards; }
+.club-card { background-color: var(--color-surface); border-radius: var(--radius-lg); border: 1px solid var(--color-card-border); box-shadow: var(--shadow-sm); overflow: hidden; transition: transform var(--duration-normal) var(--ease-standard), box-shadow var(--duration-normal) var(--ease-standard), border-color var(--duration-normal) var(--ease-standard); display: flex; flex-direction: column; height: 100%; position: relative; opacity: 0; transform: translateY(12px); animation: card-enter 0.45s var(--ease-standard) forwards; cursor: pointer; }
 .club-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--color-primary); transform: scaleX(0); transition: transform var(--duration-normal) var(--ease-standard); }
 .club-card:hover { box-shadow: var(--shadow-md); transform: translateY(-4px); border-color: var(--color-primary); }
 .club-card:hover::before { transform: scaleX(1); }

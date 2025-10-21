@@ -31,6 +31,21 @@ exports.getRsvpsByUserId = async (req, res) => {
     }
 };
 
+exports.getRsvpsForEventsByOwner = async (req, res) => {
+    try {
+        const ownerId = req.params.id;
+        // Get all RSVPs for events owned by this user
+        const result = await pool.query(`
+            SELECT r.* FROM ${table} r
+            INNER JOIN events e ON r.event_id = e.id
+            WHERE e.owner_id = $1
+        `, [ownerId]);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
 
 exports.createRsvp = async (req, res) => {
     try {

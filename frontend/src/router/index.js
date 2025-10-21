@@ -63,6 +63,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/clubs/:id',
+    name: 'ClubDetail',
+    component: () => import('../views/ClubDetailPage.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/:pathMatch(.*)*',
     redirect: '/login'
   }

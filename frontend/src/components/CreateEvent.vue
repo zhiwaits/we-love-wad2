@@ -33,7 +33,7 @@ const tagFeedback = ref('');
 const venues = computed(() => store.state.venues);
 const categories = computed(() => store.getters['categoryNames'] || []);
 const categoryColorMap = computed(() => store.getters['categoryColorMap'] || {});
-const availableTags = computed(() => store.state.availableTags || []);
+const availableTags = computed(() => (store.state.availableTags || []).map(t => t.tag_name));
 const selectedTags = computed(() => Array.isArray(form.value.tags) ? form.value.tags : []);
 const isTagLimitReached = computed(() => selectedTags.value.length >= MAX_TAGS);
 const filteredTagSuggestions = computed(() => {

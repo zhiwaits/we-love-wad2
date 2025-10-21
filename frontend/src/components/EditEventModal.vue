@@ -158,6 +158,7 @@
 import { mapGetters } from 'vuex';
 import { updateEvent, getEventById } from '../services/eventService';
 import { createEventTag, deleteEventTag } from '../services/eventTagService';
+import { createTag } from '../services/tagService';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 const MAX_TAGS = 10;
@@ -212,7 +213,7 @@ export default {
             return this.categoryNames || [];
         },
         availableTags() {
-            return this.$store.state.availableTags || [];
+            return (this.$store.state.availableTags || []).map(t => t.tag_name);
         },
         selectedTags() {
             return Array.isArray(this.form.tags) ? this.form.tags : [];
@@ -284,6 +285,9 @@ export default {
             if (!this.event || !this.event.id) return;
 
             try {
+                // Ensure metadata is loaded first
+                await this.ensureMetadata();
+
                 // Fetch fresh event data from backend
                 const response = await getEventById(this.event.id);
                 const eventData = response.data;
@@ -351,10 +355,10 @@ export default {
             const hasVenues = Array.isArray(this.$store.state.venues) && this.$store.state.venues.length > 0;
             const tasks = [];
             if (!hasCategories) {
-                tasks.push(this.$store.dispatch('fetchCategories'));
+                tasks.push(this.$store.dispatch('fetchEventCategories'));
             }
             if (!hasVenues) {
-                tasks.push(this.$store.dispatch('fetchVenues'));
+                tasks.push(this.$store.dispatch('fetchEventVenues'));
             }
             tasks.push(this.$store.dispatch('fetchAvailableTags'));
             try {
@@ -517,8 +521,8 @@ export default {
                 const removedTags = originalTags.filter(tag => !newTags.includes(tag));
 
                 // Get all available tags from store (with their IDs)
-                const allTagObjs = this.$store.state.availableTagsRaw || [];
-                // Fallback: if availableTagsRaw not present, use availableTags and ignore IDs
+                const allTagObjs = this.$store.state.availableTags || [];
+                // Fallback: if availableTags not present, use availableTags and ignore IDs
 
                 // Helper to get tag_id by tag name
                 const getTagId = (tagName) => {
@@ -529,7 +533,19 @@ export default {
 
                 // Add new tags
                 for (const tag of addedTags) {
-                    const tagId = getTagId(tag);
+                    let tagId = getTagId(tag);
+                    if (!tagId) {
+                        // Create new tag
+                        try {
+                            const createResponse = await createTag({ tag_name: tag });
+                            tagId = createResponse.data.id;
+                            // Update local store
+                            this.$store.commit('SET_AVAILABLE_TAGS', [...allTagObjs, { id: tagId, tag_name: tag }]);
+                        } catch (createErr) {
+                            console.error('Failed to create tag:', tag, createErr);
+                            continue;
+                        }
+                    }
                     if (tagId) {
                         await createEventTag(eventId, tagId);
                     }
@@ -642,6 +658,9 @@ export default {
     padding: clamp(24px, 3vw, 32px);
     border-bottom: 1px solid var(--color-border);
     flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
 .modal-header h2 {

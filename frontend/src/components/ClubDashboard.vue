@@ -3,18 +3,21 @@ import { computed, onMounted, ref } from 'vue';
 import { useStore } from 'vuex';
 import StatCard from './StatCard.vue';
 import EventDetailModal from './EventDetailModal.vue';
+import ClubDetailModal from './ClubDetailModal.vue';
 import { shareEventLink } from '../utils/shareEvent';
+import { updateClubProfile } from '../services/profileService';
+import { getAllClubCategories } from '../services/clubCategoryService';
 
 const store = useStore();
 
 // NEW - Get user from auth module with fallback
 const currentUser = computed(() => store.getters['auth/currentUser'] || { name: 'User', id: 1 });
-const clubStats = computed(() => store.state.clubStats || {
-  upcomingEvents: 0,
-  totalEvents: 0,
-  currentRSVPs: 0,
-  followers: 0
-});
+const clubStats = computed(() => ({
+  upcomingEvents: store.getters.upcomingClubEvents?.length || 0,
+  totalEvents: store.getters.filteredClubEvents?.length || 0,
+  currentRSVPs: store.getters.clubRsvpCount || 0,
+  followers: store.state.clubStats?.followers || 0
+}));
 const categoryColorMap = computed(() => store.getters['categoryColorMap'] || {});
 
 // Dashboard sections
@@ -24,6 +27,24 @@ const savedEvents = computed(() => store.getters.userSavedEvents);
 
 const selectedEvent = ref(null);
 const showEventModal = ref(false);
+
+// Profile edit form data
+const profileForm = ref({
+  name: '',
+  username: '',
+  email: '',
+  password: '',
+  confirmPassword: '',
+  club_description: '',
+  club_category_id: '',
+  imageBase64: null,
+  imageOriginalName: null
+});
+const clubCategories = ref([]);
+const profileLoading = ref(false);
+
+// Preview modal
+const showPreviewModal = ref(false);
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 const FALLBACK_PLACEHOLDER = 'https://placehold.co/600x400?text=Event';
@@ -35,14 +56,105 @@ onMounted(async () => {
   // Fetch all data
   await store.dispatch('fetchAllEvents');
   await store.dispatch('fetchClubStats', userId);
-  await store.dispatch('fetchUserRSVPs', userId);
+  await store.dispatch('fetchClubRSVPs', userId);
+  
+  // Load club categories for the form
+  await loadClubCategories();
+  
+  // Load current profile data
+  await loadProfileData();
 });
 
-// Format date for display
-const formatDate = (dateString) => {
-  const date = new Date(dateString);
-  const options = { weekday: 'short', day: 'numeric', month: 'short' };
-  return date.toLocaleDateString('en-US', options);
+// Profile management methods
+const loadClubCategories = async () => {
+  try {
+    const response = await getAllClubCategories();
+    clubCategories.value = response.data || [];
+  } catch (error) {
+    console.error('Failed to load club categories:', error);
+  }
+};
+
+const loadProfileData = async () => {
+  try {
+    // Profile data should already be in currentUser, but we can refresh if needed
+    const user = currentUser.value;
+    profileForm.value = {
+      name: user.name || '',
+      username: user.username || '',
+      email: user.email || '',
+      password: '',
+      confirmPassword: '',
+      club_description: user.club_description || '',
+      club_category_id: user.club_category_id || '',
+      imageBase64: null,
+      imageOriginalName: null
+    };
+  } catch (error) {
+    console.error('Failed to load profile data:', error);
+  }
+};
+
+const handleImageUpload = (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    profileForm.value.imageBase64 = e.target.result;
+    profileForm.value.imageOriginalName = file.name;
+  };
+  reader.readAsDataURL(file);
+};
+
+const validateForm = () => {
+  if (profileForm.value.password && profileForm.value.password !== profileForm.value.confirmPassword) {
+    store.dispatch('showToast', { message: 'Passwords do not match', type: 'error' });
+    return false;
+  }
+  if (!profileForm.value.name || !profileForm.value.username || !profileForm.value.email) {
+    store.dispatch('showToast', { message: 'Name, username and email are required', type: 'error' });
+    return false;
+  }
+  return true;
+};
+
+const submitProfileUpdate = async () => {
+  if (!validateForm()) return;
+
+  profileLoading.value = true;
+  try {
+    const updateData = {
+      name: profileForm.value.name,
+      username: profileForm.value.username,
+      email: profileForm.value.email,
+      club_description: profileForm.value.club_description,
+      club_category: profileForm.value.club_category_id
+    };
+
+    // Only include password if it's provided
+    if (profileForm.value.password) {
+      updateData.password = profileForm.value.password;
+    }
+
+    // Include image data if uploaded
+    if (profileForm.value.imageBase64) {
+      updateData.imageBase64 = profileForm.value.imageBase64;
+      updateData.imageOriginalName = profileForm.value.imageOriginalName;
+    }
+
+    await updateClubProfile(currentUser.value.id, updateData);
+    
+    // Update the store with new data
+    await store.dispatch('auth/checkAuth');
+    
+    store.dispatch('showToast', { message: 'Profile updated successfully!', type: 'success' });
+  } catch (error) {
+    console.error('Failed to update profile:', error);
+    store.dispatch('showToast', { message: 'Failed to update profile', type: 'error' });
+  } finally {
+    profileLoading.value = false;
+  }
 };
 
 // Format attendees display
@@ -101,6 +213,34 @@ const handleTagFromModal = (tag) => {
   handleTagClick(tag);
   closeEventModal();
 };
+
+// Preview modal methods
+const openPreviewModal = () => {
+  showPreviewModal.value = true;
+};
+
+const closePreviewModal = () => {
+  showPreviewModal.value = false;
+};
+
+// Create preview club object from form data
+const previewClub = computed(() => {
+  const selectedCategory = clubCategories.value.find(cat => cat.id == profileForm.value.club_category_id);
+  return {
+    id: currentUser.value.id,
+    name: profileForm.value.name || currentUser.value.name,
+    username: profileForm.value.username,
+    email: profileForm.value.email,
+    club_description: profileForm.value.club_description,
+    club_image: profileForm.value.imageBase64 ? profileForm.value.imageBase64 : currentUser.value.club_image,
+    club_category_id: profileForm.value.club_category_id
+  };
+});
+
+const previewClubCategory = computed(() => {
+  const selectedCategory = clubCategories.value.find(cat => cat.id == profileForm.value.club_category_id);
+  return selectedCategory ? selectedCategory.name : '';
+});
 </script>
 
 <template>
@@ -153,135 +293,147 @@ const handleTagFromModal = (tag) => {
         </div>
       </section>
 
+      <!-- Profile Edit Section -->
       <section class="dashboard-section">
         <div class="section-header">
-          <h2 class="section-title">My Upcoming Events</h2>
-          <router-link to="/" class="section-link">Browse More →</router-link>
-        </div>
-
-        <div v-if="upcomingEvents.length === 0" class="empty-state">
-          <p class="empty-message">You haven't RSVP'd to any upcoming events yet</p>
-          <router-link to="/" class="btn btn--primary">Browse Events</router-link>
-        </div>
-
-        <div v-else class="events-grid">
-          <div
-            v-for="event in upcomingEvents"
-            :key="event.id"
-            class="event-card"
-            role="button"
-            tabindex="0"
-            @click="openEventModal(event)"
-            @keyup.enter.prevent="openEventModal(event)"
-            @keyup.space.prevent="openEventModal(event)"
+          <h2 class="section-title">Club Profile</h2>
+          <button 
+            type="button" 
+            class="btn btn-outline" 
+            @click="openPreviewModal"
           >
-            <div class="event-image">
-              <img :src="eventImageSrc(event)" :alt="event.title" class="event-img" @error="handleEventImageError" />
-              <div class="event-price-tag" :class="{ 'price-free': event.price === 'FREE' }">
-                {{ event.price }}
-              </div>
-              <div class="rsvp-badge">✓ RSVP'd</div>
-            </div>
-
-            <div class="event-content">
-              <div class="event-header">
-                <span
-                  class="event-category"
-                  :style="categoryColorMap[event.category] ? { backgroundColor: categoryColorMap[event.category], color: '#fff' } : {}"
-                >{{ event.category }}</span>
-              </div>
-
-              <h3 class="event-title">{{ event.title }}</h3>
-
-              <div class="event-details">
-                <div class="event-organiser">
-                  <span>By {{ event.organiser }}</span>
-                </div>
-                <div class="event-datetime">
-                  <span>{{ formatDate(event.date) }} | {{ event.time }}</span>
-                </div>
-                <div class="event-location">
-                  <span>📍 {{ event.location }}</span>
-                </div>
-                <div class="event-attendees">
-                  <span>👥 {{ formatAttendees(event) }} attending</span>
-                </div>
-              </div>
-
-              <div class="event-tags">
-                <span
-                  v-for="tag in event.tags"
-                  :key="tag"
-                  class="tag-badge"
-                  @click.stop="handleTagClick(tag)"
-                >
-                  #{{ tag }}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Recommended Events Section -->
-      <section class="dashboard-section">
-        <div class="section-header">
-          <h2 class="section-title">Recommended for You</h2>
-          <router-link to="/" class="section-link">See All →</router-link>
+            Preview
+          </button>
         </div>
 
-        <div class="events-grid">
-          <div
-            v-for="event in recommendedEvents"
-            :key="event.id"
-            class="event-card"
-            role="button"
-            tabindex="0"
-            @click="openEventModal(event)"
-            @keyup.enter.prevent="openEventModal(event)"
-            @keyup.space.prevent="openEventModal(event)"
-          >
-            <div class="event-image">
-              <img :src="eventImageSrc(event)" :alt="event.title" class="event-img" @error="handleEventImageError" />
-              <div class="event-price-tag" :class="{ 'price-free': event.price === 'FREE' }">
-                {{ event.price }}
+        <div class="profile-edit-form">
+          <form @submit.prevent="submitProfileUpdate">
+            <!-- Basic Information Section -->
+            <div class="form-section">
+              <h3 class="form-section-title">Basic Information</h3>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label for="name" class="form-label">Club Name</label>
+                  <input
+                    id="name"
+                    v-model="profileForm.name"
+                    type="text"
+                    class="form-input"
+                    required
+                  />
+                </div>
+
+                <div class="form-group">
+                  <label for="username" class="form-label">Username</label>
+                  <input
+                    id="username"
+                    v-model="profileForm.username"
+                    type="text"
+                    class="form-input"
+                    required
+                  />
+                </div>
+
+                <div class="form-group form-group--full">
+                  <label for="email" class="form-label">Email Address</label>
+                  <input
+                    id="email"
+                    v-model="profileForm.email"
+                    type="email"
+                    class="form-input"
+                    required
+                  />
+                </div>
               </div>
             </div>
 
-            <div class="event-content">
-              <div class="event-header">
-                <span
-                  class="event-category"
-                  :style="categoryColorMap[event.category] ? { backgroundColor: categoryColorMap[event.category], color: '#fff' } : {}"
-                >{{ event.category }}</span>
-              </div>
-
-              <h3 class="event-title">{{ event.title }}</h3>
-
-              <div class="event-details">
-                <div class="event-organiser">
-                  <span>By {{ event.organiser }}</span>
+            <!-- Security Section -->
+            <div class="form-section">
+              <h3 class="form-section-title">Change Password</h3>
+              <p class="form-section-desc">Leave blank to keep your current password</p>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label for="password" class="form-label">New Password</label>
+                  <input
+                    id="password"
+                    v-model="profileForm.password"
+                    type="password"
+                    class="form-input"
+                  />
                 </div>
-                <div class="event-datetime">
-                  <span>{{ formatDate(event.date) }} | {{ event.time }}</span>
-                </div>
-                <div class="event-location">
-                  <span>📍 {{ event.location }}</span>
-                </div>
-              </div>
 
-              <div class="event-tags">
-                <span
-                  v-for="tag in event.tags"
-                  :key="tag"
-                  class="tag-badge"
-                  @click.stop="handleTagClick(tag)"
-                >
-                  #{{ tag }}
-                </span>
+                <div class="form-group">
+                  <label for="confirmPassword" class="form-label">Confirm New Password</label>
+                  <input
+                    id="confirmPassword"
+                    v-model="profileForm.confirmPassword"
+                    type="password"
+                    class="form-input"
+                  />
+                </div>
               </div>
             </div>
-          </div>
+
+            <!-- Club Details Section -->
+            <div class="form-section">
+              <h3 class="form-section-title">Club Details</h3>
+              <div class="form-grid">
+                <div class="form-group form-group--full">
+                  <label for="club_description" class="form-label">Club Description</label>
+                  <textarea
+                    id="club_description"
+                    v-model="profileForm.club_description"
+                    class="form-textarea"
+                    rows="4"
+                    placeholder="Tell people about your club..."
+                    required
+                  ></textarea>
+                </div>
+
+                <div class="form-group">
+                  <label for="club_category_id" class="form-label">Club Category</label>
+                  <select
+                    id="club_category_id"
+                    v-model="profileForm.club_category_id"
+                    class="form-select"
+                    required
+                  >
+                    <option value="">Select a category</option>
+                    <option
+                      v-for="category in clubCategories"
+                      :key="category.id"
+                      :value="category.id"
+                    >
+                      {{ category.name }}
+                    </option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label for="image" class="form-label">Club Image</label>
+                  <input
+                    id="image"
+                    type="file"
+                    accept="image/*"
+                    class="form-input"
+                    @change="handleImageUpload"
+                  />
+                  <small class="form-help">Leave blank to keep current image. Recommended: 1200x400px</small>
+                </div>
+              </div>
+            </div>
+
+            <!-- Form Actions -->
+            <div class="form-actions">
+              <button
+                type="submit"
+                class="btn btn-primary"
+                :disabled="profileLoading"
+              >
+                {{ profileLoading ? 'Updating...' : 'Update Profile' }}
+              </button>
+            </div>
+          </form>
         </div>
       </section>
     </div>
@@ -292,6 +444,17 @@ const handleTagFromModal = (tag) => {
       @close="closeEventModal"
       @share="handleShare"
       @tag-click="handleTagFromModal"
+    />
+
+    <ClubDetailModal
+      :visible="showPreviewModal"
+      :club="previewClub"
+      :followersCount="clubStats.followers"
+      :isFollowing="false"
+      :clubCategory="previewClubCategory"
+      @close="closePreviewModal"
+      @view-events="$emit('view-events', previewClub)"
+      @share="$emit('share-club', previewClub)"
     />
   </div>
 </template>
@@ -391,19 +554,108 @@ const handleTagFromModal = (tag) => {
   gap: var(--space-8);
 }
 
-/* Empty State */
-.empty-state {
-  text-align: center;
-  padding: var(--space-48) var(--space-24);
+/* Profile Edit Form */
+.profile-edit-form {
   background-color: var(--color-surface);
   border-radius: var(--radius-lg);
   border: 1px solid var(--color-border);
+  padding: var(--space-32);
 }
 
-.empty-message {
-  font-size: var(--font-size-base);
+.form-section {
+  margin-bottom: var(--space-32);
+  padding-bottom: var(--space-32);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.form-section:last-of-type {
+  border-bottom: none;
+  margin-bottom: var(--space-24);
+  padding-bottom: 0;
+}
+
+.form-section-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+  margin: 0 0 var(--space-8) 0;
+}
+
+.form-section-desc {
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
-  margin-bottom: var(--space-20);
+  margin: 0 0 var(--space-16) 0;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-20);
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.form-group--full {
+  grid-column: 1 / -1;
+}
+
+.form-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.form-input,
+.form-select,
+.form-textarea {
+  padding: var(--space-12) var(--space-16);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-background);
+  color: var(--color-text);
+  font-size: var(--font-size-base);
+  transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
+}
+
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb, 33, 128, 141), 0.1);
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.form-textarea::placeholder {
+  color: var(--color-text-secondary);
+  opacity: 0.7;
+}
+
+.form-help {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  margin-top: var(--space-4);
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-24);
+  padding-top: var(--space-24);
+  border-top: 1px solid var(--color-border);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* Events Grid - Match Browse Events exactly */
@@ -599,6 +851,25 @@ const handleTagFromModal = (tag) => {
 
   .event-image {
     height: 180px;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-section {
+    margin-bottom: var(--space-24);
+    padding-bottom: var(--space-24);
+  }
+
+  .profile-info {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .avatar-img {
+    width: 100px;
+    height: 100px;
   }
 }
 

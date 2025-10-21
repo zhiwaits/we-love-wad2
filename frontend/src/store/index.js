@@ -69,6 +69,8 @@ export default createStore({
     userRSVPs: [1, 2, 3], // Will hold event IDs user has RSVP'd to
     savedEvents: [4, 5], // Will hold event IDs user has saved
 
+    clubRSVPs: [], // Will hold RSVPs for events owned by the club
+
     // Filters state
     filters: {
       searchQuery: '',
@@ -77,7 +79,8 @@ export default createStore({
       priceFilter: 'all', // 'all', 'free', 'paid'
       dateFilter: 'all', // 'all', 'today', 'this-week', 'this-month'
       venueFilter: 'all',
-      locationQuery: ''
+      locationQuery: '',
+      eventStatus: 'upcoming'
     },
 
     // Club event filters (for managing club's own events)
@@ -87,7 +90,8 @@ export default createStore({
       priceFilter: 'all',
       dateFilter: 'all',
       venueFilter: 'all',
-      locationQuery: ''
+      locationQuery: '',
+      eventStatus: 'both'
     },
 
     categories: [],
@@ -118,7 +122,8 @@ export default createStore({
         state.filters.priceFilter === 'all' &&
         state.filters.dateFilter === 'all' &&
         state.filters.venueFilter === 'all' &&
-        !state.filters.locationQuery;
+        !state.filters.locationQuery &&
+        state.filters.eventStatus === 'both';
 
       if (noFiltersActive) {
         return state.allEvents;
@@ -198,6 +203,14 @@ export default createStore({
         );
       }
 
+      // Event status filter
+      const now = new Date();
+      if (state.filters.eventStatus === 'upcoming') {
+        filtered = filtered.filter(event => new Date(event.date) > now);
+      } else if (state.filters.eventStatus === 'past') {
+        filtered = filtered.filter(event => new Date(event.date) <= now);
+      }
+
       return filtered;
     },
 
@@ -266,7 +279,8 @@ export default createStore({
         state.clubEventFilters.priceFilter === 'all' &&
         state.clubEventFilters.dateFilter === 'all' &&
         state.clubEventFilters.venueFilter === 'all' &&
-        !state.clubEventFilters.locationQuery;
+        !state.clubEventFilters.locationQuery &&
+        state.clubEventFilters.eventStatus === 'both';
 
       if (noFiltersActive) {
         return clubEvents;
@@ -338,6 +352,14 @@ export default createStore({
         );
       }
 
+      // Event status filter
+      const now = new Date();
+      if (state.clubEventFilters.eventStatus === 'upcoming') {
+        filtered = filtered.filter(event => new Date(event.date) > now);
+      } else if (state.clubEventFilters.eventStatus === 'past') {
+        filtered = filtered.filter(event => new Date(event.date) <= now);
+      }
+
       return filtered;
     },
 
@@ -393,6 +415,36 @@ export default createStore({
     userSavedEvents: (state) => {
       return state.allEvents
         .filter(event => state.savedEvents.includes(event.id));
+    },
+
+    // Get count of RSVPs for upcoming events owned by the current user (club)
+    clubRsvpCount: (state, getters, rootState) => {
+      const currentUser = rootState.auth.user;
+      if (!currentUser || !currentUser.id) return 0;
+
+      const now = new Date();
+      // Get upcoming events owned by this club
+      const upcomingClubEvents = state.allEvents.filter(event =>
+        event.ownerId === currentUser.id && new Date(event.date) > now
+      );
+
+      // Count RSVPs for these events
+      const rsvpCount = state.clubRSVPs.filter(rsvp =>
+        upcomingClubEvents.some(event => event.id === rsvp.event_id)
+      ).length;
+
+      return rsvpCount;
+    },
+
+    // Get upcoming events owned by the current user (club)
+    upcomingClubEvents: (state, getters, rootState) => {
+      const currentUser = rootState.auth.user;
+      if (!currentUser || !currentUser.id) return [];
+
+      const now = new Date();
+      return state.allEvents.filter(event =>
+        event.ownerId === currentUser.id && new Date(event.date) > now
+      ).sort((a, b) => new Date(a.date) - new Date(b.date));
     },
 
     toast: (state) => state.toast
@@ -453,6 +505,10 @@ export default createStore({
       state.userRSVPs = eventIds;
     },
 
+    SET_CLUB_RSVPS(state, rsvps) {
+      state.clubRSVPs = rsvps;
+    },
+
     // Toggle category selection
     TOGGLE_CATEGORY(state, category) {
       const index = state.filters.selectedCategories.indexOf(category);
@@ -493,6 +549,11 @@ export default createStore({
       state.filters.locationQuery = query;
     },
 
+    // Set event status
+    SET_EVENT_STATUS(state, status) {
+      state.filters.eventStatus = status;
+    },
+
     // Reset all filters
     RESET_FILTERS(state) {
       state.filters = {
@@ -502,7 +563,8 @@ export default createStore({
         priceFilter: 'all',
         dateFilter: 'all',
         venueFilter: 'all',
-        locationQuery: ''
+        locationQuery: '',
+        eventStatus: 'both'
       };
     },
 
@@ -536,6 +598,10 @@ export default createStore({
       state.clubEventFilters.locationQuery = query;
     },
 
+    SET_CLUB_EVENT_STATUS(state, status) {
+      state.clubEventFilters.eventStatus = status;
+    },
+
     RESET_CLUB_EVENT_FILTERS(state) {
       state.clubEventFilters = {
         searchQuery: '',
@@ -543,7 +609,8 @@ export default createStore({
         priceFilter: 'all',
         dateFilter: 'all',
         venueFilter: 'all',
-        locationQuery: ''
+        locationQuery: '',
+        eventStatus: 'both'
       };
     },
 
@@ -615,15 +682,18 @@ export default createStore({
       try {
         const response = await getAllTags();
         const tags = Array.isArray(response.data) ? response.data : [];
-        const names = tags
+        const tagObjects = tags
           .map((item) => {
             if (!item) return null;
-            if (typeof item === 'string') return item.trim();
-            return (item.tag_name || item.name || '').trim();
+            if (typeof item === 'string') return { id: null, tag_name: item.trim() };
+            return {
+              id: item.id,
+              tag_name: (item.tag_name || item.name || '').trim()
+            };
           })
           .filter(Boolean);
-        names.sort((a, b) => a.localeCompare(b));
-        commit('SET_AVAILABLE_TAGS', names);
+        tagObjects.sort((a, b) => a.tag_name.localeCompare(b.tag_name));
+        commit('SET_AVAILABLE_TAGS', tagObjects);
       } catch (error) {
         console.error('Failed to load event tags', error);
         if (force) {
@@ -673,6 +743,16 @@ export default createStore({
       }
     },
 
+    async fetchClubRSVPs({ commit }, clubId) {
+      try {
+        const { getRsvpsForEventsByOwner } = await import('../services/rsvpService');
+        const response = await getRsvpsForEventsByOwner(clubId);
+        commit('SET_CLUB_RSVPS', response.data);
+      } catch (error) {
+        console.error('Error fetching club RSVPs:', error);
+      }
+    },
+
     // Action to update search
     updateSearch({ commit }, query) {
       commit('SET_SEARCH_QUERY', query);
@@ -708,6 +788,11 @@ export default createStore({
       commit('SET_LOCATION_QUERY', query);
     },
 
+    // Action to update event status
+    updateEventStatus({ commit }, status) {
+      commit('SET_EVENT_STATUS', status);
+    },
+
     // Action to reset filters
     resetFilters({ commit }) {
       commit('RESET_FILTERS');
@@ -736,6 +821,10 @@ export default createStore({
 
     updateClubEventLocationQuery({ commit }, query) {
       commit('SET_CLUB_EVENT_LOCATION_QUERY', query);
+    },
+
+    updateClubEventStatus({ commit }, status) {
+      commit('SET_CLUB_EVENT_STATUS', status);
     },
 
     resetClubEventFilters({ commit }) {

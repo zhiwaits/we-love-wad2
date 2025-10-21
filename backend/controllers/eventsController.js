@@ -347,13 +347,28 @@ exports.createEvent = async (req, res) => {
 exports.updateEvent = async (req, res) => {
   const { id } = req.params;
   const {
-    title, description, datetime, location, category, capacity, image_url, owner_id, venue, enddatetime, price
+    title, description, datetime, location, category, capacity, image_url, owner_id, venue, enddatetime, price,
+    imageBase64, imageOriginalName
   } = req.body;
   try {
+    let finalImageUrl = image_url;
+
+    // Handle image upload if provided
+    if (imageBase64 && imageOriginalName) {
+      const eventDir = path.join(__dirname, '..', 'uploads', 'event');
+      ensureDir(eventDir);
+      const ext = pickImageExtension(imageBase64, imageOriginalName);
+      const filename = `${id}${ext}`;
+      const filepath = path.join(eventDir, filename);
+      const base64Data = imageBase64.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, '');
+      fs.writeFileSync(filepath, base64Data, 'base64');
+      finalImageUrl = `/uploads/event/${filename}`;
+    }
+
     const result = await pool.query(
       `UPDATE ${table} SET title=$1, description=$2, datetime=$3, location=$4,
        category=$5, capacity=$6, image_url=$7, owner_id=$8, venue=$9, enddatetime=$10, price=$11 WHERE id=$12 RETURNING *`,
-      [title, description, datetime, location, category, capacity, image_url, owner_id, venue, enddatetime, price, id]
+      [title, description, datetime, location, category, capacity, finalImageUrl, owner_id, venue, enddatetime, price, id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Event not found' });
     res.json(result.rows[0]);
