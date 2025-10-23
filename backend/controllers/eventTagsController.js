@@ -51,8 +51,7 @@ exports.createEventTag = async (req, res) => {
 exports.deleteEventTag = async (req, res) => {
     try {
         const result = await pool.query(`DELETE FROM ${table} WHERE event_id = $1 AND tag_id = $2 RETURNING *`, [req.params.event_id, req.params.tag_id]);
-        if (result.rows.length === 0) return res.status(404).json({ error: 'Event Tag not found' });
-        res.json({ message: 'Event Tag deleted', event_tag: result.rows[0] });
+        res.json({ message: 'Event Tag deleted', deleted: result.rows.length > 0, event_tag: result.rows[0] || null });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

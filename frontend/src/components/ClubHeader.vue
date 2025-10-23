@@ -7,17 +7,37 @@
           <p class="tagline">Discover amazing events</p>
         </div>
         <nav class="nav">
-          <router-link to="/" class="nav-link">Browse Events</router-link>
-          <router-link to="/dashboard" class="nav-link">My Dashboard</router-link>
-          <a href="#" class="nav-link">Create Event</a>
+          <router-link to="/events/create" class="nav-link">Create Event</router-link>
+          <router-link to="/events/edit" class="nav-link">Edit Events</router-link>
+          <router-link to="/dashboard/club" class="nav-link">My Dashboard</router-link>
         </nav>
-        <button class="btn btn--primary">Sign In</button>
+        <button class="btn btn--primary" @click="handleAuthClick">
+          {{ isAuthenticated ? 'Sign Out' : 'Sign In' }}
+        </button>
       </div>
     </div>
   </header>
 </template>
+
 <script>
-export default { name: 'Header' }
+export default {
+  name: 'Header',
+  computed: {
+    isAuthenticated() {
+      return this.$store.getters['auth/isAuthenticated'];
+    }
+  },
+  methods: {
+    async handleAuthClick() {
+      if (this.isAuthenticated) {
+        try { await this.$store.dispatch('auth/logout'); } catch {}
+        this.$router.push('/login');
+      } else {
+        this.$router.push('/login');
+      }
+    }
+  }
+}
 </script>
 
 <style scoped>

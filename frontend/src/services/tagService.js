@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BASE_URL = 'http://localhost:3000';
+const BASE_URL = import.meta.env?.VITE_API_BASE_URL || 'http://localhost:3000';
 
 export const getAllTags = () => axios.get(`${BASE_URL}/tags`);
 export const getTagById = (id) => axios.get(`${BASE_URL}/tags/id/${id}`);

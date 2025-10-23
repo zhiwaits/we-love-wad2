@@ -1,6 +1,10 @@
 <script>
 import { mapGetters, mapActions, mapState } from 'vuex';
 import EventDetailModal from './EventDetailModal.vue';
+import { shareEventLink } from '../utils/shareEvent';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const FALLBACK_PLACEHOLDER = 'https://placehold.co/600x400?text=Event';
 
 export default {
     name: 'EventsGrid',
@@ -15,16 +19,16 @@ export default {
         };
     },
 
+
     mounted() {
         this.$store.dispatch('fetchAllEvents');
     },
 
     computed: {
-        // Get filtered events from store instead of hardcoded data
         ...mapGetters(['filteredEvents']),
+        ...mapGetters(['categoryColorMap']),
         ...mapState(['filters']),
 
-        // Alias for template clarity
         events() {
             return this.filteredEvents;
         }
@@ -32,6 +36,19 @@ export default {
 
     methods: {
         ...mapActions(['toggleTag']),
+
+        eventImageSrc(event) {
+            if (!event) return FALLBACK_PLACEHOLDER;
+            const raw = event.image || event.image_url || event.imageUrl || event.cover;
+            if (!raw) return FALLBACK_PLACEHOLDER;
+            if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+            const normalized = raw.replace('/uploads/event/event_', '/uploads/event/');
+            return `${API_BASE_URL}${normalized.startsWith('/') ? '' : '/'}${normalized}`;
+        },
+
+        handleEventImageError(eventObj, ev) {
+            if (ev && ev.target) ev.target.src = FALLBACK_PLACEHOLDER;
+        },
 
         // Format attendees display
         formatAttendees(event) {
@@ -41,23 +58,38 @@ export default {
             return `${event.attendees} attending`;
         },
 
-        // Format date for display
         formatDate(dateString) {
             const date = new Date(dateString);
             const options = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' };
             return date.toLocaleDateString('en-US', options);
         },
 
-        // Handle tag click
         handleTagClick(tag) {
             this.toggleTag(tag);
-            // Scroll to top to see filtered results
             window.scrollTo({ top: 0, behavior: 'smooth' });
         },
 
         handleTagFromModal(tag) {
             this.handleTagClick(tag);
             this.closeEventModal();
+        },
+
+        async handleShare() {
+            if (!this.selectedEvent) return;
+
+            try {
+                await shareEventLink(this.selectedEvent);
+                this.$store.dispatch('showToast', {
+                    message: 'Event link copied to your clipboard.',
+                    type: 'success'
+                });
+            } catch (error) {
+                console.error('Unable to share event', error);
+                this.$store.dispatch('showToast', {
+                    message: 'Unable to share this event. Please try again.',
+                    type: 'error'
+                });
+            }
         },
 
         openEventModal(event) {
@@ -70,12 +102,27 @@ export default {
             this.selectedEvent = null;
         },
 
-        // Check if tag is selected
         isTagSelected(tag) {
             return this.filters.selectedTags.includes(tag);
+        },
+        async handleRsvpCreated(rsvpData) {
+            console.log('RSVP Created:', rsvpData);
+            
+            // Refresh the events data to get updated attendee counts
+            await this.$store.dispatch('fetchAllEvents');
+            
+            // Update the selected event with the new attendee count
+            if (this.selectedEvent) {
+                const updatedEvent = this.events.find(e => e.id === this.selectedEvent.id);
+                if (updatedEvent) {
+                    this.selectedEvent = { ...updatedEvent };
+                }
+            }
         }
     }
-}
+
+    }
+
 </script>
 
 <template>
@@ -100,8 +147,8 @@ export default {
                     @keyup.space.prevent="openEventModal(event)"
                 >
                     <div class="event-image">
-                        <img v-if="event.image" :src="event.image" alt="Event Image" class="event-img" />
-                        <div v-else class="event-image-placeholder"></div>
+                        <img :src="eventImageSrc(event)" alt="Event Image" class="event-img" @error="handleEventImageError(event, $event)" />
+                        <div v-if="!eventImageSrc(event)" class="event-image-placeholder"></div>
                         <div class="event-price-tag" :class="{ 'price-free': event.price === 'FREE' }">
                             {{ event.price }}
                         </div>
@@ -109,7 +156,11 @@ export default {
 
                     <div class="event-content">
                         <div class="event-header">
-                            <span class="event-category">{{ event.category }}</span>
+                            <span
+                                class="event-category"
+                                :class="`badge-${(event.category||'').toLowerCase().replace(/\s+/g,'-')}`"
+                                :style="categoryColorMap && categoryColorMap[event.category] ? { backgroundColor: categoryColorMap[event.category], color: '#fff' } : {}"
+                            >{{ event.category }}</span>
                             <span v-if="event.status" class="event-status">{{ event.status }}</span>
                         </div>
 
@@ -149,6 +200,8 @@ export default {
             :event="selectedEvent"
             @close="closeEventModal"
             @tag-click="handleTagFromModal"
+            @rsvp-created="handleRsvpCreated"
+            @share="handleShare"
         />
     </section>
 </template>
@@ -188,19 +241,44 @@ export default {
     border: 1px solid var(--color-card-border);
     box-shadow: var(--shadow-sm);
     overflow: hidden;
-    transition: all var(--duration-normal) var(--ease-standard);
+    transition: transform var(--duration-normal) var(--ease-standard), box-shadow var(--duration-normal) var(--ease-standard), border-color var(--duration-normal) var(--ease-standard);
     cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    position: relative;
+    opacity: 0;
+    transform: translateY(12px);
+    animation: card-enter 0.45s var(--ease-standard) forwards;
+}
+
+.event-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--color-primary);
+    transform: scaleX(0);
+    transition: transform var(--duration-normal) var(--ease-standard);
 }
 
 .event-card:hover {
-    box-shadow: var(--shadow-lg);
-    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-4px);
+    border-color: var(--color-primary);
+}
+
+.event-card:hover::before {
+    transform: scaleX(1);
 }
 
 .event-image {
     position: relative;
     height: 200px;
     background: var(--color-bg-1);
+    flex-shrink: 0;
 }
 
 .event-img {
@@ -239,6 +317,10 @@ export default {
 
 .event-content {
     padding: var(--space-20);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-12);
+    flex: 1;
 }
 
 .event-header {
@@ -301,17 +383,19 @@ export default {
     font-size: var(--font-size-base);
     color: var(--color-text-secondary);
     line-height: var(--line-height-normal);
-    margin: 0 0 var(--space-12) 0;
+    margin: 0;
     display: -webkit-box;
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
+    flex: 1;
 }
 
 .event-tags {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-8);
+    margin-top: auto;
 }
 
 .tag-badge {
@@ -355,6 +439,20 @@ export default {
     background-color: var(--color-primary, #007bff);
     color: white;
     border-color: var(--color-primary, #007bff);
+}
+
+/* Category badge color fallbacks (ensure consistent palette) */
+.badge-academic { background-color: #007bff; color: #fff; }
+.badge-workshop { background-color: #28a745; color: #fff; }
+.badge-performance { background-color: #dc3545; color: #fff; }
+.badge-recreation { background-color: #ffc107; color: #222; }
+.badge-career { background-color: #17a2b8; color: #fff; }
+.badge-social { background-color: #6f42c1; color: #fff; }
+.badge-sports { background-color: #fd7e14; color: #fff; }
+
+@keyframes card-enter {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 /* Responsive Design */

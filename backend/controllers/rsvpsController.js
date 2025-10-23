@@ -31,22 +31,89 @@ exports.getRsvpsByUserId = async (req, res) => {
     }
 };
 
-
-exports.createRsvp = async (req, res) => {
+exports.getRsvpsForEventsByOwner = async (req, res) => {
     try {
-        const {
-           event_id, user_id, status
-        } = req.body;
-        const result = await pool.query(
-            `INSERT INTO ${table} (event_id, user_id, status)
-       VALUES ($1, $2, $3) RETURNING *`,
-            [event_id, user_id, status]
-        );
-        res.status(201).json(result.rows[0]);
+        const ownerId = req.params.id;
+        // Get all RSVPs for events owned by this user
+        const result = await pool.query(`
+            SELECT r.* FROM ${table} r
+            INNER JOIN events e ON r.event_id = e.id
+            WHERE e.owner_id = $1
+        `, [ownerId]);
+        res.json(result.rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 };
+
+
+// In rsvpsController.js - Update createRsvp method
+
+exports.createRsvp = async (req, res) => {
+    try {
+        const {
+            event_id, user_id, status, rsvp_date
+        } = req.body;
+
+        console.log('Creating RSVP:', { event_id, user_id, status, rsvp_date });
+
+        // Check if RSVP already exists
+        const existingRsvp = await pool.query(
+            `SELECT * FROM ${table} WHERE event_id = $1 AND user_id = $2`,
+            [event_id, user_id]
+        );
+
+        if (existingRsvp.rows.length > 0) {
+            return res.status(409).json({ 
+                error: 'You have already RSVP\'d to this event',
+                rsvp: existingRsvp.rows[0]
+            });
+        }
+
+        // Verify user exists in profiles table
+        const userCheck = await pool.query(
+            'SELECT id FROM profiles WHERE id = $1',
+            [user_id]
+        );
+
+        if (userCheck.rows.length === 0) {
+            return res.status(400).json({ 
+                error: `User with id ${user_id} does not exist in profiles table` 
+            });
+        }
+
+        // Verify event exists
+        const eventCheck = await pool.query(
+            'SELECT id FROM events WHERE id = $1',
+            [event_id]
+        );
+
+        if (eventCheck.rows.length === 0) {
+            return res.status(400).json({ 
+                error: `Event with id ${event_id} does not exist` 
+            });
+        }
+
+        // Create RSVP
+        const result = await pool.query(
+            `INSERT INTO ${table} (event_id, user_id, status, rsvp_date, created_at)
+             VALUES ($1, $2, $3, $4, NOW()) RETURNING *`,
+            [event_id, user_id, status || 'confirmed', rsvp_date || new Date().toISOString().split('T')[0]]
+        );
+
+        console.log('RSVP created successfully:', result.rows[0]);
+        res.status(201).json(result.rows[0]);
+
+    } catch (err) {
+        console.error('Error creating RSVP:', err);
+        res.status(500).json({ 
+            error: err.message,
+            detail: err.detail // PostgreSQL error details
+        });
+    }
+};
+
+
 
 
 exports.updateRsvp = async (req, res) => {
