@@ -90,6 +90,18 @@ function convertToSGTime(isoString) {
 
 exports.getAllEvents = async (req, res) => {
   try {
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 1000; // Default to large number for backwards compatibility
+    const offset = (page - 1) * limit;
+
+    // Get total count for pagination metadata
+    const countQuery = `SELECT COUNT(*) FROM ${table}`;
+    const countResult = await pool.query(countQuery);
+    const totalEvents = parseInt(countResult.rows[0].count);
+    const totalPages = Math.ceil(totalEvents / limit);
+
+    // Get paginated events
     const query = `
       SELECT
         e.id,
@@ -110,8 +122,9 @@ exports.getAllEvents = async (req, res) => {
       FROM ${table} e
       LEFT JOIN profiles p ON p.id = e.owner_id
       ORDER BY e.datetime ASC
+      LIMIT $1 OFFSET $2
     `;
-    const result = await pool.query(query);
+    const result = await pool.query(query, [limit, offset]);
 
     const shaped = result.rows.map((row) => ({
       id: row.id,
@@ -133,7 +146,18 @@ exports.getAllEvents = async (req, res) => {
       ownerId: row.owner_id
     }));
 
-    res.json(shaped);
+    // Return events with pagination metadata
+    res.json({
+      events: shaped,
+      pagination: {
+        currentPage: page,
+        totalPages: totalPages,
+        totalEvents: totalEvents,
+        eventsPerPage: limit,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1
+      }
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

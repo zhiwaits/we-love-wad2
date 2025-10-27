@@ -53,6 +53,16 @@ export default createStore({
     // All events from your EventsGrid
     allEvents: [],
 
+    // Pagination state
+    pagination: {
+      currentPage: 1,
+      totalPages: 1,
+      totalEvents: 0,
+      eventsPerPage: 6,
+      hasNextPage: false,
+      hasPreviousPage: false
+    },
+
     userStats: {
       upcomingRSVPs: 5,
       totalAttended: 12,
@@ -463,6 +473,17 @@ export default createStore({
       state.allEvents = events;
     },
 
+    SET_PAGINATION(state, paginationData) {
+      state.pagination = {
+        ...state.pagination,
+        ...paginationData
+      };
+    },
+
+    SET_CURRENT_PAGE(state, page) {
+      state.pagination.currentPage = page;
+    },
+
     SET_EVENT_CATEGORIES(state, categories) {
       if (!Array.isArray(categories)) {
         state.categories = [];
@@ -709,17 +730,20 @@ export default createStore({
       }
     },
 
-    async fetchAllEvents({ commit }) {
+    async fetchAllEvents({ commit, state }, page = 1) {
       try {
         const [eventsResponse, eventTagsResponse, tagsResponse] = await Promise.all([
-          getAllEvents(),
+          getAllEvents(page, state.pagination.eventsPerPage),
           getAllEventTags(),
           getAllTags()
         ]);
 
-        const events = eventsResponse.data;
+        const { events, pagination } = eventsResponse.data;
         const eventTags = eventTagsResponse.data;
         const tags = tagsResponse.data;
+
+        // Update pagination metadata
+        commit('SET_PAGINATION', pagination);
 
         // Create a map of tag_id to tag_name
         const tagMap = {};
