@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useStore } from 'vuex';
 import StatCard from './StatCard.vue';
 import EventDetailModal from './EventDetailModal.vue';
+import UserCalendar from './UserCalendar.vue';
 import { shareEventLink } from '../utils/shareEvent';
 
 const store = useStore();
@@ -180,6 +181,11 @@ const handleTagFromModal = (tag) => {
             color="info"
           />
         </div>
+      </section>
+
+      <!-- Calendar Section -->
+      <section class="calendar-section">
+        <UserCalendar />
       </section>
 
       <!-- Upcoming Events Section -->
@@ -377,6 +383,11 @@ const handleTagFromModal = (tag) => {
 
 /* Stats Section - Cleaner cards */
 .stats-section {
+  margin-bottom: var(--space-56);
+}
+
+/* Calendar Section */
+.calendar-section {
   margin-bottom: var(--space-56);
 }
 

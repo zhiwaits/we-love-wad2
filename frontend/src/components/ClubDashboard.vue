@@ -4,6 +4,7 @@ import { useStore } from 'vuex';
 import StatCard from './StatCard.vue';
 import EventDetailModal from './EventDetailModal.vue';
 import ClubDetailModal from './ClubDetailModal.vue';
+import ClubCalendar from './ClubCalendar.vue';
 import { shareEventLink } from '../utils/shareEvent';
 import { updateClubProfile } from '../services/profileService';
 import { getAllClubCategories } from '../services/clubCategoryService';
@@ -290,6 +291,11 @@ const previewClubCategory = computed(() => {
         </div>
       </section>
 
+      <!-- Calendar Section -->
+      <section class="calendar-section">
+        <ClubCalendar />
+      </section>
+
       <!-- Profile Edit Section -->
       <section class="dashboard-section">
         <div class="section-header">
@@ -512,6 +518,11 @@ const previewClubCategory = computed(() => {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: var(--space-20);
+}
+
+/* Calendar Section */
+.calendar-section {
+  margin-bottom: var(--space-56);
 }
 
 /* Dashboard Sections */
