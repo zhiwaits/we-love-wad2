@@ -9,3 +9,4 @@ export const getRsvpsForEventsByOwner = (id) => axios.get(`${BASE_URL}/rsvps/own
 export const createRsvp = (rsvpData) => axios.post(`${BASE_URL}/rsvps`, rsvpData);
 export const updateRsvp = (id, profileData) => axios.put(`${BASE_URL}/rsvps/${id}`, { profileData });
 export const deleteRsvp = (id) => axios.delete(`${BASE_URL}/rsvps/${id}`);
+export const confirmRsvp = (token) => axios.get(`${BASE_URL}/rsvps/confirm/${token}`);

@@ -1,7 +1,7 @@
 const pool = require('../db');
 const crypto = require('crypto');
 
-const activeTokens = new Map();
+const activeTokens = new Map(); // Fallback in-memory storage
 const TOKEN_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
 
 const sanitizeProfile = (profile) => {
@@ -13,9 +13,13 @@ const sanitizeProfile = (profile) => {
 const hashPassword = (password) =>
   crypto.createHash('sha256').update(String(password)).digest('hex');
 
-const issueToken = (userId) => {
+const issueToken = async (userId) => {
   const token = crypto.randomBytes(32).toString('hex');
-  activeTokens.set(token, { userId, issuedAt: Date.now() });
+  const expiresAt = new Date(Date.now() + TOKEN_TTL_MS);
+  
+  // Store in-memory
+  activeTokens.set(token, { userId, expiresAt });
+  
   return token;
 };
 
@@ -27,14 +31,19 @@ const extractToken = (req) => {
   return null;
 };
 
-const resolveSession = (token) => {
+const resolveSession = async (token) => {
   if (!token) return null;
+  
+  // Check in-memory storage
   const session = activeTokens.get(token);
   if (!session) return null;
-  if (Date.now() - session.issuedAt > TOKEN_TTL_MS) {
+  
+  // Check if token is expired
+  if (Date.now() > session.expiresAt.getTime()) {
     activeTokens.delete(token);
     return null;
   }
+  
   return session;
 };
 
@@ -60,25 +69,28 @@ exports.login = async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    const token = issueToken(profile.id);
+    const token = await issueToken(profile.id);
     return res.json({ token, user: sanitizeProfile(profile) });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
 };
 
-exports.logout = (req, res) => {
+exports.logout = async (req, res) => {
   const token = extractToken(req);
-  if (token && activeTokens.has(token)) {
+  
+  // Remove from in-memory storage
+  if (token) {
     activeTokens.delete(token);
   }
+  
   return res.json({ success: true });
 };
 
 exports.getCurrentUser = async (req, res) => {
   try {
     const token = extractToken(req);
-    const session = resolveSession(token);
+    const session = await resolveSession(token);
 
     if (!session) {
       return res.status(401).json({ error: 'Invalid or expired token' });
@@ -89,7 +101,6 @@ exports.getCurrentUser = async (req, res) => {
     ]);
 
     if (result.rows.length === 0) {
-      activeTokens.delete(token);
       return res.status(401).json({ error: 'Invalid token' });
     }
 

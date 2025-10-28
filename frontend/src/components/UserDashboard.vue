@@ -31,6 +31,40 @@ onMounted(async () => {
   await store.dispatch('fetchAllEvents');
   await store.dispatch('fetchUserStats', userId);
   await store.dispatch('fetchUserRSVPs', userId);
+  
+  // Enhanced Debug logging
+  console.log('=== DASHBOARD MOUNT DEBUG ===');
+  console.log('Current User ID:', userId);
+  console.log('All Events Count:', store.state.allEvents.length);
+  console.log('User RSVPs Count:', store.state.userRSVPs.length);
+  
+  // Show first few events
+  console.log('Sample Events:', store.state.allEvents.slice(0, 3).map(e => ({
+    id: e.id,
+    title: e.title,
+    date: e.date,
+    datetime: e.datetime
+  })));
+  
+  // Show RSVPs with event details
+  console.log('RSVPs with Events:', store.state.userRSVPs.map(rsvp => {
+    const event = store.state.allEvents.find(e => e.id === rsvp.event_id);
+    return {
+      rsvp_id: rsvp.id,
+      event_id: rsvp.event_id,
+      status: rsvp.status,
+      event_title: event?.title,
+      event_date: event?.datetime || event?.date
+    };
+  }));
+  
+  console.log('Upcoming User Events:', store.getters.upcomingUserEvents.map(e => ({
+    id: e.id,
+    title: e.title,
+    date: e.datetime || e.date
+  })));
+  
+  console.log('=== END DEBUG ===');
 });
 
 // Format date for display
@@ -123,13 +157,13 @@ const handleTagFromModal = (tag) => {
         <div class="stats-grid">
           <StatCard 
             icon="📅" 
-            :value="userStats.upcomingRSVPs" 
+            :value="upcomingEvents.length" 
             label="Upcoming RSVPs" 
             color="primary"
           />
           <StatCard 
             icon="✅" 
-            :value="userStats.totalAttended" 
+            :value="0" 
             label="Events Attended" 
             color="success"
           />

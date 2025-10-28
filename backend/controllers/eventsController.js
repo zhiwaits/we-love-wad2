@@ -121,6 +121,7 @@ exports.getAllEvents = async (req, res) => {
       tags: [],
       price: formatPriceTag(row.price),
       date: formatDateISO(row.datetime),
+      datetime: row.datetime, // Keep full datetime for frontend filtering
       time: formatTimeRange(row.datetime, row.enddatetime),
       location: row.location || '',
       venue: row.venue || '',
@@ -174,6 +175,7 @@ exports.getEventById = async (req, res) => {
       tags: [],
       price: formatPriceTag(row.price),
       date: formatDateISO(row.datetime),
+      datetime: row.datetime, // Keep full datetime for frontend filtering
       time: formatTimeRange(row.datetime, row.enddatetime),
       location: row.location || '',
       venue: row.venue || '',

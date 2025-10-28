@@ -67,7 +67,7 @@ export default createStore({
       followers: 0
     },
 
-    userRSVPs: [1, 2, 3], // Will hold event IDs user has RSVP'd to
+    userRSVPs: [], // Will hold full RSVP objects (with event_id, status, etc.)
     savedEvents: [4, 5], // Will hold event IDs user has saved
 
     clubRSVPs: [], // Will hold RSVPs for events owned by the club
@@ -401,21 +401,28 @@ export default createStore({
 
     // Dashboard-specific getters
     upcomingUserEvents: (state) => {
-      const now = new Date();
-      // Filter events where user has RSVP'd and event is in the future
+      // Get the event IDs of confirmed RSVPs (show ALL confirmed, not just future)
+      const confirmedRsvpEventIds = state.userRSVPs
+        .filter(rsvp => rsvp.status === 'confirmed')
+        .map(rsvp => rsvp.event_id);
+      
+      // Filter events where user has confirmed RSVP and sort by date
       return state.allEvents
-        .filter(event => {
-          const eventDate = new Date(event.date);
-          return eventDate > now && state.userRSVPs.includes(event.id);
+        .filter(event => confirmedRsvpEventIds.includes(event.id))
+        .sort((a, b) => {
+          // Sort by datetime or date field, whichever is available
+          const dateA = new Date(a.datetime || a.date);
+          const dateB = new Date(b.datetime || b.date);
+          return dateA - dateB;
         })
-        .sort((a, b) => new Date(a.date) - new Date(b.date))
-        .slice(0, 6); // Show max 6 upcoming events
+        .slice(0, 6); // Show max 6 events
     },
 
     recommendedEvents: (state) => {
       // Simple recommendation: filter out events user already RSVP'd to
+      const rsvpedEventIds = state.userRSVPs.map(rsvp => rsvp.event_id);
       return state.allEvents
-        .filter(event => !state.userRSVPs.includes(event.id))
+        .filter(event => !rsvpedEventIds.includes(event.id))
         .slice(0, 6); // Show 6 recommendations
     },
 
@@ -508,8 +515,8 @@ export default createStore({
       state.clubStats = stats;
     },
 
-    SET_USER_RSVPS(state, eventIds) {
-      state.userRSVPs = eventIds;
+    SET_USER_RSVPS(state, rsvps) {
+      state.userRSVPs = rsvps;
     },
 
     SET_CLUB_RSVPS(state, rsvps) {
@@ -672,10 +679,8 @@ export default createStore({
       }
       try {
         const response = await getAllEventVenues();
-        const names = Array.isArray(response.data)
-          ? response.data.map((item) => item?.name?.trim()).filter(Boolean)
-          : [];
-        commit('SET_EVENT_VENUES', names.sort());
+        const venuesData = Array.isArray(response.data) ? response.data : [];
+        commit('SET_EVENT_VENUES', venuesData);
       } catch (error) {
         console.error('Failed to load event venues', error);
         commit('SET_EVENT_VENUES', []);
@@ -775,9 +780,8 @@ export default createStore({
       try {
         const { getRsvpsByUserId } = await import('../services/rsvpService');
         const response = await getRsvpsByUserId(userId);
-        // Extract event IDs from RSVPs
-        const eventIds = response.data.map(rsvp => rsvp.event_id);
-        commit('SET_USER_RSVPS', eventIds);
+        // Store the full RSVP objects
+        commit('SET_USER_RSVPS', response.data);
       } catch (error) {
         console.error('Error fetching user RSVPs:', error);
       }
