@@ -37,12 +37,12 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 // async function sendEmail() {
 //   const info = await transporter.sendMail({
 //     from: `"SMU Events Hub" <${process.env.SMTP_USER}>`,
-//     to: 'terry.yeo.2024@scis.smu.edu.sg',
+//     to: 'junjie.luah.2023@scis.smu.edu.sg',
 //     subject: 'Hello!',
 //     text: 'SMU Events Hub Testing.'
 //   });
 
-//   console.log('Email sent:');
+//   console.log('Email sent');
 // }
 
 // sendEmail().catch(console.error);
@@ -52,7 +52,7 @@ async function sendRegistrationConfirmation(userEmail, userName, eventTitle, eve
   const info = await transporter.sendMail({
     from: `"SMU Events Hub" <${SMTP_USER}>`,
     to: userEmail,
-    subject: `Registration Confirmed: ${eventTitle}`,
+    subject: `Confirm Registration: ${eventTitle}`,
     html: `
       <h2>Registration Confirmed!</h2>
       <p>Hi ${userName},</p>
@@ -209,6 +209,15 @@ async function sendRemindersFor24HourEvents() {
     console.error('Error sending reminders:', error);
   }
 }
+
+if (require.main === module) {
+  sendRemindersFor24HourEvents().catch(console.error);
+}
+
+module.exports = {
+  sendConfirmationEmail,
+  sendRemindersFor24HourEvents
+};
 
 if (require.main === module) {
   sendRemindersFor24HourEvents().catch(console.error);
