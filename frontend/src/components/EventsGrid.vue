@@ -1,6 +1,7 @@
 <script>
 import { mapGetters, mapActions, mapState } from 'vuex';
 import EventDetailModal from './EventDetailModal.vue';
+import Pagination from './Pagination.vue';
 import { shareEventLink } from '../utils/shareEvent';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
@@ -9,7 +10,8 @@ const FALLBACK_PLACEHOLDER = 'https://placehold.co/600x400?text=Event';
 export default {
     name: 'EventsGrid',
     components: {
-        EventDetailModal
+        EventDetailModal,
+        Pagination
     },
 
     data() {
@@ -27,7 +29,7 @@ export default {
     computed: {
         ...mapGetters(['filteredEvents']),
         ...mapGetters(['categoryColorMap']),
-        ...mapState(['filters']),
+        ...mapState(['filters', 'pagination']),
 
         events() {
             return this.filteredEvents;
@@ -107,10 +109,10 @@ export default {
         },
         async handleRsvpCreated(rsvpData) {
             console.log('RSVP Created:', rsvpData);
-            
+
             // Refresh the events data to get updated attendee counts
-            await this.$store.dispatch('fetchAllEvents');
-            
+            await this.$store.dispatch('fetchAllEvents', this.pagination.currentPage);
+
             // Update the selected event with the new attendee count
             if (this.selectedEvent) {
                 const updatedEvent = this.events.find(e => e.id === this.selectedEvent.id);
@@ -118,6 +120,11 @@ export default {
                     this.selectedEvent = { ...updatedEvent };
                 }
             }
+        },
+
+        handlePageChange(page) {
+            this.$store.dispatch('fetchAllEvents', page);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
     }
 
@@ -194,6 +201,16 @@ export default {
                     </div>
                 </div>
             </div>
+
+            <!-- Pagination -->
+            <Pagination
+                v-if="events.length > 0"
+                :currentPage="pagination.currentPage"
+                :totalPages="pagination.totalPages"
+                :totalEvents="pagination.totalEvents"
+                :eventsPerPage="pagination.eventsPerPage"
+                @page-change="handlePageChange"
+            />
         </div>
         <EventDetailModal
             :visible="showEventModal"
