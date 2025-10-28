@@ -11,7 +11,7 @@
           <router-link to="/events/edit" class="nav-link">Edit Events</router-link>
           <router-link to="/dashboard/club" class="nav-link">My Dashboard</router-link>
         </nav>
-        <button class="btn btn--primary" @click="handleAuthClick">
+        <button class="btn btn--primary sign-out-btn" @click="handleAuthClick">
           {{ isAuthenticated ? 'Sign Out' : 'Sign In' }}
         </button>
       </div>
@@ -90,5 +90,28 @@ export default {
 
 .nav-link:hover {
   color: var(--color-primary);
+}
+
+.sign-out-btn {
+  background-color: var(--color-primary) !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: 6px;
+  border: 2px solid var(--color-primary) !important;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.sign-out-btn:hover {
+  background-color: var(--color-primary-hover) !important;
+  border-color: var(--color-primary-hover) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(33, 128, 141, 0.3);
+}
+
+.sign-out-btn:active {
+  background-color: var(--color-primary-active) !important;
+  transform: translateY(0);
 }
 </style>
