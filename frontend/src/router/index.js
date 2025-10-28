@@ -71,10 +71,14 @@ const routes = [
   {
     path: '/:pathMatch(.*)*',
     redirect: '/login'
+  },
+  {
+    path: '/confirm-rsvp/:token',
+    name: 'ConfirmRsvp',
+    component: () => import('../views/ConfirmRsvp.vue'),
+    meta: { requiresAuth: false }
   }
-];
-
-const router = createRouter({
+];const router = createRouter({
   history: createWebHistory(),
   routes
 });

@@ -1,8 +1,9 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useStore } from 'vuex';
 import { useRouter } from 'vue-router';
 import { createEvent } from '../services/eventService';
+import LocationPicker from './LocationPicker.vue';
 
 const store = useStore();
 const router = useRouter();
@@ -19,10 +20,14 @@ const form = ref({
 	capacity: '',
 	category: '',
 	price: '0',
-	tags: []
+	tags: [],
+	latitude: null,
+	longitude: null
 });
 const imageFile = ref(null);
 const imagePreview = ref('');
+const locationPickerRef = ref(null);
+const venueData = ref({});  // Store venue coordinates
 
 const submitting = ref(false);
 const error = ref('');
@@ -102,7 +107,9 @@ const resetForm = () => {
 		capacity: '',
 		category: '',
 		price: '0',
-		tags: []
+		tags: [],
+		latitude: null,
+		longitude: null
 	};
 	imageFile.value = null;
 	imagePreview.value = '';
@@ -219,6 +226,41 @@ const useTagSuggestion = (tag) => {
 	addTag(tag);
 };
 
+const handleLocationSelected = (locationData) => {
+	form.value.latitude = locationData.latitude;
+	form.value.longitude = locationData.longitude;
+};
+
+const handleVenueSelected = (selectedVenue) => {
+	// Find the venue data from store
+	const eventVenues = store.state.venues || [];
+	// Handle both string venue names and full venue objects
+	const venue = eventVenues.find(v => {
+		const venueName = typeof v === 'string' ? v : v.name;
+		return venueName === selectedVenue;
+	});
+	
+	if (venue) {
+		// If venue is an object with coordinates
+		if (typeof venue === 'object' && venue.latitude && venue.longitude) {
+			form.value.latitude = parseFloat(venue.latitude);
+			form.value.longitude = parseFloat(venue.longitude);
+			form.value.location = venue.name;
+		}
+		// If venue is just a name string, just set the location
+		else if (typeof venue === 'string') {
+			form.value.location = venue;
+		}
+	}
+};
+
+// Watch venue changes and auto-populate coordinates
+watch(() => form.value.venue, (newVenue) => {
+	if (newVenue) {
+		handleVenueSelected(newVenue);
+	}
+});
+
 const handleSubmit = async () => {
 	if (!isValid.value) return;
 	resetMessages();
@@ -249,8 +291,8 @@ const handleSubmit = async () => {
 			price: form.value.price ? Number(form.value.price) : 0,
 			owner_id: ownerId.value,
 			venue: form.value.venue,
-			latitude: null,
-			altitude: null
+			latitude: form.value.latitude,
+			longitude: form.value.longitude
 		};
 		const tagsPayload = selectedTags.value.slice(0, MAX_TAGS);
 
@@ -330,10 +372,16 @@ const handleSubmit = async () => {
 							<label for="event-venue">Venue <span>*</span></label>
 							<select id="event-venue" v-model="form.venue">
 								<option disabled value="">Select a venue</option>
-								<option v-for="venue in venues" :key="venue" :value="venue">{{ venue }}</option>
+								<option v-for="venue in venues" :key="venue.id || venue.name" :value="venue.name">{{ venue.name }}</option>
 							</select>
 						</div>
 					</div>
+
+					<!-- Location Picker with Map -->
+					<LocationPicker
+						ref="locationPickerRef"
+						@location-selected="handleLocationSelected"
+					/>
 
 					<div class="grid grid--two">
 						<div class="form-group">
@@ -526,7 +574,8 @@ select:focus {
 	outline: none;
 	border-color: var(--color-primary, #2563eb);
 	box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
-	background: #fff;
+	background: var(--color-surface, #fff);
+	color: var(--color-text);
 }
 
 textarea {

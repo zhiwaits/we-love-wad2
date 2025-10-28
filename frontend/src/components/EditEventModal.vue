@@ -57,10 +57,17 @@
                                 <label for="edit-venue">Venue <span class="required">*</span></label>
                                 <select id="edit-venue" v-model="form.venue" required>
                                     <option disabled value="">Select a venue</option>
-                                    <option v-for="venue in venues" :key="venue" :value="venue">{{ venue }}</option>
+                                    <option v-for="venue in venues" :key="venue.id || venue.name" :value="venue.name">{{ venue.name }}</option>
                                 </select>
                             </div>
                         </div>
+
+                        <!-- Location Picker with Map -->
+                        <LocationPicker
+                            :initialLat="form.latitude || 1.3521"
+                            :initialLng="form.longitude || 103.8198"
+                            @location-selected="handleLocationSelected"
+                        />
 
                         <!-- Capacity & Category Grid -->
                         <div class="grid grid--two">
@@ -159,12 +166,16 @@ import { mapGetters } from 'vuex';
 import { updateEvent, getEventById } from '../services/eventService';
 import { createEventTag, deleteEventTag, getEventTagsByEventId } from '../services/eventTagService';
 import { createTag, getAllTags } from '../services/tagService';
+import LocationPicker from './LocationPicker.vue';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 const MAX_TAGS = 10;
 
 export default {
     name: 'EditEventModal',
+    components: {
+        LocationPicker
+    },
     props: {
         event: {
             type: Object,
@@ -189,7 +200,9 @@ export default {
                 capacity: '',
                 category: '',
                 price: '0',
-                tags: []
+                tags: [],
+                latitude: null,
+                longitude: null
             },
             originalForm: null,
             imageFile: null,
@@ -263,6 +276,11 @@ export default {
         event(newEvent) {
             if (newEvent && this.visible) {
                 this.loadEventData();
+            }
+        },
+        'form.venue'(newVenue) {
+            if (newVenue) {
+                this.handleVenueSelected(newVenue);
             }
         }
     },
@@ -344,7 +362,9 @@ export default {
                     capacity: eventData.maxAttendees != null ? String(eventData.maxAttendees) : '',
                     category: eventData.category || '',
                     price: parsePrice(eventData.price),
-                    tags: Array.isArray(eventData.tags) ? [...eventData.tags] : []
+                    tags: Array.isArray(eventData.tags) ? [...eventData.tags] : [],
+                    latitude: eventData.latitude || 1.3521,
+                    longitude: eventData.longitude || 103.8198
                 };
 
                 // Store original form state
@@ -422,7 +442,9 @@ export default {
                 capacity: '',
                 category: '',
                 price: '0',
-                tags: []
+                tags: [],
+                latitude: null,
+                longitude: null
             };
             this.originalForm = null;
             this.imageFile = null;
@@ -504,6 +526,34 @@ export default {
 
         useTagSuggestion(tag) {
             this.addTag(tag);
+        },
+
+        handleLocationSelected(locationData) {
+            this.form.latitude = locationData.latitude;
+            this.form.longitude = locationData.longitude;
+        },
+
+        handleVenueSelected(selectedVenue) {
+            // Find the venue data from store
+            const eventVenues = this.$store.state.venues || [];
+            // Handle both string venue names and full venue objects
+            const venue = eventVenues.find(v => {
+                const venueName = typeof v === 'string' ? v : v.name;
+                return venueName === selectedVenue;
+            });
+            
+            if (venue) {
+                // If venue is an object with coordinates
+                if (typeof venue === 'object' && venue.latitude && venue.longitude) {
+                    this.form.latitude = parseFloat(venue.latitude);
+                    this.form.longitude = parseFloat(venue.longitude);
+                    this.form.location = venue.name;
+                }
+                // If venue is just a name string, just set the location
+                else if (typeof venue === 'string') {
+                    this.form.location = venue;
+                }
+            }
         },
 
         toIsoString(value) {
@@ -750,7 +800,8 @@ select:focus {
     outline: none;
     border-color: var(--color-primary);
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-    background: #fff;
+    background: var(--color-surface);
+    color: var(--color-text);
 }
 
 textarea {

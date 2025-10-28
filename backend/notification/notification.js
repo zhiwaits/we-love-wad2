@@ -37,12 +37,12 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 // async function sendEmail() {
 //   const info = await transporter.sendMail({
 //     from: `"SMU Events Hub" <${process.env.SMTP_USER}>`,
-//     to: 'junjie.luah.2023@scis.smu.edu.sg',
+//     to: 'terry.yeo.2024@scis.smu.edu.sg',
 //     subject: 'Hello!',
 //     text: 'SMU Events Hub Testing.'
 //   });
 
-//   console.log('Email sent');
+//   console.log('Email sent:');
 // }
 
 // sendEmail().catch(console.error);
@@ -52,7 +52,7 @@ async function sendRegistrationConfirmation(userEmail, userName, eventTitle, eve
   const info = await transporter.sendMail({
     from: `"SMU Events Hub" <${SMTP_USER}>`,
     to: userEmail,
-    subject: `Confirm Registration: ${eventTitle}`,
+    subject: `Registration Confirmed: ${eventTitle}`,
     html: `
       <h2>Registration Confirmed!</h2>
       <p>Hi ${userName},</p>
@@ -210,15 +210,66 @@ async function sendRemindersFor24HourEvents() {
   }
 }
 
-if (require.main === module) {
-  sendRemindersFor24HourEvents().catch(console.error);
+async function sendRsvpConfirmationEmail(userEmail, userName, eventTitle, confirmationLink) {
+
+  const info = await transporter.sendMail({
+
+    from: "\"SMU Events Hub\" <${SMTP_USER}>",
+
+    to: userEmail,
+
+    subject: `Confirm Your RSVP for: ${eventTitle}`,
+
+    html: `
+
+      <h2>Confirm Your RSVP</h2>
+
+      <p>Hi ${userName},</p>
+
+      <p>Please confirm your RSVP for <strong>${eventTitle}</strong> by clicking the link below:</p>
+
+      <p><a href="${confirmationLink}">Confirm RSVP</a></p>
+
+      <p>If you did not request this, please ignore this email.</p>
+
+      <br>
+
+      <p>Best regards,<br>SMU Events Hub</p>
+
+    `
+
+  });
+
+
+
+  console.log('RSVP confirmation email sent to:', userEmail);
+
+  return info;
+
 }
+
+
+
+if (require.main === module) {
+
+  sendRemindersFor24HourEvents().catch(console.error);
+
+}
+
+
 
 module.exports = {
-  sendConfirmationEmail,
-  sendRemindersFor24HourEvents
+
+    sendRegistrationConfirmation,
+
+    sendEventReminder,
+
+    sendConfirmationEmail,
+
+    sendRemindersFor24HourEvents,
+
+    sendRsvpConfirmationEmail
+
 };
 
-if (require.main === module) {
-  sendRemindersFor24HourEvents().catch(console.error);
-}
+

@@ -117,12 +117,13 @@
                             type="button" 
                             class="btn btn-primary" 
                             @click="handleJoinEvent"
-                            :disabled="isJoining || hasJoined || isClub"
+                            :disabled="isJoining || hasJoined || isPending || isClub"
                             :class="{ 'btn-disabled': isClub }"
                         >
                             <span v-if="isClub">Clubs Cannot RSVP</span>
                             <span v-else-if="isJoining">Joining...</span>
                             <span v-else-if="hasJoined">✓ Joined</span>
+                            <span v-else-if="isPending">Pending Confirmation</span>
                             <span v-else>Join Event</span>
                         </button>
                         
@@ -166,6 +167,7 @@ export default {
             // RSVP State
             isJoining: false,
             hasJoined: false,
+            isPending: false,
             rsvpMessage: '',
             rsvpMessageType: '',
             
@@ -183,8 +185,13 @@ export default {
     },
 
     computed: {
-        ...mapState(['currentUser', 'userRSVPs']), // Use your existing state
-        ...mapGetters('auth', ['isClub']),
+        ...mapState(['userRSVPs']), // Use your existing state
+        ...mapGetters('auth', ['isClub', 'currentUser']),
+        hasJoined() {
+            if (!this.event || !this.userRSVPs) return false;
+            const rsvp = this.userRSVPs.find(r => r.event_id === this.event.id);
+            return rsvp && rsvp.status === 'confirmed';
+        },
         spotsRemaining() {
             if (this.event?.maxAttendees == null) return null;
             const remaining = this.event.maxAttendees - (this.event.attendees || 0);
@@ -242,8 +249,10 @@ export default {
 
         event(newEvent) {
             if (newEvent && this.visible) {
-                // Check if user has already RSVP'd to this event
-                this.hasJoined = this.userRSVPs.includes(newEvent.id);
+                const rsvp = this.userRSVPs.find(r => r.event_id === newEvent.id);
+                if (rsvp) {
+                    this.isPending = rsvp.status === 'pending';
+                }
                 this.rsvpMessage = '';
                 
                 if (this.hasValidCoordinates) {
@@ -256,11 +265,12 @@ export default {
     },
 
     mounted() {
-        if (this.visible) {
+        if (this.visible && this.event) {
             document.body.classList.add('modal-open');
-            // Check if user has already RSVP'd
-            if (this.event) {
-                this.hasJoined = this.userRSVPs.includes(this.event.id);
+            const rsvp = this.userRSVPs.find(r => r.event_id === this.event.id);
+            if (rsvp) {
+                this.hasJoined = rsvp.status === 'confirmed';
+                this.isPending = rsvp.status === 'pending';
             }
         }
         window.addEventListener('keyup', this.handleEsc, { passive: true });
@@ -313,7 +323,7 @@ export default {
 
         // Handle Join Event Button Click
         async handleJoinEvent() {
-            if (this.isJoining || this.hasJoined) return;
+            if (this.isJoining || this.hasJoined || this.isPending) return;
 
             // Check if user is logged in
             if (!this.currentUser || !this.currentUser.id) {
@@ -332,48 +342,18 @@ export default {
                 const rsvpData = {
                     event_id: this.event.id,
                     user_id: this.currentUser.id,
-                    status: 'confirmed',
-                    rsvp_date: new Date().toISOString().split('T')[0]
                 };
 
-                const response = await createRsvp(rsvpData);
+                await createRsvp(rsvpData);
                 
-                this.hasJoined = true;
-                this.rsvpMessage = 'Successfully joined the event!';
+                this.isPending = true;
+                this.rsvpMessage = 'Confirmation email sent! Please check your inbox.';
                 this.rsvpMessageType = 'success';
-                
-                // Update Vuex store with new RSVP
-                const updatedRSVPs = [...this.userRSVPs, this.event.id];
-                this.SET_USER_RSVPS(updatedRSVPs);
-                
-                // Emit event to parent to refresh event data
-                this.$emit('rsvp-created', response.data);
-
-                setTimeout(() => {
-                    this.rsvpMessage = '';
-                }, 3000);
 
             } catch (error) {
                 console.error('Error creating RSVP:', error);
-                
-                if (error.response?.status === 409) {
-                    this.rsvpMessage = 'You have already joined this event';
-                    this.hasJoined = true;
-                    
-                    // Ensure userRSVPs includes this event
-                    if (!this.userRSVPs.includes(this.event.id)) {
-                        const updatedRSVPs = [...this.userRSVPs, this.event.id];
-                        this.SET_USER_RSVPS(updatedRSVPs);
-                    }
-                } else {
-                    this.rsvpMessage = error.response?.data?.error || 'Failed to join event. Please try again.';
-                }
-                
+                this.rsvpMessage = error.response?.data?.error || 'Failed to join event. Please try again.';
                 this.rsvpMessageType = 'error';
-                
-                setTimeout(() => {
-                    this.rsvpMessage = '';
-                }, 3000);
             } finally {
                 this.isJoining = false;
             }
