@@ -116,6 +116,16 @@ export default {
       }
     },
     
+    // Check if "show only free events" is checked
+    showOnlyFree: {
+      get() {
+        return this.clubEventFilters.priceFilter === 'free';
+      },
+      set(value) {
+        this.updateClubEventPriceFilter(value ? 'free' : 'all');
+      }
+    },
+
     // Check if any filters are active
     hasActiveFilters() {
       return this.searchQuery || 
@@ -192,109 +202,92 @@ export default {
             <!-- Filter Dropdowns -->
             <div class="filters-row" v-show="!filtersCollapsed">
                 <!-- Event Status Filter -->
-                <div class="filter-group">
-                    <label class="filter-label" for="event-status-select">Timeline</label>
-                    <select id="event-status-select" class="form-control filter-select" v-model="eventStatus">
-                        <option value="both">All Events</option>
-                        <option value="upcoming">Upcoming Events</option>
-                        <option value="past">Past Events</option>
-                    </select>
-                </div>
+                <select class="form-control filter-select" v-model="eventStatus">
+                    <option value="both">All Events</option>
+                    <option value="upcoming">Upcoming Events</option>
+                    <option value="past">Past Events</option>
+                </select>
 
                 <!-- Date Filter -->
-                <div class="filter-group">
-                    <label class="filter-label" for="date-filter">Date</label>
-                    <div class="date-filter-container" v-if="dateFilter !== 'specific'">
-                        <select id="date-filter-select" class="form-control filter-select" v-model="dateFilter">
-                            <option value="all">Any Date</option>
-                            <option value="today">Today</option>
-                            <option value="this-week">This Week</option>
-                            <option value="this-month">This Month</option>
-                            <option value="specific">Specific Date</option>
-                        </select>
-                    </div>
-                    <div class="date-filter-container" v-else>
-                        <div class="date-input-wrapper">
-                            <input
-                                id="specific-date-input"
-                                type="date"
-                                class="form-control filter-select"
-                                v-model="specificDate"
-                            >
-                            <button
-                                type="button"
-                                class="date-clear-btn"
-                                @click="clearSpecificDate"
-                                title="Return to date options"
-                            >
-                                ×
-                            </button>
-                        </div>
+                <div class="date-filter-container" v-if="dateFilter !== 'specific'">
+                    <select class="form-control filter-select" v-model="dateFilter">
+                        <option value="all">Any Date</option>
+                        <option value="today">Today</option>
+                        <option value="this-week">This Week</option>
+                        <option value="this-month">This Month</option>
+                        <option value="specific">Specific Date</option>
+                    </select>
+                </div>
+                <div class="date-filter-container" v-else>
+                    <div class="date-input-wrapper">
+                        <input
+                            type="date"
+                            class="form-control filter-select"
+                            v-model="specificDate"
+                        >
+                        <button
+                            type="button"
+                            class="date-clear-btn"
+                            @click="clearSpecificDate"
+                            title="Return to date options"
+                        >
+                            ×
+                        </button>
                     </div>
                 </div>
 
                 <!-- Venue Filter -->
-                <div class="filter-group">
-                    <label class="filter-label" for="venue-filter-select">Venue</label>
-                    <select id="venue-filter-select" class="form-control filter-select" v-model="venueFilter">
-                        <option value="all">All Venues</option>
-                        <option v-for="venue in allClubEventVenues" :key="venue" :value="venue">
-                            {{ venue }}
-                        </option>
-                    </select>
-                </div>
+                <select class="form-control filter-select" v-model="venueFilter">
+                    <option value="all">All Venues</option>
+                    <option v-for="venue in allClubEventVenues" :key="venue" :value="venue">
+                        {{ venue }}
+                    </option>
+                </select>
 
                 <!-- Location Search -->
-                <div class="filter-group">
-                    <label class="filter-label" for="location-query-input">Location</label>
-                    <input 
-                        id="location-query-input"
-                        type="text" 
-                        class="form-control filter-select" 
-                        placeholder="Enter location..."
-                        v-model="locationQuery"
-                    >
-                </div>
+                <input 
+                    type="text" 
+                    class="form-control filter-select" 
+                    placeholder="Enter location..."
+                    v-model="locationQuery"
+                >
 
                 <!-- Price Filter -->
-                <div class="filter-group">
-                    <label class="filter-label" for="price-filter">Price</label>
-                    <div class="price-filter-container" v-if="priceFilter !== 'range'">
-                        <select id="price-filter-select" class="form-control filter-select" v-model="priceFilter">
-                            <option value="all">All Prices</option>
-                            <option value="free">Free</option>
-                            <option value="paid">Paid</option>
-                            <option value="range">Price Range</option>
-                        </select>
-                    </div>
-                    <div class="price-filter-container" v-else>
-                        <div class="price-range-wrapper">
-                            <div class="price-range">
-                                <input
-                                    type="number"
-                                    min="0"
-                                    class="form-control filter-select"
-                                    placeholder="Min"
-                                    v-model.number="minPrice"
-                                >
-                                <span class="price-range__divider">-</span>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    class="form-control filter-select"
-                                    placeholder="Max"
-                                    v-model.number="maxPrice"
-                                >
-                            </div>
-                            <button
-                                type="button"
-                                class="price-clear-btn"
-                                @click="clearPriceRange"
-                                title="Return to price options"
+                <div class="price-filter-container" v-if="priceFilter !== 'range'">
+                    <select class="form-control filter-select" v-model="priceFilter">
+                        <option value="all">All Prices</option>
+                        <option value="free">Free</option>
+                        <option value="paid">Paid</option>
+                        <option value="range">Price Range</option>
+                    </select>
+                </div>
+                <div class="price-filter-container" v-else>
+                    <div class="price-range-wrapper">
+                        <div class="price-range">
+                            <input
+                                type="number"
+                                min="0"
+                                class="form-control filter-select"
+                                placeholder="Min"
+                                v-model.number="minPrice"
                             >
-                                ×
-                            </button>
+                            <span class="price-range__divider">-</span>
+                            <input
+                                type="number"
+                                min="0"
+                                class="form-control filter-select"
+                                placeholder="Max"
+                                v-model.number="maxPrice"
+                            >
                         </div>
+                        <button
+                            type="button"
+                            class="price-clear-btn"
+                            @click="clearPriceRange"
+                            title="Return to price options"
+                        >
+                            ×
+                        </button>
                     </div>
                 </div>
             </div>
@@ -302,6 +295,12 @@ export default {
             <!-- Filter Options and Results -->
             <div class="filter-options">
                 <div class="left-options">
+                    <!-- Free Events Checkbox -->
+                    <label class="checkbox-label">
+                        <input type="checkbox" v-model="showOnlyFree">
+                        <span class="checkbox-text">Show only free events</span>
+                    </label>
+                    
                     <!-- Reset Filters Button -->
                     <button 
                         class="btn btn-sm btn-outline-secondary reset-btn" 
@@ -410,18 +409,6 @@ export default {
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: var(--space-16);
     margin-bottom: var(--space-20);
-}
-
-.filter-group {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-8);
-}
-
-.filter-label {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-text-secondary);
 }
 
 .filter-select {
@@ -540,6 +527,24 @@ export default {
     align-items: center;
     gap: var(--space-16);
     flex-wrap: wrap;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-8);
+    cursor: pointer;
+    user-select: none;
+}
+
+.checkbox-label input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
+}
+
+.checkbox-text {
+    font-size: var(--font-size-base);
+    color: var(--color-text);
 }
 
 .reset-btn {

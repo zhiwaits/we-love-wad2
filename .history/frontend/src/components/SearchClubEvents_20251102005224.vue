@@ -116,16 +116,19 @@ export default {
       }
     },
     
+    // Check if "show only free events" is checked
+    showOnlyFree: {
+      get() {
+        return this.clubEventFilters.priceFilter === 'free';
+      },
+      set(value) {
+        this.updateClubEventPriceFilter(value ? 'free' : 'all');
+      }
+    },
+
     // Check if any filters are active
     hasActiveFilters() {
-      return this.searchQuery || 
-             this.priceFilter !== 'all' || 
-             this.dateFilter !== 'all' || 
-             this.venueFilter !== 'all' || 
-             this.locationQuery || 
-             this.eventStatus !== 'both' ||
-             (this.priceFilter === 'range' && (this.minPrice !== '' || this.maxPrice !== '')) ||
-             (this.dateFilter === 'specific' && this.specificDate);
+      return this.searchQuery || this.priceFilter !== 'all' || this.dateFilter !== 'all' || this.venueFilter !== 'all' || this.locationQuery || this.eventStatus !== 'both';
     }
   },
   
@@ -146,18 +149,6 @@ export default {
     // Clear all filters
     handleResetFilters() {
       this.resetClubEventFilters();
-    },
-
-    // Clear specific date and return to date options
-    clearSpecificDate() {
-      this.updateClubEventDateFilter('all');
-      this.setSpecificDate(null);
-    },
-
-    // Clear price range and return to price options
-    clearPriceRange() {
-      this.updateClubEventPriceFilter('all');
-      this.updatePriceRange({ min: null, max: null });
     },
 
     toggleFilters() {
@@ -192,116 +183,70 @@ export default {
             <!-- Filter Dropdowns -->
             <div class="filters-row" v-show="!filtersCollapsed">
                 <!-- Event Status Filter -->
-                <div class="filter-group">
-                    <label class="filter-label" for="event-status-select">Timeline</label>
-                    <select id="event-status-select" class="form-control filter-select" v-model="eventStatus">
-                        <option value="both">All Events</option>
-                        <option value="upcoming">Upcoming Events</option>
-                        <option value="past">Past Events</option>
-                    </select>
-                </div>
+                <select class="form-control filter-select" v-model="eventStatus">
+                    <option value="both">All Events</option>
+                    <option value="upcoming">Upcoming Events</option>
+                    <option value="past">Past Events</option>
+                </select>
 
-                <!-- Date Filter -->
-                <div class="filter-group">
-                    <label class="filter-label" for="date-filter">Date</label>
-                    <div class="date-filter-container" v-if="dateFilter !== 'specific'">
-                        <select id="date-filter-select" class="form-control filter-select" v-model="dateFilter">
-                            <option value="all">Any Date</option>
-                            <option value="today">Today</option>
-                            <option value="this-week">This Week</option>
-                            <option value="this-month">This Month</option>
-                            <option value="specific">Specific Date</option>
-                        </select>
-                    </div>
-                    <div class="date-filter-container" v-else>
-                        <div class="date-input-wrapper">
-                            <input
-                                id="specific-date-input"
-                                type="date"
-                                class="form-control filter-select"
-                                v-model="specificDate"
-                            >
-                            <button
-                                type="button"
-                                class="date-clear-btn"
-                                @click="clearSpecificDate"
-                                title="Return to date options"
-                            >
-                                ×
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <!-- Price Filter -->
+                <select class="form-control filter-select" v-model="priceFilter">
+                    <option value="all">All Prices</option>
+                    <option value="free">Free</option>
+                    <option value="paid">Paid</option>
+                </select>
 
-                <!-- Venue Filter -->
-                <div class="filter-group">
-                    <label class="filter-label" for="venue-filter-select">Venue</label>
-                    <select id="venue-filter-select" class="form-control filter-select" v-model="venueFilter">
-                        <option value="all">All Venues</option>
-                        <option v-for="venue in allClubEventVenues" :key="venue" :value="venue">
-                            {{ venue }}
-                        </option>
-                    </select>
-                </div>
-
-                <!-- Location Search -->
-                <div class="filter-group">
-                    <label class="filter-label" for="location-query-input">Location</label>
+                <!-- Price Range -->
+                <div class="price-range-filter">
                     <input 
-                        id="location-query-input"
-                        type="text" 
-                        class="form-control filter-select" 
-                        placeholder="Enter location..."
-                        v-model="locationQuery"
+                        type="number" 
+                        class="form-control price-range-input"
+                        placeholder="Min Price"
+                        v-model="minPrice"
+                    >
+                    <span class="price-range-separator">-</span>
+                    <input 
+                        type="number" 
+                        class="form-control price-range-input"
+                        placeholder="Max Price"
+                        v-model="maxPrice"
                     >
                 </div>
 
-                <!-- Price Filter -->
-                <div class="filter-group">
-                    <label class="filter-label" for="price-filter">Price</label>
-                    <div class="price-filter-container" v-if="priceFilter !== 'range'">
-                        <select id="price-filter-select" class="form-control filter-select" v-model="priceFilter">
-                            <option value="all">All Prices</option>
-                            <option value="free">Free</option>
-                            <option value="paid">Paid</option>
-                            <option value="range">Price Range</option>
-                        </select>
-                    </div>
-                    <div class="price-filter-container" v-else>
-                        <div class="price-range-wrapper">
-                            <div class="price-range">
-                                <input
-                                    type="number"
-                                    min="0"
-                                    class="form-control filter-select"
-                                    placeholder="Min"
-                                    v-model.number="minPrice"
-                                >
-                                <span class="price-range__divider">-</span>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    class="form-control filter-select"
-                                    placeholder="Max"
-                                    v-model.number="maxPrice"
-                                >
-                            </div>
-                            <button
-                                type="button"
-                                class="price-clear-btn"
-                                @click="clearPriceRange"
-                                title="Return to price options"
-                            >
-                                ×
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <!-- Date Filter -->
+                <select class="form-control filter-select" v-model="dateFilter">
+                    <option value="all">Any Date</option>
+                    <option value="today">Today</option>
+                    <option value="this-week">This Week</option>
+                    <option value="this-month">This Month</option>
+                </select>
+
+                <!-- Venue Filter -->
+                <select class="form-control filter-select" v-model="venueFilter">
+                    <option value="all">All Venues</option>
+                    <option v-for="venue in allClubEventVenues" :key="venue" :value="venue">
+                        {{ venue }}
+                    </option>
+                </select>
+
+                <!-- Location Search -->
+                <input 
+                    type="text" 
+                    class="form-control filter-select" 
+                    placeholder="Enter location..."
+                    v-model="locationQuery"
+                >
             </div>
 
             <!-- Filter Options and Results -->
             <div class="filter-options">
                 <div class="left-options">
+                    <!-- Free Events Checkbox -->
+                    <label class="checkbox-label">
+                        <input type="checkbox" v-model="showOnlyFree">
+                        <span class="checkbox-text">Show only free events</span>
+                    </label>
+                    
                     <!-- Reset Filters Button -->
                     <button 
                         class="btn btn-sm btn-outline-secondary reset-btn" 
@@ -412,18 +357,6 @@ export default {
     margin-bottom: var(--space-20);
 }
 
-.filter-group {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-8);
-}
-
-.filter-label {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-text-secondary);
-}
-
 .filter-select {
     padding: var(--space-12);
     border-radius: var(--radius-base);
@@ -438,93 +371,31 @@ export default {
     box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.25);
 }
 
-.date-filter-container {
-    position: relative;
-}
-
-.date-input-wrapper {
-    position: relative;
-    display: flex;
-    align-items: center;
-}
-
-.date-input-wrapper .filter-select {
-    flex: 1;
-    padding-right: 2.5rem; /* Make room for the X button */
-}
-
-.date-clear-btn {
-    position: absolute;
-    right: 0.5rem;
-    top: 50%;
-    transform: translateY(-50%);
-    background: none;
-    border: none;
-    color: var(--color-text-secondary);
-    font-size: 1.2rem;
-    font-weight: bold;
-    cursor: pointer;
-    padding: 0.2rem;
-    border-radius: 50%;
-    width: 1.5rem;
-    height: 1.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-}
-
-.date-clear-btn:hover {
-    background-color: var(--color-bg-2, #e9ecef);
-    color: var(--color-text);
-}
-
-.price-filter-container {
-    /* No longer needs position: relative since button is outside */
-}
-
-.price-range-wrapper {
+.price-range-filter {
     display: flex;
     align-items: center;
     gap: var(--space-8);
+    margin-bottom: var(--space-20);
 }
 
-.price-range-wrapper .price-range {
+.price-range-input {
     flex: 1;
+    padding: var(--space-12);
+    border-radius: var(--radius-base);
+    font-size: var(--font-size-base);
+    border: 1px solid var(--color-border);
+    transition: border-color 0.2s ease;
 }
 
-.price-range {
-    display: flex;
-    align-items: center;
-    gap: var(--space-12);
+.price-range-input:focus {
+    outline: none;
+    border-color: var(--color-primary, #007bff);
+    box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.25);
 }
 
-.price-range__divider {
+.price-range-separator {
+    font-size: var(--font-size-lg);
     color: var(--color-text-secondary);
-    font-weight: var(--font-weight-bold);
-}
-
-.price-clear-btn {
-    background: none;
-    border: none;
-    color: var(--color-text-secondary);
-    font-size: 1.2rem;
-    font-weight: bold;
-    cursor: pointer;
-    padding: 0.2rem;
-    border-radius: 50%;
-    width: 1.5rem;
-    height: 1.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-    flex-shrink: 0;
-}
-
-.price-clear-btn:hover {
-    background-color: var(--color-bg-2, #e9ecef);
-    color: var(--color-text);
 }
 
 .filter-options {
@@ -540,6 +411,24 @@ export default {
     align-items: center;
     gap: var(--space-16);
     flex-wrap: wrap;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-8);
+    cursor: pointer;
+    user-select: none;
+}
+
+.checkbox-label input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
+}
+
+.checkbox-text {
+    font-size: var(--font-size-base);
+    color: var(--color-text);
 }
 
 .reset-btn {

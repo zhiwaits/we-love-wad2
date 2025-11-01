@@ -413,15 +413,14 @@ export default {
 }
 
 .filter-group {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-8);
+    width: 100%;
 }
 
 .filter-label {
-    font-size: var(--font-size-sm);
+    display: block;
+    margin-bottom: var(--space-8);
     font-weight: var(--font-weight-medium);
-    color: var(--color-text-secondary);
+    color: var(--color-text);
 }
 
 .filter-select {
