@@ -1100,10 +1100,6 @@ export default createStore({
       commit('SET_PRICE_RANGE', range);
     },
 
-    updatePriceFilter({ commit }, priceFilter) {
-      commit('SET_PRICE_FILTER', priceFilter);
-    },
-
     updateDateFilter({ commit }, filter) {
       commit('SET_DATE_FILTER', filter);
     },

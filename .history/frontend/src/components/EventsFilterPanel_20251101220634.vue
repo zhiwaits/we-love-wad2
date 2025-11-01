@@ -285,7 +285,8 @@ export default {
 }
 
 .clear-btn:disabled {
-  opacity: 0.5;
+  background-color: var(--color-border);
+  color: var(--color-text-disabled);
   cursor: not-allowed;
 }
 

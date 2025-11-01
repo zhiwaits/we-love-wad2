@@ -223,18 +223,8 @@ export default createStore({
         );
       }
 
-      // Price filter
-      if (filters.priceFilter === 'paid') {
-        filtered = filtered.filter(event => {
-          const value = parsePriceValue(event);
-          return value != null && value > 0;
-        });
-      } else if (filters.priceFilter === 'free') {
-        filtered = filtered.filter(event => {
-          const value = parsePriceValue(event);
-          return value === 0 || value == null;
-        });
-      } else if (filters.priceFilter === 'range' && priceRangeActive) {
+      // Price range filter
+      if (priceRangeActive) {
         filtered = filtered.filter(event => {
           const value = parsePriceValue(event);
           if (value == null) {
@@ -803,7 +793,6 @@ export default createStore({
         searchQuery: '',
         selectedCategories: [],
         selectedTags: [],
-        priceFilter: 'all',
         priceRange: {
           min: null,
           max: null
@@ -1098,10 +1087,6 @@ export default createStore({
 
     updatePriceRange({ commit }, range) {
       commit('SET_PRICE_RANGE', range);
-    },
-
-    updatePriceFilter({ commit }, priceFilter) {
-      commit('SET_PRICE_FILTER', priceFilter);
     },
 
     updateDateFilter({ commit }, filter) {

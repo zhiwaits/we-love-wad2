@@ -324,7 +324,7 @@ export default {
           <button
             class="btn btn-sm btn-outline-secondary reset-btn"
             @click="handleResetFilters"
-            :disabled="!hasActiveFilters"
+            v-if="hasActiveFilters"
           >
             Clear All Filters
           </button>
@@ -454,13 +454,13 @@ export default {
 }
 
 .price-filter-container {
-  /* No longer needs position: relative since button is outside */
+  position: relative;
 }
 
 .price-range-wrapper {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: var(--space-8);
 }
 
 .price-range-wrapper .price-range {
@@ -468,6 +468,10 @@ export default {
 }
 
 .price-clear-btn {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
   background: none;
   border: none;
   color: var(--color-text-secondary);
@@ -482,7 +486,6 @@ export default {
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
-  flex-shrink: 0;
 }
 
 .price-clear-btn:hover {
@@ -545,15 +548,9 @@ export default {
     transition: all 0.2s ease;
 }
 
-.reset-btn:hover:not(:disabled) {
+.reset-btn:hover {
     background-color: var(--color-secondary, #6c757d);
     color: white;
-}
-
-.reset-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    background-color: var(--color-bg-2, #e9ecef);
 }
 
 .results-count {

@@ -79,11 +79,6 @@ export default {
       set(value) {
         this.updateClubEventPriceFilter(value ? 'free' : 'all');
       }
-    },
-
-    // Check if any filters are active
-    hasActiveFilters() {
-      return this.searchQuery || this.priceFilter !== 'all' || this.dateFilter !== 'all' || this.venueFilter !== 'all' || this.locationQuery || this.eventStatus !== 'both';
     }
   },
   
@@ -174,7 +169,7 @@ export default {
                     <button 
                         class="btn btn-sm btn-outline-secondary reset-btn" 
                         @click="handleResetFilters"
-                        :disabled="!hasActiveFilters"
+                        v-if="searchQuery || priceFilter !== 'all' || dateFilter !== 'all' || venueFilter !== 'all' || locationQuery || eventStatus !== 'both'"
                     >
                         Clear All Filters
                     </button>
@@ -280,15 +275,9 @@ export default {
     transition: all 0.2s ease;
 }
 
-.reset-btn:hover:not(:disabled) {
+.reset-btn:hover {
     background-color: var(--color-bg-1);
     border-color: var(--color-text-secondary);
-}
-
-.reset-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    background-color: var(--color-bg-2, #f8f9fa);
 }
 
 .results-count {

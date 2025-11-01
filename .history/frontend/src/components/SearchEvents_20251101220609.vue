@@ -324,7 +324,6 @@ export default {
           <button
             class="btn btn-sm btn-outline-secondary reset-btn"
             @click="handleResetFilters"
-            :disabled="!hasActiveFilters"
           >
             Clear All Filters
           </button>
@@ -545,15 +544,9 @@ export default {
     transition: all 0.2s ease;
 }
 
-.reset-btn:hover:not(:disabled) {
+.reset-btn:hover {
     background-color: var(--color-secondary, #6c757d);
     color: white;
-}
-
-.reset-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    background-color: var(--color-bg-2, #e9ecef);
 }
 
 .results-count {

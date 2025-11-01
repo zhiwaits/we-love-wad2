@@ -28,9 +28,7 @@ export default {
       set(v) { this.setOnlyWithUpcoming(v); }
     },
 
-    hasActiveFilters() {
-      return this.searchQuery || this.categoryId !== 'all' || this.onlyWithUpcoming;
-    }
+    
   },
   methods: {
     ...mapActions('clubs', ['updateClubSearch', 'updateClubCategoryFilter', 'resetClubFilters', 'setOnlyWithUpcoming']),
@@ -73,7 +71,7 @@ export default {
     
       <div class="filter-options">
         <div class="left-options">
-          <button class="btn btn-sm btn-outline-secondary reset-btn" @click="handleResetFilters" :disabled="!hasActiveFilters">
+          <button class="btn btn-sm btn-outline-secondary reset-btn" @click="handleResetFilters">
             Clear Filters
           </button>
         </div>
@@ -98,8 +96,7 @@ export default {
 .checkbox-inline { display: flex; align-items: center; gap: 8px; }
 
 .reset-btn { padding: var(--space-8) var(--space-16); font-size: var(--font-size-sm); border-radius: var(--radius-base); transition: all 0.2s ease; }
-.reset-btn:hover:not(:disabled) { background-color: var(--color-secondary, #6c757d); color: white; }
-.reset-btn:disabled { opacity: 0.5; cursor: not-allowed; background-color: var(--color-bg-2, #f8f9fa); }
+.reset-btn:hover { background-color: var(--color-secondary, #6c757d); color: white; }
 .results-count { font-size: var(--font-size-base); color: var(--color-text-secondary); font-weight: var(--font-weight-medium); }
 .results-count strong { color: var(--color-text); font-weight: var(--font-weight-bold); }
 @media (max-width: 768px) {

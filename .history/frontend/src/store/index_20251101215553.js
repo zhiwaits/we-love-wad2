@@ -803,7 +803,6 @@ export default createStore({
         searchQuery: '',
         selectedCategories: [],
         selectedTags: [],
-        priceFilter: 'all',
         priceRange: {
           min: null,
           max: null
@@ -1098,10 +1097,6 @@ export default createStore({
 
     updatePriceRange({ commit }, range) {
       commit('SET_PRICE_RANGE', range);
-    },
-
-    updatePriceFilter({ commit }, priceFilter) {
-      commit('SET_PRICE_FILTER', priceFilter);
     },
 
     updateDateFilter({ commit }, filter) {

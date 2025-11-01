@@ -223,18 +223,8 @@ export default createStore({
         );
       }
 
-      // Price filter
-      if (filters.priceFilter === 'paid') {
-        filtered = filtered.filter(event => {
-          const value = parsePriceValue(event);
-          return value != null && value > 0;
-        });
-      } else if (filters.priceFilter === 'free') {
-        filtered = filtered.filter(event => {
-          const value = parsePriceValue(event);
-          return value === 0 || value == null;
-        });
-      } else if (filters.priceFilter === 'range' && priceRangeActive) {
+      // Price range filter
+      if (priceRangeActive) {
         filtered = filtered.filter(event => {
           const value = parsePriceValue(event);
           if (value == null) {
@@ -734,17 +724,6 @@ export default createStore({
       };
     },
 
-    // Set price filter mode
-    SET_PRICE_FILTER(state, priceFilter) {
-      state.filters.priceFilter = priceFilter;
-      if (priceFilter !== 'range') {
-        state.filters.priceRange = {
-          min: null,
-          max: null
-        };
-      }
-    },
-
     // Set date filter
     SET_DATE_FILTER(state, dateFilter) {
       state.filters.dateFilter = dateFilter;
@@ -1098,10 +1077,6 @@ export default createStore({
 
     updatePriceRange({ commit }, range) {
       commit('SET_PRICE_RANGE', range);
-    },
-
-    updatePriceFilter({ commit }, priceFilter) {
-      commit('SET_PRICE_FILTER', priceFilter);
     },
 
     updateDateFilter({ commit }, filter) {

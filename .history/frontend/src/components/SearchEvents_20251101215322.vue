@@ -2,106 +2,90 @@
 import { mapState, mapGetters, mapActions } from 'vuex';
 
 export default {
-  name: 'SearchClubEvents',
+  name: 'Search',
   
   computed: {
     // Map state from Vuex store
-    ...mapState(['clubEventFilters']),
+    ...mapState(['filters', 'categories']),
     
     // Map getters from Vuex store
-    ...mapGetters(['allClubEventTags', 'allClubEventVenues', 'clubEventsResultsCount']),
+    ...mapGetters(['allTags', 'allVenues', 'resultsCount']),
     
     // Two-way binding for search input
     searchQuery: {
       get() {
-        return this.clubEventFilters.searchQuery;
+        return this.filters.searchQuery;
       },
       set(value) {
-        this.updateClubEventSearch(value);
+        this.updateSearch(value);
       }
     },
     
     // Two-way binding for price filter
     priceFilter: {
       get() {
-        return this.clubEventFilters.priceFilter;
+        return this.filters.priceFilter;
       },
       set(value) {
-        this.updateClubEventPriceFilter(value);
+        this.updatePriceFilter(value);
       }
     },
     
     // Two-way binding for date filter
     dateFilter: {
       get() {
-        return this.clubEventFilters.dateFilter;
+        return this.filters.dateFilter;
       },
       set(value) {
-        this.updateClubEventDateFilter(value);
+        this.updateDateFilter(value);
       }
     },
     
     // Two-way binding for venue filter
     venueFilter: {
       get() {
-        return this.clubEventFilters.venueFilter;
+        return this.filters.venueFilter;
       },
       set(value) {
-        this.updateClubEventVenueFilter(value);
+        this.updateVenueFilter(value);
       }
     },
     
     // Two-way binding for location search
     locationQuery: {
       get() {
-        return this.clubEventFilters.locationQuery;
+        return this.filters.locationQuery;
       },
       set(value) {
-        this.updateClubEventLocationQuery(value);
-      }
-    },
-
-    // Two-way binding for event status
-    eventStatus: {
-      get() {
-        return this.clubEventFilters.eventStatus;
-      },
-      set(value) {
-        this.updateClubEventStatus(value);
+        this.updateLocationQuery(value);
       }
     },
     
     // Check if "show only free events" is checked
     showOnlyFree: {
       get() {
-        return this.clubEventFilters.priceFilter === 'free';
+        return this.filters.priceFilter === 'free';
       },
       set(value) {
-        this.updateClubEventPriceFilter(value ? 'free' : 'all');
+        this.updatePriceFilter(value ? 'free' : 'all');
       }
-    },
-
-    // Check if any filters are active
-    hasActiveFilters() {
-      return this.searchQuery || this.priceFilter !== 'all' || this.dateFilter !== 'all' || this.venueFilter !== 'all' || this.locationQuery || this.eventStatus !== 'both';
     }
   },
   
   methods: {
     // Map actions from Vuex store
     ...mapActions([
-      'updateClubEventSearch',
-      'updateClubEventPriceFilter',
-      'updateClubEventDateFilter',
-      'updateClubEventVenueFilter',
-      'updateClubEventLocationQuery',
-      'updateClubEventStatus',
-      'resetClubEventFilters'
+      'updateSearch',
+      'updatePriceFilter',
+      'updateDateFilter',
+      'updateVenueFilter',
+      'updateLocationQuery',
+      'resetFilters'
     ]),
     
     // Clear all filters
     handleResetFilters() {
-      this.resetClubEventFilters();
+      this.resetFilters();
     }
   }
 }
@@ -115,20 +99,13 @@ export default {
                 <input 
                     type="text" 
                     class="form-control search-input"
-                    placeholder="Search your events by title or description..."
+                    placeholder="Search events by title, organizer, or description..."
                     v-model="searchQuery"
                 >
             </div>
 
             <!-- Filter Dropdowns -->
             <div class="filters-row">
-                <!-- Event Status Filter -->
-                <select class="form-control filter-select" v-model="eventStatus">
-                    <option value="both">All Events</option>
-                    <option value="upcoming">Upcoming Events</option>
-                    <option value="past">Past Events</option>
-                </select>
-
                 <!-- Price Filter -->
                 <select class="form-control filter-select" v-model="priceFilter">
                     <option value="all">All Prices</option>
@@ -147,7 +124,7 @@ export default {
                 <!-- Venue Filter -->
                 <select class="form-control filter-select" v-model="venueFilter">
                     <option value="all">All Venues</option>
-                    <option v-for="venue in allClubEventVenues" :key="venue" :value="venue">
+                    <option v-for="venue in allVenues" :key="venue" :value="venue">
                         {{ venue }}
                     </option>
                 </select>
@@ -174,7 +151,7 @@ export default {
                     <button 
                         class="btn btn-sm btn-outline-secondary reset-btn" 
                         @click="handleResetFilters"
-                        :disabled="!hasActiveFilters"
+                        v-if="searchQuery || priceFilter !== 'all' || dateFilter !== 'all' || venueFilter !== 'all' || locationQuery"
                     >
                         Clear All Filters
                     </button>
@@ -182,7 +159,7 @@ export default {
                 
                 <!-- Results Count -->
                 <div class="results-count">
-                    <strong>{{ clubEventsResultsCount }}</strong> event{{ clubEventsResultsCount !== 1 ? 's' : '' }} found
+                    <strong>{{ resultsCount }}</strong> event{{ resultsCount !== 1 ? 's' : '' }} found
                 </div>
             </div>
         </div>
@@ -212,7 +189,7 @@ export default {
 .search-input:focus {
     outline: none;
     border-color: var(--color-primary, #007bff);
-    box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.25);
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
 }
 
 .filters-row {
@@ -233,7 +210,7 @@ export default {
 .filter-select:focus {
     outline: none;
     border-color: var(--color-primary, #007bff);
-    box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.25);
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
 }
 
 .filter-options {
@@ -262,6 +239,8 @@ export default {
 .checkbox-label input[type="checkbox"] {
     margin: 0;
     cursor: pointer;
+    width: 18px;
+    height: 18px;
 }
 
 .checkbox-text {
@@ -271,33 +250,43 @@ export default {
 
 .reset-btn {
     padding: var(--space-8) var(--space-16);
-    border-radius: var(--radius-base);
     font-size: var(--font-size-sm);
-    border: 1px solid var(--color-border);
-    background-color: transparent;
-    color: var(--color-text);
+    border-radius: var(--radius-base);
     cursor: pointer;
     transition: all 0.2s ease;
 }
 
-.reset-btn:hover:not(:disabled) {
-    background-color: var(--color-bg-1);
-    border-color: var(--color-text-secondary);
-}
-
-.reset-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    background-color: var(--color-bg-2, #f8f9fa);
+.reset-btn:hover {
+    background-color: var(--color-secondary, #6c757d);
+    color: white;
 }
 
 .results-count {
     font-size: var(--font-size-base);
     color: var(--color-text-secondary);
+    font-weight: var(--font-weight-medium);
 }
 
 .results-count strong {
-    color: var(--color-primary);
+    color: var(--color-text);
     font-weight: var(--font-weight-bold);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .filters-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .filter-options {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .left-options {
+        width: 100%;
+        flex-direction: column;
+        align-items: flex-start;
+    }
 }
 </style>

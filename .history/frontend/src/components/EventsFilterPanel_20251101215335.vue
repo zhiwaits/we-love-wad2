@@ -114,11 +114,11 @@ export default {
     <div class="filter-panel-header">
       <h3>Filters</h3>
       <button 
+        v-if="selectedFiltersCount > 0" 
         class="clear-btn"
         @click="resetFilters"
-        :disabled="selectedFiltersCount === 0"
       >
-        Clear All
+        Clear All ({{ selectedFiltersCount }})
       </button>
     </div>
 
@@ -284,12 +284,7 @@ export default {
   transition: background-color 0.2s ease;
 }
 
-.clear-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.clear-btn:hover:not(:disabled) {
+.clear-btn:hover {
   background-color: var(--color-error);
   filter: brightness(0.9);
 }

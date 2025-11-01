@@ -118,7 +118,7 @@ export default {
 
     hasActiveFilters() {
       const filters = this.filters;
-      const priceActive = filters.priceFilter !== 'all' || (filters.priceFilter === 'range' && (filters.priceRange?.min != null || filters.priceRange?.max != null));
+      const priceActive = filters.priceRange?.min != null || filters.priceRange?.max != null;
       const clubCategorySelected = filters.clubFilter?.categoryId != null && filters.clubFilter.categoryId !== 'all';
       const dateActive = filters.dateFilter !== 'all' || (filters.dateFilter === 'specific' && filters.specificDate);
       const eventStatusActive = filters.eventStatus !== 'both';
@@ -136,7 +136,6 @@ export default {
     ...mapActions([
       'updateSearch',
       'updatePriceRange',
-      'updatePriceFilter',
       'updateDateFilter',
       'setSpecificDate',
       'updateVenueFilter',
@@ -158,11 +157,6 @@ export default {
     clearSpecificDate() {
       this.updateDateFilter('all');
       this.setSpecificDate(null);
-    },
-
-    clearPriceRange() {
-      this.updatePriceFilter('all');
-      this.updatePriceRange({ min: null, max: null });
     },
 
     async initialiseFilters() {
@@ -264,43 +258,23 @@ export default {
         </div>
 
         <div class="filter-group">
-          <label class="filter-label" for="price-filter">Price</label>
-          <div class="price-filter-container" v-if="priceFilter !== 'range'">
-            <select id="price-filter-select" class="form-control filter-select" v-model="priceFilter">
-              <option value="all">All Prices</option>
-              <option value="free">Free Events</option>
-              <option value="paid">Paid Events</option>
-              <option value="range">Price Range</option>
-            </select>
-          </div>
-          <div class="price-filter-container" v-else>
-            <div class="price-range-wrapper">
-              <div class="price-range">
-                <input
-                  type="number"
-                  min="0"
-                  class="form-control filter-input"
-                  placeholder="Min"
-                  v-model.number="minPrice"
-                >
-                <span class="price-range__divider">-</span>
-                <input
-                  type="number"
-                  min="0"
-                  class="form-control filter-input"
-                  placeholder="Max"
-                  v-model.number="maxPrice"
-                >
-              </div>
-              <button
-                type="button"
-                class="price-clear-btn"
-                @click="clearPriceRange"
-                title="Return to price options"
-              >
-                ×
-              </button>
-            </div>
+          <label class="filter-label">Price Range ($)</label>
+          <div class="price-range">
+            <input
+              type="number"
+              min="0"
+              class="form-control filter-input"
+              placeholder="Min"
+              v-model.number="minPrice"
+            >
+                        <span class="price-range__divider">-</span>
+            <input
+              type="number"
+              min="0"
+              class="form-control filter-input"
+              placeholder="Max"
+              v-model.number="maxPrice"
+            >
           </div>
         </div>
 
@@ -324,7 +298,7 @@ export default {
           <button
             class="btn btn-sm btn-outline-secondary reset-btn"
             @click="handleResetFilters"
-            :disabled="!hasActiveFilters"
+            v-if="hasActiveFilters"
           >
             Clear All Filters
           </button>
@@ -453,43 +427,6 @@ export default {
   color: var(--color-text);
 }
 
-.price-filter-container {
-  /* No longer needs position: relative since button is outside */
-}
-
-.price-range-wrapper {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-}
-
-.price-range-wrapper .price-range {
-  flex: 1;
-}
-
-.price-clear-btn {
-  background: none;
-  border: none;
-  color: var(--color-text-secondary);
-  font-size: 1.2rem;
-  font-weight: bold;
-  cursor: pointer;
-  padding: 0.2rem;
-  border-radius: 50%;
-  width: 1.5rem;
-  height: 1.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-}
-
-.price-clear-btn:hover {
-  background-color: var(--color-bg-2, #e9ecef);
-  color: var(--color-text);
-}
-
 .filter-options {
     display: flex;
     justify-content: space-between;
@@ -545,15 +482,9 @@ export default {
     transition: all 0.2s ease;
 }
 
-.reset-btn:hover:not(:disabled) {
+.reset-btn:hover {
     background-color: var(--color-secondary, #6c757d);
     color: white;
-}
-
-.reset-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    background-color: var(--color-bg-2, #e9ecef);
 }
 
 .results-count {

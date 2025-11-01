@@ -280,15 +280,9 @@ export default {
     transition: all 0.2s ease;
 }
 
-.reset-btn:hover:not(:disabled) {
+.reset-btn:hover {
     background-color: var(--color-bg-1);
     border-color: var(--color-text-secondary);
-}
-
-.reset-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    background-color: var(--color-bg-2, #f8f9fa);
 }
 
 .results-count {
