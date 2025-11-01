@@ -145,7 +145,7 @@ export default {
       this.resetFilters();
     },
 
-    clearSpecificDate() {
+    resetDateFilter() {
       this.updateDateFilter('all');
       this.setSpecificDate(null);
     },
@@ -197,32 +197,34 @@ export default {
 
         <div class="filter-group">
           <label class="filter-label" for="date-filter">Date</label>
-          <div class="date-filter-container" v-if="dateFilter !== 'specific'">
-            <select id="date-filter-select" class="form-control filter-select" v-model="dateFilter">
-              <option value="all">Any Date</option>
-              <option value="today">Today</option>
-              <option value="this-week">This Week</option>
-              <option value="this-month">This Month</option>
-              <option value="specific">Specific Date</option>
-            </select>
-          </div>
-          <div class="date-filter-container" v-else>
-            <div class="date-input-wrapper">
-              <input
-                id="specific-date-input"
-                type="date"
-                class="form-control filter-input"
-                v-model="specificDate"
-              >
-              <button
-                type="button"
-                class="date-clear-btn"
-                @click="clearSpecificDate"
-                title="Return to date options"
-              >
-                ×
-              </button>
-            </div>
+          <div class="date-filter-container">
+            <template v-if="dateFilter !== 'specific'">
+              <select id="date-filter-select" class="form-control filter-select" v-model="dateFilter">
+                <option value="all">Any Date</option>
+                <option value="today">Today</option>
+                <option value="this-week">This Week</option>
+                <option value="this-month">This Month</option>
+                <option value="specific">Specific Date</option>
+              </select>
+            </template>
+            <template v-else>
+              <div class="specific-date-input-container">
+                <input
+                  id="specific-date-input"
+                  type="date"
+                  class="form-control filter-input"
+                  v-model="specificDate"
+                >
+                <button
+                  type="button"
+                  class="date-reset-btn"
+                  @click="resetDateFilter"
+                  title="Clear date filter"
+                >
+                  ×
+                </button>
+              </div>
+            </template>
           </div>
         </div>
 
@@ -318,12 +320,7 @@ export default {
     width: 100%;
     font-size: var(--font-size-lg);
     padding: var(--space-16);
-    border-radius: var(--radius-lg);
-    border: 2px solid var(--color-border);
-    transition: border-color 0.2s ease;
-}
-
-.search-input:focus {
+    border-radius: var
     outline: none;
     border-color: var(--color-primary, #007bff);
     box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
@@ -381,41 +378,31 @@ export default {
   position: relative;
 }
 
-.date-input-wrapper {
-  position: relative;
+.specific-date-input-container {
   display: flex;
   align-items: center;
+  gap: var(--space-8);
 }
 
-.date-input-wrapper .filter-input {
-  flex: 1;
-  padding-right: 2.5rem; /* Make room for the X button */
-}
-
-.date-clear-btn {
-  position: absolute;
-  right: 0.5rem;
-  top: 50%;
-  transform: translateY(-50%);
+.date-reset-btn {
   background: none;
   border: none;
   color: var(--color-text-secondary);
-  font-size: 1.2rem;
-  font-weight: bold;
+  font-size: var(--font-size-xl);
   cursor: pointer;
-  padding: 0.2rem;
-  border-radius: 50%;
-  width: 1.5rem;
-  height: 1.5rem;
+  padding: var(--space-4);
+  border-radius: var(--radius-base);
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  width: 32px;
+  height: 32px;
 }
 
-.date-clear-btn:hover {
-  background-color: var(--color-bg-2, #e9ecef);
-  color: var(--color-text);
+.date-reset-btn:hover {
+  background-color: var(--color-bg-1, #f8f9fa);
+  color: var(--color-error, #dc3545);
 }
 
 .filter-options {

@@ -145,11 +145,6 @@ export default {
       this.resetFilters();
     },
 
-    clearSpecificDate() {
-      this.updateDateFilter('all');
-      this.setSpecificDate(null);
-    },
-
     async initialiseFilters() {
       await this.ensureCategories();
 
@@ -196,34 +191,24 @@ export default {
         </div>
 
         <div class="filter-group">
-          <label class="filter-label" for="date-filter">Date</label>
-          <div class="date-filter-container" v-if="dateFilter !== 'specific'">
-            <select id="date-filter-select" class="form-control filter-select" v-model="dateFilter">
-              <option value="all">Any Date</option>
-              <option value="today">Today</option>
-              <option value="this-week">This Week</option>
-              <option value="this-month">This Month</option>
-              <option value="specific">Specific Date</option>
-            </select>
-          </div>
-          <div class="date-filter-container" v-else>
-            <div class="date-input-wrapper">
-              <input
-                id="specific-date-input"
-                type="date"
-                class="form-control filter-input"
-                v-model="specificDate"
-              >
-              <button
-                type="button"
-                class="date-clear-btn"
-                @click="clearSpecificDate"
-                title="Return to date options"
-              >
-                ×
-              </button>
-            </div>
-          </div>
+          <label class="filter-label" for="date-filter-select">Date</label>
+          <select id="date-filter-select" class="form-control filter-select" v-model="dateFilter">
+            <option value="all">Any Date</option>
+            <option value="today">Today</option>
+            <option value="this-week">This Week</option>
+            <option value="this-month">This Month</option>
+            <option value="specific">Specific Date</option>
+          </select>
+        </div>
+
+        <div class="filter-group" v-if="dateFilter === 'specific'">
+          <label class="filter-label" for="specific-date-input">Choose a date</label>
+          <input
+            id="specific-date-input"
+            type="date"
+            class="form-control filter-input"
+            v-model="specificDate"
+          >
         </div>
 
         <div class="filter-group">
@@ -375,47 +360,6 @@ export default {
 .price-range__divider {
   color: var(--color-text-secondary);
   font-weight: var(--font-weight-bold);
-}
-
-.date-filter-container {
-  position: relative;
-}
-
-.date-input-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.date-input-wrapper .filter-input {
-  flex: 1;
-  padding-right: 2.5rem; /* Make room for the X button */
-}
-
-.date-clear-btn {
-  position: absolute;
-  right: 0.5rem;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  color: var(--color-text-secondary);
-  font-size: 1.2rem;
-  font-weight: bold;
-  cursor: pointer;
-  padding: 0.2rem;
-  border-radius: 50%;
-  width: 1.5rem;
-  height: 1.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.date-clear-btn:hover {
-  background-color: var(--color-bg-2, #e9ecef);
-  color: var(--color-text);
 }
 
 .filter-options {

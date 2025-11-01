@@ -145,11 +145,6 @@ export default {
       this.resetFilters();
     },
 
-    clearSpecificDate() {
-      this.updateDateFilter('all');
-      this.setSpecificDate(null);
-    },
-
     async initialiseFilters() {
       await this.ensureCategories();
 
@@ -197,32 +192,34 @@ export default {
 
         <div class="filter-group">
           <label class="filter-label" for="date-filter">Date</label>
-          <div class="date-filter-container" v-if="dateFilter !== 'specific'">
-            <select id="date-filter-select" class="form-control filter-select" v-model="dateFilter">
-              <option value="all">Any Date</option>
-              <option value="today">Today</option>
-              <option value="this-week">This Week</option>
-              <option value="this-month">This Month</option>
-              <option value="specific">Specific Date</option>
-            </select>
-          </div>
-          <div class="date-filter-container" v-else>
-            <div class="date-input-wrapper">
-              <input
-                id="specific-date-input"
-                type="date"
-                class="form-control filter-input"
-                v-model="specificDate"
-              >
-              <button
-                type="button"
-                class="date-clear-btn"
-                @click="clearSpecificDate"
-                title="Return to date options"
-              >
-                ×
-              </button>
-            </div>
+          <div class="date-filter-container">
+            <template v-if="dateFilter !== 'specific'">
+              <select id="date-filter-select" class="form-control filter-select" v-model="dateFilter">
+                <option value="all">Any Date</option>
+                <option value="today">Today</option>
+                <option value="this-week">This Week</option>
+                <option value="this-month">This Month</option>
+                <option value="specific">Specific Date</option>
+              </select>
+            </template>
+            <template v-else>
+              <div class="specific-date-input-container">
+                <input
+                  id="specific-date-input"
+                  type="date"
+                  class="form-control filter-input"
+                  v-model="specificDate"
+                >
+                <button
+                  type="button"
+                  class="date-reset-btn"
+                  @click="resetDateFilter"
+                  title="Clear date filter"
+                >
+                  ×
+                </button>
+              </div>
+            </template>
           </div>
         </div>
 
@@ -377,47 +374,6 @@ export default {
   font-weight: var(--font-weight-bold);
 }
 
-.date-filter-container {
-  position: relative;
-}
-
-.date-input-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.date-input-wrapper .filter-input {
-  flex: 1;
-  padding-right: 2.5rem; /* Make room for the X button */
-}
-
-.date-clear-btn {
-  position: absolute;
-  right: 0.5rem;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  color: var(--color-text-secondary);
-  font-size: 1.2rem;
-  font-weight: bold;
-  cursor: pointer;
-  padding: 0.2rem;
-  border-radius: 50%;
-  width: 1.5rem;
-  height: 1.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.date-clear-btn:hover {
-  background-color: var(--color-bg-2, #e9ecef);
-  color: var(--color-text);
-}
-
 .filter-options {
     display: flex;
     justify-content: space-between;
@@ -487,6 +443,26 @@ export default {
 .results-count strong {
     color: var(--color-text);
     font-weight: var(--font-weight-bold);
+}
+
+.date-filter-container {
+  position: relative;
+}
+
+.specific-date-input-container {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.date-reset-btn {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font-size: var(--font-size-lg);
+  cursor: pointer;
+  padding: 0;
+  margin-left: var(--space-4);
 }
 
 /* Responsive Design */

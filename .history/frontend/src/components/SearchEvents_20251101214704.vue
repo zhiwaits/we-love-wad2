@@ -377,47 +377,6 @@ export default {
   font-weight: var(--font-weight-bold);
 }
 
-.date-filter-container {
-  position: relative;
-}
-
-.date-input-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.date-input-wrapper .filter-input {
-  flex: 1;
-  padding-right: 2.5rem; /* Make room for the X button */
-}
-
-.date-clear-btn {
-  position: absolute;
-  right: 0.5rem;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  color: var(--color-text-secondary);
-  font-size: 1.2rem;
-  font-weight: bold;
-  cursor: pointer;
-  padding: 0.2rem;
-  border-radius: 50%;
-  width: 1.5rem;
-  height: 1.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.date-clear-btn:hover {
-  background-color: var(--color-bg-2, #e9ecef);
-  color: var(--color-text);
-}
-
 .filter-options {
     display: flex;
     justify-content: space-between;
@@ -487,6 +446,28 @@ export default {
 .results-count strong {
     color: var(--color-text);
     font-weight: var(--font-weight-bold);
+}
+
+.date-filter-container {
+  position: relative;
+}
+
+.date-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.date-clear-btn {
+  position: absolute;
+  right: var(--space-8);
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font-size: var(--font-size-lg);
+  cursor: pointer;
 }
 
 /* Responsive Design */
