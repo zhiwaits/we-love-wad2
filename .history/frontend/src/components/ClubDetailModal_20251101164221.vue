@@ -37,7 +37,7 @@
                             View Events
                         </button>
                         <div class="secondary-actions">
-                            <button type="button" class="btn btn-primary" @click="emitToggleFollow">
+                            <button type="button" class="btn btn-dark" :class="{ following: isFollowing }" @click="emitToggleFollow">
                                 {{ isFollowing ? 'Unfollow' : 'Follow' }}
                             </button>
                             <button type="button" class="btn btn-outline" @click="$emit('share')">Share</button>
@@ -276,37 +276,7 @@ export default {
     padding: 12px 20px;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s ease;
-    position: relative;
-    overflow: hidden;
-}
-
-.btn::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 0;
-    height: 0;
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-    transition: width 0.3s ease, height 0.3s ease;
-}
-
-.btn:active::before {
-    width: 300px;
-    height: 300px;
-}
-
-.btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.btn:active {
-    transform: translateY(0);
-    transition: transform 0.1s ease;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .btn-primary {
@@ -316,17 +286,15 @@ export default {
     box-shadow: 0 10px 20px rgba(var(--color-teal-500-rgb, 33, 128, 141), 0.25);
 }
 
+.btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 24px rgba(var(--color-teal-500-rgb, 33, 128, 141), 0.28);
+}
+
 .btn-dark {
     background: #111;
     color: #fff;
     border: 1px solid #111;
-}
-
-.btn-dark.following {
-    background: #f8fafc;
-    color: #64748b;
-    border-color: #e2e8f0;
-    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .btn-dark:hover {
@@ -347,6 +315,12 @@ export default {
     background: var(--color-primary);
     color: var(--color-btn-primary-text);
     border-color: var(--color-primary);
+}
+
+.btn-dark.following {
+    background: #f3f4f6;
+    color: #374151;
+    border-color: #d1d5db;
 }
 
 .secondary-actions {

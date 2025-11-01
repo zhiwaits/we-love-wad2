@@ -25,11 +25,11 @@ function createPool() {
         if (err.code === 'XX000' || err.message.includes('db_termination') || err.message.includes('shutdown')) {
             console.log('Database connection terminated. Attempting to reconnect in 5 seconds...');
             pool.end(); ol
-            setTimeout(createPool, 5000); 
+            setTimeout(createPool, 5000); // Retry reconnection after 5 seconds
         }
     });
 
-   
+    // Test connection on pool creation
     pool.query('SELECT NOW()', (err, res) => {
         if (err) {
             console.error('Database connection error:', err.message);
@@ -41,7 +41,7 @@ function createPool() {
     return pool;
 }
 
-
+// Initialize the pool
 pool = createPool();
 
 module.exports = pool;

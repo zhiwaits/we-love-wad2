@@ -41,7 +41,7 @@ function createPool() {
     return pool;
 }
 
-
+// Initialize the pool
 pool = createPool();
 
 module.exports = pool;

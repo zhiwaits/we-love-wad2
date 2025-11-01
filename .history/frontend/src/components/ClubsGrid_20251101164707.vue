@@ -185,6 +185,7 @@ export default {
                             </button>
                             <button
                                 class="btn btn-outline-dark"
+                                :class="{ following: isFollowing(club.id) }"
                                 @click.stop="toggleFollow(club.id)"
                             >
                                 {{ isFollowing(club.id) ? 'Unfollow' : 'Follow' }}
@@ -279,17 +280,7 @@ export default {
     border-color: #e2e8f0;
     box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
 }
-.btn-outline-dark { 
-    background: transparent; 
-    color: #111; 
-    border: 1px solid #111; 
-}
-.btn-outline-dark.following { 
-    background: #f8fafc; 
-    color: #64748b; 
-    border-color: #e2e8f0;
-    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
-}
+.btn-outline-dark { background: transparent; color: #111; border: 1px solid #111; }
 
 @keyframes card-enter {
     from { opacity: 0; transform: translateY(12px); }

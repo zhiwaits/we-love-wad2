@@ -121,8 +121,8 @@ export default {
       }
     },
 
-    async loadFollowing({ rootGetters, commit }) {
-      const userId = rootGetters['auth/currentUser']?.id;
+    async loadFollowing({ rootState, commit }) {
+      const userId = rootState.currentUser?.id;
       if (!userId) return;
       try {
         const res = await getFollowsByUserId(userId);
@@ -131,8 +131,8 @@ export default {
       } catch (_) {  }
     },
 
-    async toggleFollow({ getters, commit, rootGetters }, clubId) {
-      const userId = rootGetters['auth/currentUser']?.id;
+    async toggleFollow({ getters, commit, rootState }, clubId) {
+      const userId = rootState.currentUser?.id;
       if (!userId) return;
       const following = getters.isFollowing(clubId);
       try {

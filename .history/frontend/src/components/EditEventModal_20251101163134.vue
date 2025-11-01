@@ -489,7 +489,7 @@ export default {
                 this.tagFeedback = 'Tag already added';
                 return false;
             }
-            if (this.form.tags.length >= MAX_TAGS) {
+            if this.form.tags.length >= MAX_TAGS) {
                 this.tagFeedback = `Maximum ${MAX_TAGS} tags allowed`;
                 return false;
             }

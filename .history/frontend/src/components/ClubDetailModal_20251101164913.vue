@@ -37,7 +37,7 @@
                             View Events
                         </button>
                         <div class="secondary-actions">
-                            <button type="button" class="btn btn-primary" @click="emitToggleFollow">
+                            <button type="button" class="btn btn-primary" :class="{ following: isFollowing }" @click="emitToggleFollow">
                                 {{ isFollowing ? 'Unfollow' : 'Follow' }}
                             </button>
                             <button type="button" class="btn btn-outline" @click="$emit('share')">Share</button>

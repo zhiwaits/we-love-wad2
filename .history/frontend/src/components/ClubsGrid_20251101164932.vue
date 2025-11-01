@@ -185,6 +185,7 @@ export default {
                             </button>
                             <button
                                 class="btn btn-outline-dark"
+                                :class="{ following: isFollowing(club.id) }"
                                 @click.stop="toggleFollow(club.id)"
                             >
                                 {{ isFollowing(club.id) ? 'Unfollow' : 'Follow' }}

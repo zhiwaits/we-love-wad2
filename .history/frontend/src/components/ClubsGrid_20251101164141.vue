@@ -184,7 +184,8 @@ export default {
                                 View Events
                             </button>
                             <button
-                                class="btn btn-outline-dark"
+                                class="btn btn-dark"
+                                :class="{ following: isFollowing(club.id) }"
                                 @click.stop="toggleFollow(club.id)"
                             >
                                 {{ isFollowing(club.id) ? 'Unfollow' : 'Follow' }}
@@ -240,56 +241,10 @@ export default {
 .club-stats { color: var(--color-text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-8); }
 .club-description { font-size: var(--font-size-base); color: var(--color-text-secondary); line-height: var(--line-height-normal); margin: 0; display: -webkit-box; -webkit-line-clamp: 4; line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; flex: 1; }
 .club-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-12); margin-top: auto; }
-.btn { 
-    padding: 10px 14px; 
-    border-radius: 12px; 
-    font-weight: 600;
-    transition: all 0.2s ease;
-    position: relative;
-    overflow: hidden;
-}
-.btn::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 0;
-    height: 0;
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-    transition: width 0.3s ease, height 0.3s ease;
-}
-.btn:active::before {
-    width: 300px;
-    height: 300px;
-}
-.btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-.btn:active {
-    transform: translateY(0);
-    transition: transform 0.1s ease;
-}
+.btn { padding: 10px 14px; border-radius: 12px; font-weight: 600; }
 .btn-dark { background: #111; color: #fff; border: 1px solid #111; }
-.btn-dark.following { 
-    background: #f8fafc; 
-    color: #64748b; 
-    border-color: #e2e8f0;
-    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
-}
-.btn-outline-dark { 
-    background: transparent; 
-    color: #111; 
-    border: 1px solid #111; 
-}
-.btn-outline-dark.following { 
-    background: #f8fafc; 
-    color: #64748b; 
-    border-color: #e2e8f0;
-    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
-}
+.btn-dark.following { background: transparent; color: #111; border-color: #111; }
+.btn-outline-dark { background: transparent; color: #111; border: 1px solid #111; }
 
 @keyframes card-enter {
     from { opacity: 0; transform: translateY(12px); }

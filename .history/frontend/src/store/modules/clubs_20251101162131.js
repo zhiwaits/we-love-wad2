@@ -30,7 +30,7 @@ export default {
       .sort((a, b) => a.name.localeCompare(b.name)),
     eventsByOwnerId: (s) => {
       const map = new Map();
-      const events = Array.isArray(s.events) ? s.events : []; 
+      const events = s.events || [];  // Ensure it's always an array to prevent iteration errors
       for (const ev of events) {
         const key = ev.ownerId != null ? Number(ev.ownerId) : null;
         if (key == null || Number.isNaN(key)) continue;
@@ -121,8 +121,8 @@ export default {
       }
     },
 
-    async loadFollowing({ rootGetters, commit }) {
-      const userId = rootGetters['auth/currentUser']?.id;
+    async loadFollowing({ rootState, commit }) {
+      const userId = rootState.currentUser?.id;
       if (!userId) return;
       try {
         const res = await getFollowsByUserId(userId);
@@ -131,8 +131,8 @@ export default {
       } catch (_) {  }
     },
 
-    async toggleFollow({ getters, commit, rootGetters }, clubId) {
-      const userId = rootGetters['auth/currentUser']?.id;
+    async toggleFollow({ getters, commit, rootState }, clubId) {
+      const userId = rootState.currentUser?.id;
       if (!userId) return;
       const following = getters.isFollowing(clubId);
       try {

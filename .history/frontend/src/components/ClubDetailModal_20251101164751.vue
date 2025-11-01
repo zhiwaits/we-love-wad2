@@ -37,7 +37,7 @@
                             View Events
                         </button>
                         <div class="secondary-actions">
-                            <button type="button" class="btn btn-primary" @click="emitToggleFollow">
+                            <button type="button" class="btn btn-primary" :class="{ following: isFollowing }" @click="emitToggleFollow">
                                 {{ isFollowing ? 'Unfollow' : 'Follow' }}
                             </button>
                             <button type="button" class="btn btn-outline" @click="$emit('share')">Share</button>
@@ -314,6 +314,24 @@ export default {
     background: var(--color-primary);
     color: var(--color-btn-primary-text);
     box-shadow: 0 10px 20px rgba(var(--color-teal-500-rgb, 33, 128, 141), 0.25);
+}
+
+.btn-primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 24px rgba(var(--color-teal-500-rgb, 33, 128, 141), 0.28);
+}
+
+.btn-primary.following {
+    background: #f8fafc;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.btn-primary.following:hover {
+    background: #f8fafc;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .btn-dark {
