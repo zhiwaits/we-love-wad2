@@ -366,49 +366,6 @@ export default {
 
 .search-bar {
     margin-bottom: var(--space-24);
-    position: relative;
-}
-
-.search-input-wrapper {
-    position: relative;
-    display: flex;
-    align-items: center;
-}
-
-.search-input {
-    width: 100%;
-    font-size: var(--font-size-lg);
-    padding: var(--space-16);
-    padding-right: 3rem; /* Make room for the toggle button */
-    border-radius: var(--radius-lg);
-    border: 2px solid var(--color-border);
-    transition: border-color 0.2s ease;
-}
-
-.filters-toggle-btn {
-    position: absolute;
-    right: 0.75rem;
-    top: 50%;
-    transform: translateY(-50%);
-    background: none;
-    border: none;
-    color: #6c757d;
-    font-size: 1.5rem;
-    font-weight: bold;
-    cursor: pointer;
-    padding: 0.25rem;
-    border-radius: 50%;
-    width: 2rem;
-    height: 2rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-}
-
-.filters-toggle-btn:hover {
-    background-color: var(--color-bg-2, #e9ecef);
-    color: var(--color-text);
 }
 
 .filters-toggle {
@@ -627,22 +584,19 @@ export default {
     padding: var(--space-8) var(--space-16);
     font-size: var(--font-size-sm);
     border-radius: var(--radius-base);
-    border: 1px solid var(--color-border);
-    background-color: transparent;
-    color: var(--color-text);
     cursor: pointer;
     transition: all 0.2s ease;
 }
 
 .reset-btn:hover:not(:disabled) {
-    background-color: var(--color-bg-1);
-    border-color: var(--color-text-secondary);
+    background-color: var(--color-secondary, #6c757d);
+    color: white;
 }
 
 .reset-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-    background-color: #f8f9fa;
+    background-color: var(--color-bg-2, #e9ecef);
 }
 
 .results-count {

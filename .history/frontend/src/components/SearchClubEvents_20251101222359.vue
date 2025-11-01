@@ -249,7 +249,7 @@ export default {
     transform: translateY(-50%);
     background: none;
     border: none;
-    color: #6c757d;
+    color: var(--color-text-secondary);
     font-size: 1.5rem;
     font-weight: bold;
     cursor: pointer;
@@ -365,7 +365,7 @@ export default {
 .reset-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-    background-color: #f8f9fa;
+    background-color: var(--color-bg-2, #f8f9fa);
 }
 
 .results-count {

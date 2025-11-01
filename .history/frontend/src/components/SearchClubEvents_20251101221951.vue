@@ -236,12 +236,6 @@ export default {
     transition: border-color 0.2s ease;
 }
 
-.search-input:focus {
-    outline: none;
-    border-color: var(--color-primary, #007bff);
-    box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.25);
-}
-
 .filters-toggle-btn {
     position: absolute;
     right: 0.75rem;
@@ -249,7 +243,7 @@ export default {
     transform: translateY(-50%);
     background: none;
     border: none;
-    color: #6c757d;
+    color: var(--color-text-secondary);
     font-size: 1.5rem;
     font-weight: bold;
     cursor: pointer;
@@ -365,7 +359,7 @@ export default {
 .reset-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-    background-color: #f8f9fa;
+    background-color: var(--color-bg-2, #f8f9fa);
 }
 
 .results-count {

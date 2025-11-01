@@ -106,7 +106,7 @@ export default {
 .search-bar { margin-bottom: var(--space-24); position: relative; }
 .search-input-wrapper { position: relative; display: flex; align-items: center; }
 .search-input { width: 100%; font-size: var(--font-size-lg); padding: var(--space-16); padding-right: 3rem; border-radius: var(--radius-lg); border: 2px solid var(--color-border); transition: border-color 0.2s ease; }
-.filters-toggle-btn { position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: none; border: none; color: #6c757d; font-size: 1.5rem; font-weight: bold; cursor: pointer; padding: 0.25rem; border-radius: 50%; width: 2rem; height: 2rem; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease; }
+.filters-toggle-btn { position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--color-text-secondary); font-size: 1.5rem; font-weight: bold; cursor: pointer; padding: 0.25rem; border-radius: 50%; width: 2rem; height: 2rem; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease; }
 .filters-toggle-btn:hover { background-color: var(--color-bg-2, #e9ecef); color: var(--color-text); }
 .filters-toggle { margin-bottom: var(--space-16); text-align: center; }
 .filters-toggle-btn { color: var(--color-primary, #007bff); text-decoration: none; font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); cursor: pointer; transition: color 0.2s ease; }
@@ -121,7 +121,7 @@ export default {
 
 .reset-btn { padding: var(--space-8) var(--space-16); font-size: var(--font-size-sm); border-radius: var(--radius-base); border: 1px solid var(--color-border); background-color: transparent; color: var(--color-text); cursor: pointer; transition: all 0.2s ease; }
 .reset-btn:hover:not(:disabled) { background-color: var(--color-bg-1); border-color: var(--color-text-secondary); }
-.reset-btn:disabled { opacity: 0.5; cursor: not-allowed; background-color: #f8f9fa; }
+.reset-btn:disabled { opacity: 0.5; cursor: not-allowed; background-color: var(--color-bg-2, #f8f9fa); }
 .results-count { font-size: var(--font-size-base); color: var(--color-text-secondary); font-weight: var(--font-weight-medium); }
 .results-count strong { color: var(--color-text); font-weight: var(--font-weight-bold); }
 @media (max-width: 768px) {

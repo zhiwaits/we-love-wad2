@@ -392,7 +392,7 @@ export default {
     transform: translateY(-50%);
     background: none;
     border: none;
-    color: #6c757d;
+    color: var(--color-text-secondary);
     font-size: 1.5rem;
     font-weight: bold;
     cursor: pointer;
@@ -627,22 +627,19 @@ export default {
     padding: var(--space-8) var(--space-16);
     font-size: var(--font-size-sm);
     border-radius: var(--radius-base);
-    border: 1px solid var(--color-border);
-    background-color: transparent;
-    color: var(--color-text);
     cursor: pointer;
     transition: all 0.2s ease;
 }
 
 .reset-btn:hover:not(:disabled) {
-    background-color: var(--color-bg-1);
-    border-color: var(--color-text-secondary);
+    background-color: var(--color-secondary, #6c757d);
+    color: white;
 }
 
 .reset-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-    background-color: #f8f9fa;
+    background-color: var(--color-bg-2, #e9ecef);
 }
 
 .results-count {

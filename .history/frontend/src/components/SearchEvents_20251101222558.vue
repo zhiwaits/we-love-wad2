@@ -392,7 +392,7 @@ export default {
     transform: translateY(-50%);
     background: none;
     border: none;
-    color: #6c757d;
+    color: var(--color-text-secondary);
     font-size: 1.5rem;
     font-weight: bold;
     cursor: pointer;

@@ -122,21 +122,22 @@ export default {
         <div class="container">
             <!-- Search Bar -->
             <div class="search-bar">
-                <div class="search-input-wrapper">
-                    <input 
-                        type="text" 
-                        class="form-control search-input"
-                        placeholder="Search your events by title or description..."
-                        v-model="searchQuery"
-                    >
-                    <button 
-                        class="filters-toggle-btn"
-                        @click="toggleFilters"
-                        title="{{ filtersCollapsed ? 'Show Filters' : 'Hide Filters' }}"
-                    >
-                        {{ filtersCollapsed ? '+' : '−' }}
-                    </button>
-                </div>
+                <input 
+                    type="text" 
+                    class="form-control search-input"
+                    placeholder="Search your events by title or description..."
+                    v-model="searchQuery"
+                >
+            </div>
+
+            <div class="filters-toggle">
+                <button 
+                    class="btn btn-sm btn-link filters-toggle-btn"
+                    @click="toggleFilters"
+                >
+                    <span class="toggle-icon">{{ filtersCollapsed ? '+' : '−' }}</span>
+                    {{ filtersCollapsed ? 'Show Filters' : 'Hide Filters' }}
+                </button>
             </div>
 
             <!-- Filter Dropdowns -->
@@ -204,6 +205,17 @@ export default {
                     <strong>{{ clubEventsResultsCount }}</strong> event{{ clubEventsResultsCount !== 1 ? 's' : '' }} found
                 </div>
             </div>
+
+            <!-- Collapse/Expand Filters Button -->
+            <div class="collapse-expand-filters">
+                <button 
+                    class="btn btn-sm" 
+                    @click="toggleFilters"
+                >
+                    <span v-if="filtersCollapsed">Show Filters</span>
+                    <span v-else>Hide Filters</span>
+                </button>
+            </div>
         </div>
     </section>
 </template>
@@ -217,20 +229,36 @@ export default {
 
 .search-bar {
     margin-bottom: var(--space-24);
-    position: relative;
 }
 
-.search-input-wrapper {
-    position: relative;
-    display: flex;
-    align-items: center;
+.filters-toggle {
+    margin-bottom: var(--space-16);
+    text-align: center;
+}
+
+.filters-toggle-btn {
+    color: var(--color-primary, #007bff);
+    text-decoration: none;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.filters-toggle-btn:hover {
+    color: var(--color-primary-hover, #0056b3);
+}
+
+.toggle-icon {
+    font-size: var(--font-size-base);
+    font-weight: bold;
+    margin-right: var(--space-4);
 }
 
 .search-input {
     width: 100%;
     font-size: var(--font-size-lg);
     padding: var(--space-16);
-    padding-right: 3rem; /* Make room for the toggle button */
     border-radius: var(--radius-lg);
     border: 2px solid var(--color-border);
     transition: border-color 0.2s ease;
@@ -240,32 +268,6 @@ export default {
     outline: none;
     border-color: var(--color-primary, #007bff);
     box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.25);
-}
-
-.filters-toggle-btn {
-    position: absolute;
-    right: 0.75rem;
-    top: 50%;
-    transform: translateY(-50%);
-    background: none;
-    border: none;
-    color: #6c757d;
-    font-size: 1.5rem;
-    font-weight: bold;
-    cursor: pointer;
-    padding: 0.25rem;
-    border-radius: 50%;
-    width: 2rem;
-    height: 2rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-}
-
-.filters-toggle-btn:hover {
-    background-color: var(--color-bg-2, #e9ecef);
-    color: var(--color-text);
 }
 
 .filters-toggle {
@@ -365,7 +367,7 @@ export default {
 .reset-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-    background-color: #f8f9fa;
+    background-color: var(--color-bg-2, #f8f9fa);
 }
 
 .results-count {
