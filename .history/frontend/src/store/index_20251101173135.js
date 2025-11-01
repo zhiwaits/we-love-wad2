@@ -140,67 +140,26 @@ export default createStore({
       return state.allEvents;
     },
     // Get filtered events based on current filters
-    filteredEvents: (state, getters, rootState) => {
-      const filters = state.filters;
-      const statusSelections = filters.statusFilter || {};
-      const clubFilter = filters.clubFilter || { categoryId: 'all', followedOnly: false };
-      const priceRange = filters.priceRange || { min: null, max: null };
-
-      const priceRangeActive = priceRange.min != null || priceRange.max != null;
-      const statusActive = Object.values(statusSelections).some(Boolean);
-      const clubFilterActive = clubFilter.categoryId !== 'all' || clubFilter.followedOnly;
-      const specificDateActive = filters.dateFilter === 'specific' && !!filters.specificDate;
-
+    filteredEvents: (state) => {
       const noFiltersActive =
-        !filters.searchQuery &&
-        filters.selectedCategories.length === 0 &&
-        filters.selectedTags.length === 0 &&
-        !priceRangeActive &&
-        filters.dateFilter === 'all' &&
-        !specificDateActive &&
-        filters.venueFilter === 'all' &&
-        !filters.locationQuery &&
-        filters.eventStatus === 'both' &&
-        !statusActive &&
-        !clubFilterActive;
+        !state.filters.searchQuery &&
+        state.filters.selectedCategories.length === 0 &&
+        state.filters.selectedTags.length === 0 &&
+        state.filters.priceFilter === 'all' &&
+        state.filters.dateFilter === 'all' &&
+        state.filters.venueFilter === 'all' &&
+        !state.filters.locationQuery &&
+        state.filters.eventStatus === 'both';
 
       if (noFiltersActive) {
         return state.allEvents;
       }
 
-      const parsePriceValue = (event) => {
-        if (typeof event.priceValue === 'number' && !Number.isNaN(event.priceValue)) {
-          return event.priceValue;
-        }
-        if (typeof event.price === 'string') {
-          const trimmed = event.price.trim().toUpperCase();
-          if (trimmed === 'FREE') {
-            return 0;
-          }
-          const numeric = Number(event.price.replace(/[^0-9.]/g, ''));
-          return Number.isNaN(numeric) ? null : numeric;
-        }
-        if (event.price != null) {
-          const numeric = Number(event.price);
-          return Number.isNaN(numeric) ? null : numeric;
-        }
-        return null;
-      };
-
-      const rsvpEventIds = new Set(
-        (state.userRSVPs || [])
-          .filter((rsvp) => rsvp && rsvp.event_id != null && (rsvp.status || '').toLowerCase() !== 'cancelled')
-          .map((rsvp) => Number(rsvp.event_id))
-      );
-
-      const savedEventIds = new Set((state.savedEvents || []).map((id) => Number(id)));
-      const followingClubIds = new Set((rootState?.clubs?.followingClubIds || []).map((id) => Number(id)));
-
       let filtered = [...state.allEvents];
 
       // Search filter (searches in title, organiser, description)
-      if (filters.searchQuery) {
-        const query = filters.searchQuery.toLowerCase();
+      if (state.filters.searchQuery) {
+        const query = state.filters.searchQuery.toLowerCase();
         filtered = filtered.filter(event =>
           event.title.toLowerCase().includes(query) ||
           event.organiser.toLowerCase().includes(query) ||
@@ -209,127 +168,72 @@ export default createStore({
       }
 
       // Category filter
-      if (filters.selectedCategories.length > 0) {
+      if (state.filters.selectedCategories.length > 0) {
         filtered = filtered.filter(event =>
-          filters.selectedCategories.includes(event.category)
+          state.filters.selectedCategories.includes(event.category)
         );
       }
 
       // Tag filter
-      if (filters.selectedTags.length > 0) {
+      if (state.filters.selectedTags.length > 0) {
         filtered = filtered.filter(event =>
-          filters.selectedTags.some(tag => event.tags.includes(tag))
+          state.filters.selectedTags.some(tag => event.tags.includes(tag))
         );
       }
 
-      // Price range filter
-      if (priceRangeActive) {
-        filtered = filtered.filter(event => {
-          const value = parsePriceValue(event);
-          if (value == null) {
-            return false;
-          }
-          if (priceRange.min != null && value < Number(priceRange.min)) {
-            return false;
-          }
-          if (priceRange.max != null && value > Number(priceRange.max)) {
-            return false;
-          }
-          return true;
-        });
+      // Price filter
+      if (state.filters.priceFilter === 'free') {
+        filtered = filtered.filter(event => event.price === 'FREE');
+      } else if (state.filters.priceFilter === 'paid') {
+        filtered = filtered.filter(event => event.price !== 'FREE');
       }
 
       // Date filter
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      if (filters.dateFilter === 'today') {
+      if (state.filters.dateFilter === 'today') {
         filtered = filtered.filter(event => {
           const eventDate = new Date(event.date);
           eventDate.setHours(0, 0, 0, 0);
           return eventDate.getTime() === today.getTime();
         });
-      } else if (filters.dateFilter === 'this-week') {
+      } else if (state.filters.dateFilter === 'this-week') {
         const weekFromNow = new Date(today);
         weekFromNow.setDate(weekFromNow.getDate() + 7);
         filtered = filtered.filter(event => {
           const eventDate = new Date(event.date);
           return eventDate >= today && eventDate <= weekFromNow;
         });
-      } else if (filters.dateFilter === 'this-month') {
+      } else if (state.filters.dateFilter === 'this-month') {
         filtered = filtered.filter(event => {
           const eventDate = new Date(event.date);
           return eventDate.getMonth() === today.getMonth() &&
             eventDate.getFullYear() === today.getFullYear();
         });
-      } else if (filters.dateFilter === 'specific' && filters.specificDate) {
-        const targetDate = new Date(filters.specificDate);
-        targetDate.setHours(0, 0, 0, 0);
-        filtered = filtered.filter(event => {
-          const eventDate = new Date(event.date);
-          eventDate.setHours(0, 0, 0, 0);
-          return eventDate.getTime() === targetDate.getTime();
-        });
       }
 
       // Venue filter
-      if (filters.venueFilter !== 'all') {
+      if (state.filters.venueFilter !== 'all') {
         filtered = filtered.filter(event =>
-          event.venue === filters.venueFilter
+          event.venue === state.filters.venueFilter
         );
       }
 
       // Location search
-      if (filters.locationQuery) {
-        const locQuery = filters.locationQuery.toLowerCase();
+      if (state.filters.locationQuery) {
+        const locQuery = state.filters.locationQuery.toLowerCase();
         filtered = filtered.filter(event =>
           event.location.toLowerCase().includes(locQuery) ||
           event.venue.toLowerCase().includes(locQuery)
         );
       }
 
-      // RSVP / Saved status filter
-      if (statusActive) {
-        filtered = filtered.filter(event => {
-          const eventId = Number(event.id);
-          const isRsvped = rsvpEventIds.has(eventId);
-          const isSaved = savedEventIds.has(eventId);
-
-          let rsvpPass = true;
-          if (statusSelections.rsvped && !statusSelections.notRsvped) {
-            rsvpPass = isRsvped;
-          } else if (!statusSelections.rsvped && statusSelections.notRsvped) {
-            rsvpPass = !isRsvped;
-          }
-
-          let savedPass = true;
-          if (statusSelections.saved && !statusSelections.notSaved) {
-            savedPass = isSaved;
-          } else if (!statusSelections.saved && statusSelections.notSaved) {
-            savedPass = !isSaved;
-          }
-
-          return rsvpPass && savedPass;
-        });
-      }
-
-      // Club-based filtering
-      if (clubFilter.categoryId !== 'all') {
-        filtered = filtered.filter(event => {
-          const eventClubCategory = event.clubCategoryId != null ? Number(event.clubCategoryId) : null;
-          return eventClubCategory === Number(clubFilter.categoryId);
-        });
-      }
-
-      if (clubFilter.followedOnly) {
-        filtered = filtered.filter(event => followingClubIds.has(Number(event.ownerId)));
-      }
-
-      // Event status filter (upcoming / past)
+      // Event status filter
       const now = new Date();
-      if (filters.eventStatus === 'upcoming') {
+      if (state.filters.eventStatus === 'upcoming') {
         filtered = filtered.filter(event => new Date(event.date) > now);
-      } else if (filters.eventStatus === 'past') {
+      } else if (state.filters.eventStatus === 'past') {
         filtered = filtered.filter(event => new Date(event.date) <= now);
       }
 
@@ -653,7 +557,7 @@ export default createStore({
     },
 
     SET_USER_RSVPS(state, rsvps) {
-      state.userRSVPs = Array.isArray(rsvps) ? rsvps : [];
+      state.userRSVPs = rsvps;
     },
 
     SET_CLUB_RSVPS(state, rsvps) {
@@ -661,27 +565,17 @@ export default createStore({
     },
 
     SET_SAVED_EVENTS(state, savedEventIds) {
-      const normalized = Array.isArray(savedEventIds)
-        ? savedEventIds
-            .map((id) => Number(id))
-            .filter((id) => !Number.isNaN(id))
-        : [];
-      state.savedEvents = normalized;
+      state.savedEvents = savedEventIds;
     },
 
     ADD_SAVED_EVENT(state, eventId) {
-      const numericId = Number(eventId);
-      if (Number.isNaN(numericId)) {
-        return;
-      }
-      if (!state.savedEvents.includes(numericId)) {
-        state.savedEvents.push(numericId);
+      if (!state.savedEvents.includes(eventId)) {
+        state.savedEvents.push(eventId);
       }
     },
 
     REMOVE_SAVED_EVENT(state, eventId) {
-      const numericId = Number(eventId);
-      state.savedEvents = state.savedEvents.filter(id => id !== numericId);
+      state.savedEvents = state.savedEvents.filter(id => id !== eventId);
     },
 
     // Toggle category selection
@@ -704,35 +598,14 @@ export default createStore({
       }
     },
 
-    // Update price range filter
-    SET_PRICE_RANGE(state, range = {}) {
-      const normalize = (value) => {
-        if (value === '' || value === null || value === undefined) {
-          return null;
-        }
-        const numeric = Number(value);
-        if (Number.isNaN(numeric)) {
-          return null;
-        }
-        return numeric < 0 ? 0 : numeric;
-      };
-
-      state.filters.priceRange = {
-        min: normalize(range.min),
-        max: normalize(range.max)
-      };
+    // Set price filter
+    SET_PRICE_FILTER(state, priceFilter) {
+      state.filters.priceFilter = priceFilter;
     },
 
     // Set date filter
     SET_DATE_FILTER(state, dateFilter) {
       state.filters.dateFilter = dateFilter;
-      if (dateFilter !== 'specific') {
-        state.filters.specificDate = null;
-      }
-    },
-
-    SET_SPECIFIC_DATE(state, date) {
-      state.filters.specificDate = date || null;
     },
 
     // Set venue filter
@@ -750,56 +623,17 @@ export default createStore({
       state.filters.eventStatus = status;
     },
 
-    TOGGLE_STATUS_FILTER(state, option) {
-      if (!state.filters.statusFilter || !(option in state.filters.statusFilter)) {
-        return;
-      }
-      state.filters.statusFilter = {
-        ...state.filters.statusFilter,
-        [option]: !state.filters.statusFilter[option]
-      };
-    },
-
-    SET_STATUS_FILTER(state, updates = {}) {
-      state.filters.statusFilter = {
-        ...state.filters.statusFilter,
-        ...updates
-      };
-    },
-
-    SET_CLUB_FILTER_CATEGORY(state, categoryId) {
-      state.filters.clubFilter.categoryId = categoryId;
-    },
-
-    SET_CLUB_FILTER_FOLLOWED(state, followedOnly) {
-      state.filters.clubFilter.followedOnly = !!followedOnly;
-    },
-
     // Reset all filters
     RESET_FILTERS(state) {
       state.filters = {
         searchQuery: '',
         selectedCategories: [],
         selectedTags: [],
-        priceRange: {
-          min: null,
-          max: null
-        },
+        priceFilter: 'all',
         dateFilter: 'all',
-        specificDate: null,
         venueFilter: 'all',
         locationQuery: '',
-        eventStatus: 'both',
-        statusFilter: {
-          rsvped: false,
-          notRsvped: false,
-          saved: false,
-          notSaved: false
-        },
-        clubFilter: {
-          categoryId: 'all',
-          followedOnly: false
-        }
+        eventStatus: 'both'
       };
     },
 
@@ -968,19 +802,9 @@ export default createStore({
           }
         });
 
-        // Assign tags and normalise numeric fields on events
+        // Assign tags to events
         events.forEach(event => {
           event.tags = eventTagMap[event.id] || [];
-
-          if (event.priceValue != null) {
-            const numeric = Number(event.priceValue);
-            event.priceValue = Number.isNaN(numeric) ? null : numeric;
-          }
-
-          if (event.clubCategoryId != null) {
-            const numericCategory = Number(event.clubCategoryId);
-            event.clubCategoryId = Number.isNaN(numericCategory) ? null : numericCategory;
-          }
         });
 
         console.log('fetchAllEvents - events with tags:', events);
@@ -1007,19 +831,6 @@ export default createStore({
         commit('SET_CLUB_STATS', response.data);
       } catch (error) {
         console.error('Error fetching club stats:', error);
-      }
-    },
-
-    async fetchUserRSVPs({ commit }, userId) {
-      if (!userId) return;
-      try {
-        const { getRsvpsByUserId } = await import('../services/rsvpService');
-        const response = await getRsvpsByUserId(userId);
-        const rsvps = Array.isArray(response.data) ? response.data : [];
-        commit('SET_USER_RSVPS', rsvps);
-      } catch (error) {
-        console.error('Error fetching user RSVPs:', error);
-        commit('SET_USER_RSVPS', []);
       }
     },
 
@@ -1073,46 +884,32 @@ export default createStore({
       commit('TOGGLE_TAG', tag);
     },
 
-    updatePriceRange({ commit }, range) {
-      commit('SET_PRICE_RANGE', range);
+    // Action to update price filter
+    updatePriceFilter({ commit }, filter) {
+      commit('SET_PRICE_FILTER', filter);
     },
 
+    // Action to update date filter
     updateDateFilter({ commit }, filter) {
       commit('SET_DATE_FILTER', filter);
     },
 
-    setSpecificDate({ commit }, date) {
-      commit('SET_SPECIFIC_DATE', date);
-    },
-
+    // Action to update venue filter
     updateVenueFilter({ commit }, venue) {
       commit('SET_VENUE_FILTER', venue);
     },
 
+    // Action to update location query
     updateLocationQuery({ commit }, query) {
       commit('SET_LOCATION_QUERY', query);
     },
 
+    // Action to update event status
     updateEventStatus({ commit }, status) {
       commit('SET_EVENT_STATUS', status);
     },
 
-    toggleStatusFilter({ commit }, option) {
-      commit('TOGGLE_STATUS_FILTER', option);
-    },
-
-    setStatusFilter({ commit }, payload) {
-      commit('SET_STATUS_FILTER', payload);
-    },
-
-    updateClubCategoryFilter({ commit }, categoryId) {
-      commit('SET_CLUB_FILTER_CATEGORY', categoryId);
-    },
-
-    updateClubFollowedFilter({ commit }, followedOnly) {
-      commit('SET_CLUB_FILTER_FOLLOWED', followedOnly);
-    },
-
+    // Action to reset filters
     resetFilters({ commit }) {
       commit('RESET_FILTERS');
     },

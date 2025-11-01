@@ -653,7 +653,7 @@ export default createStore({
     },
 
     SET_USER_RSVPS(state, rsvps) {
-      state.userRSVPs = Array.isArray(rsvps) ? rsvps : [];
+      state.userRSVPs = rsvps;
     },
 
     SET_CLUB_RSVPS(state, rsvps) {
@@ -968,19 +968,9 @@ export default createStore({
           }
         });
 
-        // Assign tags and normalise numeric fields on events
+        // Assign tags to events
         events.forEach(event => {
           event.tags = eventTagMap[event.id] || [];
-
-          if (event.priceValue != null) {
-            const numeric = Number(event.priceValue);
-            event.priceValue = Number.isNaN(numeric) ? null : numeric;
-          }
-
-          if (event.clubCategoryId != null) {
-            const numericCategory = Number(event.clubCategoryId);
-            event.clubCategoryId = Number.isNaN(numericCategory) ? null : numericCategory;
-          }
         });
 
         console.log('fetchAllEvents - events with tags:', events);
@@ -1007,19 +997,6 @@ export default createStore({
         commit('SET_CLUB_STATS', response.data);
       } catch (error) {
         console.error('Error fetching club stats:', error);
-      }
-    },
-
-    async fetchUserRSVPs({ commit }, userId) {
-      if (!userId) return;
-      try {
-        const { getRsvpsByUserId } = await import('../services/rsvpService');
-        const response = await getRsvpsByUserId(userId);
-        const rsvps = Array.isArray(response.data) ? response.data : [];
-        commit('SET_USER_RSVPS', rsvps);
-      } catch (error) {
-        console.error('Error fetching user RSVPs:', error);
-        commit('SET_USER_RSVPS', []);
       }
     },
 
@@ -1073,46 +1050,32 @@ export default createStore({
       commit('TOGGLE_TAG', tag);
     },
 
-    updatePriceRange({ commit }, range) {
-      commit('SET_PRICE_RANGE', range);
+    // Action to update price filter
+    updatePriceFilter({ commit }, filter) {
+      commit('SET_PRICE_FILTER', filter);
     },
 
+    // Action to update date filter
     updateDateFilter({ commit }, filter) {
       commit('SET_DATE_FILTER', filter);
     },
 
-    setSpecificDate({ commit }, date) {
-      commit('SET_SPECIFIC_DATE', date);
-    },
-
+    // Action to update venue filter
     updateVenueFilter({ commit }, venue) {
       commit('SET_VENUE_FILTER', venue);
     },
 
+    // Action to update location query
     updateLocationQuery({ commit }, query) {
       commit('SET_LOCATION_QUERY', query);
     },
 
+    // Action to update event status
     updateEventStatus({ commit }, status) {
       commit('SET_EVENT_STATUS', status);
     },
 
-    toggleStatusFilter({ commit }, option) {
-      commit('TOGGLE_STATUS_FILTER', option);
-    },
-
-    setStatusFilter({ commit }, payload) {
-      commit('SET_STATUS_FILTER', payload);
-    },
-
-    updateClubCategoryFilter({ commit }, categoryId) {
-      commit('SET_CLUB_FILTER_CATEGORY', categoryId);
-    },
-
-    updateClubFollowedFilter({ commit }, followedOnly) {
-      commit('SET_CLUB_FILTER_FOLLOWED', followedOnly);
-    },
-
+    // Action to reset filters
     resetFilters({ commit }) {
       commit('RESET_FILTERS');
     },

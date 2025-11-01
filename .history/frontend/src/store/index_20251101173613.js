@@ -653,7 +653,7 @@ export default createStore({
     },
 
     SET_USER_RSVPS(state, rsvps) {
-      state.userRSVPs = Array.isArray(rsvps) ? rsvps : [];
+      state.userRSVPs = rsvps;
     },
 
     SET_CLUB_RSVPS(state, rsvps) {

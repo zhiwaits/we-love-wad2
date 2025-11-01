@@ -39,6 +39,15 @@ export default {
       }
     },
 
+    specificDate: {
+      get() {
+        return this.filters.specificDate;
+      },
+      set(value) {
+        this.setSpecificDate(value);
+      }
+    },
+
     venueFilter: {
       get() {
         return this.filters.venueFilter;
@@ -94,6 +103,15 @@ export default {
       }
     },
 
+    followedOnly: {
+      get() {
+        return this.filters.clubFilter?.followedOnly ?? false;
+      },
+      set(value) {
+        this.updateClubFollowedFilter(value);
+      }
+    },
+
     clubCategories() {
       return Array.isArray(this.clubCategoryOptions) ? this.clubCategoryOptions : [];
     },
@@ -102,7 +120,9 @@ export default {
       const filters = this.filters;
       const priceActive = filters.priceRange?.min != null || filters.priceRange?.max != null;
       const clubCategorySelected = filters.clubFilter?.categoryId != null && filters.clubFilter.categoryId !== 'all';
-      const dateActive = filters.dateFilter !== 'all';
+      const clubFollowSelected = !!filters.clubFilter?.followedOnly;
+      const clubActive = clubCategorySelected || clubFollowSelected;
+      const dateActive = filters.dateFilter !== 'all' || (filters.dateFilter === 'specific' && filters.specificDate);
       const eventStatusActive = filters.eventStatus !== 'both';
       const venueActive = filters.venueFilter !== 'all';
       const locationActive = !!filters.locationQuery;
@@ -110,7 +130,12 @@ export default {
       const tagsActive = Array.isArray(filters.selectedTags) && filters.selectedTags.length > 0;
       const searchActive = !!filters.searchQuery;
 
-      return priceActive || clubCategorySelected || dateActive || eventStatusActive || venueActive || locationActive || categoriesActive || tagsActive || searchActive;
+      return priceActive || clubActive || dateActive || eventStatusActive || venueActive || locationActive || categoriesActive || tagsActive || searchActive;
+    },
+
+    canFilterByFollowing() {
+      const isAuthenticated = this.$store.getters['auth/isAuthenticated'];
+      return isAuthenticated && Array.isArray(this.followedClubIds) && this.followedClubIds.length > 0;
     }
   },
 
@@ -119,6 +144,7 @@ export default {
       'updateSearch',
       'updatePriceRange',
       'updateDateFilter',
+      'setSpecificDate',
       'updateVenueFilter',
       'updateLocationQuery',
       'updateEventStatus',
@@ -127,7 +153,8 @@ export default {
       'fetchEventVenues',
       'loadSavedEvents',
       'fetchUserRSVPs',
-      'updateClubCategoryFilter'
+      'updateClubCategoryFilter',
+      'updateClubFollowedFilter'
     ]),
     ...mapActions('clubs', ['ensureCategories', 'loadFollowing']),
 
@@ -170,7 +197,6 @@ export default {
       </div>
 
       <div class="filters-grid">
-        <!-- First Row -->
         <div class="filter-group">
           <label class="filter-label" for="event-status-select">Timeline</label>
           <select id="event-status-select" class="form-control filter-select" v-model="eventStatus">
@@ -191,25 +217,13 @@ export default {
           </select>
         </div>
 
-        <div class="filter-group">
-          <label class="filter-label" for="venue-filter-select">Venue</label>
-          <select id="venue-filter-select" class="form-control filter-select" v-model="venueFilter">
-            <option value="all">All Venues</option>
-            <option v-for="venue in allVenues" :key="venue.name || venue" :value="venue.name || venue">
-              {{ venue.name || venue }}
-            </option>
-          </select>
-        </div>
-
-        <!-- Second Row -->
-        <div class="filter-group">
-          <label class="filter-label" for="location-query-input">Location</label>
+        <div class="filter-group" v-if="dateFilter === 'specific'">
+          <label class="filter-label" for="specific-date-input">Choose a date</label>
           <input
-            id="location-query-input"
-            type="text"
+            id="specific-date-input"
+            type="date"
             class="form-control filter-input"
-            placeholder="Enter location..."
-            v-model="locationQuery"
+            v-model="specificDate"
           >
         </div>
 
@@ -235,6 +249,27 @@ export default {
         </div>
 
         <div class="filter-group">
+          <label class="filter-label" for="venue-filter-select">Venue</label>
+          <select id="venue-filter-select" class="form-control filter-select" v-model="venueFilter">
+            <option value="all">All Venues</option>
+            <option v-for="venue in allVenues" :key="venue" :value="venue">
+              {{ venue }}
+            </option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label" for="location-query-input">Location</label>
+          <input
+            id="location-query-input"
+            type="text"
+            class="form-control filter-input"
+            placeholder="Enter location..."
+            v-model="locationQuery"
+          >
+        </div>
+
+        <div class="filter-group">
           <label class="filter-label" for="club-category-select">Club Category</label>
           <select id="club-category-select" class="form-control filter-select" v-model="clubCategory">
             <option value="all">All Categories</option>
@@ -246,6 +281,24 @@ export default {
               {{ category.name }}
             </option>
           </select>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label">Followed Clubs</label>
+          <label
+            class="checkbox-label"
+            :class="{ 'checkbox-label--disabled': !canFilterByFollowing }"
+          >
+            <input
+              type="checkbox"
+              :disabled="!canFilterByFollowing"
+              v-model="followedOnly"
+            >
+            <span class="checkbox-text">
+              Only clubs I follow
+              <span v-if="!canFilterByFollowing" class="helper-text">(sign in & follow clubs)</span>
+            </span>
+          </label>
         </div>
       </div>
 
@@ -297,7 +350,7 @@ export default {
 
 .filters-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: var(--space-16);
   margin-bottom: var(--space-24);
 }

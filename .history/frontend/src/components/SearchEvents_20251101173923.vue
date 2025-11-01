@@ -39,6 +39,15 @@ export default {
       }
     },
 
+    specificDate: {
+      get() {
+        return this.filters.specificDate;
+      },
+      set(value) {
+        this.setSpecificDate(value);
+      }
+    },
+
     venueFilter: {
       get() {
         return this.filters.venueFilter;
@@ -85,12 +94,34 @@ export default {
       }
     },
 
+    statusSelections() {
+      return this.filters.statusFilter || {};
+    },
+
+    statusOptions() {
+      return [
+        { key: 'rsvped', label: "RSVP'd" },
+        { key: 'notRsvped', label: 'Not RSVP\'d' },
+        { key: 'saved', label: 'Saved' },
+        { key: 'notSaved', label: 'Not Saved' }
+      ];
+    },
+
     clubCategory: {
       get() {
         return this.filters.clubFilter?.categoryId ?? 'all';
       },
       set(value) {
         this.updateClubCategoryFilter(value);
+      }
+    },
+
+    followedOnly: {
+      get() {
+        return this.filters.clubFilter?.followedOnly ?? false;
+      },
+      set(value) {
+        this.updateClubFollowedFilter(value);
       }
     },
 
@@ -101,8 +132,9 @@ export default {
     hasActiveFilters() {
       const filters = this.filters;
       const priceActive = filters.priceRange?.min != null || filters.priceRange?.max != null;
-      const clubCategorySelected = filters.clubFilter?.categoryId != null && filters.clubFilter.categoryId !== 'all';
-      const dateActive = filters.dateFilter !== 'all';
+      const statusActive = Object.values(filters.statusFilter || {}).some(Boolean);
+      const clubActive = (filters.clubFilter?.categoryId && filters.clubFilter.categoryId !== 'all') || !!filters.clubFilter?.followedOnly;
+      const dateActive = filters.dateFilter !== 'all' || (filters.dateFilter === 'specific' && filters.specificDate);
       const eventStatusActive = filters.eventStatus !== 'both';
       const venueActive = filters.venueFilter !== 'all';
       const locationActive = !!filters.locationQuery;
@@ -110,7 +142,12 @@ export default {
       const tagsActive = Array.isArray(filters.selectedTags) && filters.selectedTags.length > 0;
       const searchActive = !!filters.searchQuery;
 
-      return priceActive || clubCategorySelected || dateActive || eventStatusActive || venueActive || locationActive || categoriesActive || tagsActive || searchActive;
+      return priceActive || statusActive || clubActive || dateActive || eventStatusActive || venueActive || locationActive || categoriesActive || tagsActive || searchActive;
+    },
+
+    canFilterByFollowing() {
+      const isAuthenticated = this.$store.getters['auth/isAuthenticated'];
+      return isAuthenticated && Array.isArray(this.followedClubIds) && this.followedClubIds.length > 0;
     }
   },
 
@@ -119,6 +156,7 @@ export default {
       'updateSearch',
       'updatePriceRange',
       'updateDateFilter',
+      'setSpecificDate',
       'updateVenueFilter',
       'updateLocationQuery',
       'updateEventStatus',
@@ -127,12 +165,22 @@ export default {
       'fetchEventVenues',
       'loadSavedEvents',
       'fetchUserRSVPs',
-      'updateClubCategoryFilter'
+      'toggleStatusFilter',
+      'updateClubCategoryFilter',
+      'updateClubFollowedFilter'
     ]),
     ...mapActions('clubs', ['ensureCategories', 'loadFollowing']),
 
     handleResetFilters() {
       this.resetFilters();
+    },
+
+    handleStatusToggle(option) {
+      this.toggleStatusFilter(option);
+    },
+
+    isStatusActive(option) {
+      return !!this.statusSelections[option];
     },
 
     async initialiseFilters() {
@@ -170,7 +218,6 @@ export default {
       </div>
 
       <div class="filters-grid">
-        <!-- First Row -->
         <div class="filter-group">
           <label class="filter-label" for="event-status-select">Timeline</label>
           <select id="event-status-select" class="form-control filter-select" v-model="eventStatus">
@@ -191,25 +238,13 @@ export default {
           </select>
         </div>
 
-        <div class="filter-group">
-          <label class="filter-label" for="venue-filter-select">Venue</label>
-          <select id="venue-filter-select" class="form-control filter-select" v-model="venueFilter">
-            <option value="all">All Venues</option>
-            <option v-for="venue in allVenues" :key="venue.name || venue" :value="venue.name || venue">
-              {{ venue.name || venue }}
-            </option>
-          </select>
-        </div>
-
-        <!-- Second Row -->
-        <div class="filter-group">
-          <label class="filter-label" for="location-query-input">Location</label>
+        <div class="filter-group" v-if="dateFilter === 'specific'">
+          <label class="filter-label" for="specific-date-input">Choose a date</label>
           <input
-            id="location-query-input"
-            type="text"
+            id="specific-date-input"
+            type="date"
             class="form-control filter-input"
-            placeholder="Enter location..."
-            v-model="locationQuery"
+            v-model="specificDate"
           >
         </div>
 
@@ -223,7 +258,7 @@ export default {
               placeholder="Min"
               v-model.number="minPrice"
             >
-                        <span class="price-range__divider">-</span>
+            <span class="price-range__divider">–</span>
             <input
               type="number"
               min="0"
@@ -235,17 +270,72 @@ export default {
         </div>
 
         <div class="filter-group">
-          <label class="filter-label" for="club-category-select">Club Category</label>
-          <select id="club-category-select" class="form-control filter-select" v-model="clubCategory">
-            <option value="all">All Categories</option>
-            <option
-              v-for="category in clubCategories"
-              :key="category.id"
-              :value="category.id"
-            >
-              {{ category.name }}
+          <label class="filter-label" for="venue-filter-select">Venue</label>
+          <select id="venue-filter-select" class="form-control filter-select" v-model="venueFilter">
+            <option value="all">All Venues</option>
+            <option v-for="venue in allVenues" :key="venue" :value="venue">
+              {{ venue }}
             </option>
           </select>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label" for="location-query-input">Location</label>
+          <input
+            id="location-query-input"
+            type="text"
+            class="form-control filter-input"
+            placeholder="Enter location..."
+            v-model="locationQuery"
+          >
+        </div>
+      </div>
+
+      <div class="filters-secondary">
+        <div class="filter-group filter-group--chips">
+          <span class="filter-label">Status</span>
+          <div class="chip-group">
+            <button
+              v-for="option in statusOptions"
+              :key="option.key"
+              type="button"
+              class="chip"
+              :class="{ 'chip--active': isStatusActive(option.key) }"
+              @click="handleStatusToggle(option.key)"
+            >
+              {{ option.label }}
+            </button>
+          </div>
+        </div>
+
+        <div class="filter-group filter-group--clubs">
+          <span class="filter-label">Clubs</span>
+          <div class="club-controls">
+            <select class="form-control filter-select" v-model="clubCategory">
+              <option value="all">All Categories</option>
+              <option
+                v-for="category in clubCategories"
+                :key="category.id"
+                :value="category.id"
+              >
+                {{ category.name }}
+              </option>
+            </select>
+            <label
+              class="checkbox-label"
+              :class="{ 'checkbox-label--disabled': !canFilterByFollowing }"
+            >
+              <input
+                type="checkbox"
+                :disabled="!canFilterByFollowing"
+                v-model="followedOnly"
+              >
+              <span class="checkbox-text">
+                Only clubs I follow
+                <span v-if="!canFilterByFollowing" class="helper-text">(sign in & follow clubs)</span>
+              </span>
+            </label>
+          </div>
         </div>
       </div>
 
@@ -294,52 +384,25 @@ export default {
     box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
 }
 
-
-.filters-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-16);
-  margin-bottom: var(--space-24);
+.filters-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-16);
+    margin-bottom: var(--space-20);
 }
 
-.filter-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-8);
+.filter-select {
+    padding: var(--space-12);
+    border-radius: var(--radius-base);
+    font-size: var(--font-size-base);
+    border: 1px solid var(--color-border);
+    transition: border-color 0.2s ease;
 }
 
-.filter-label {
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-secondary);
-}
-
-.filter-select,
-.filter-input {
-  padding: var(--space-12);
-  border-radius: var(--radius-base);
-  font-size: var(--font-size-base);
-  border: 1px solid var(--color-border);
-  transition: border-color 0.2s ease;
-  background-color: var(--color-surface);
-}
-
-.filter-select:focus,
-.filter-input:focus {
-  outline: none;
-  border-color: var(--color-primary, #007bff);
-  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
-}
-
-.price-range {
-  display: flex;
-  align-items: center;
-  gap: var(--space-12);
-}
-
-.price-range__divider {
-  color: var(--color-text-secondary);
-  font-weight: var(--font-weight-bold);
+.filter-select:focus {
+    outline: none;
+    border-color: var(--color-primary, #007bff);
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
 }
 
 .filter-options {
@@ -365,11 +428,6 @@ export default {
     user-select: none;
 }
 
-.checkbox-label--disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
 .checkbox-label input[type="checkbox"] {
     margin: 0;
     cursor: pointer;
@@ -380,13 +438,6 @@ export default {
 .checkbox-text {
     font-size: var(--font-size-base);
     color: var(--color-text);
-}
-
-.helper-text {
-  display: inline-block;
-  margin-left: var(--space-4);
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
 }
 
 .reset-btn {
@@ -415,6 +466,10 @@ export default {
 
 /* Responsive Design */
 @media (max-width: 768px) {
+    .filters-row {
+        grid-template-columns: 1fr;
+    }
+    
     .filter-options {
         flex-direction: column;
         align-items: flex-start;

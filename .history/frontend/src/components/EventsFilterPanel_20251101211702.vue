@@ -6,9 +6,9 @@ export default {
   
   data() {
     return {
-      showCategories: false,
-      showTags: false,
-      showStatus: false
+      showCategories: true,
+      showTags: true,
+      showStatus: true
     };
   },
   

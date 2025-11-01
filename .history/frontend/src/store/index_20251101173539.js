@@ -653,7 +653,7 @@ export default createStore({
     },
 
     SET_USER_RSVPS(state, rsvps) {
-      state.userRSVPs = Array.isArray(rsvps) ? rsvps : [];
+      state.userRSVPs = rsvps;
     },
 
     SET_CLUB_RSVPS(state, rsvps) {
@@ -968,19 +968,9 @@ export default createStore({
           }
         });
 
-        // Assign tags and normalise numeric fields on events
+        // Assign tags to events
         events.forEach(event => {
           event.tags = eventTagMap[event.id] || [];
-
-          if (event.priceValue != null) {
-            const numeric = Number(event.priceValue);
-            event.priceValue = Number.isNaN(numeric) ? null : numeric;
-          }
-
-          if (event.clubCategoryId != null) {
-            const numericCategory = Number(event.clubCategoryId);
-            event.clubCategoryId = Number.isNaN(numericCategory) ? null : numericCategory;
-          }
         });
 
         console.log('fetchAllEvents - events with tags:', events);

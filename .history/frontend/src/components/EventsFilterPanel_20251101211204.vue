@@ -6,9 +6,8 @@ export default {
   
   data() {
     return {
-      showCategories: false,
-      showTags: false,
-      showStatus: false
+      showCategories: true,
+      showTags: true
     };
   },
   
@@ -29,8 +28,7 @@ export default {
     
     // Count selected filters
     selectedFiltersCount() {
-      const statusCount = Object.values(this.statusSelections).filter(Boolean).length;
-      return this.filters.selectedCategories.length + this.filters.selectedTags.length + statusCount;
+      return this.filters.selectedCategories.length + this.filters.selectedTags.length;
     },
 
     statusSelections() {
@@ -68,11 +66,6 @@ export default {
     // Toggle tag section
     toggleTagSection() {
       this.showTags = !this.showTags;
-    },
-
-    // Toggle status section
-    toggleStatusSection() {
-      this.showStatus = !this.showStatus;
     },
 
     // Handle status toggle
@@ -172,12 +165,11 @@ export default {
 
     <!-- Status Filter Section -->
     <div class="filter-section">
-      <div class="filter-section-header" @click="toggleStatusSection">
+      <div class="filter-section-header">
         <h4>Status</h4>
-        <span class="toggle-icon">{{ showStatus ? '−' : '+' }}</span>
       </div>
       
-      <div v-show="showStatus" class="filter-section-content">
+      <div class="filter-section-content">
         <div class="chip-group">
           <button
             v-for="option in statusOptions"
@@ -420,26 +412,77 @@ export default {
 }
 
 .chip {
-  padding: var(--space-8, 8px) var(--space-16, 16px);
-  border-radius: var(--radius-full, 999px);
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-8, 8px) var(--space-12, 12px);
+  background-color: var(--color-bg-1, #f8f9fa);
   border: 1px solid var(--color-border);
-  background-color: var(--color-surface);
-  font-size: var(--font-size-sm, 0.875rem);
-  font-weight: var(--font-weight-medium, 500);
-  color: var(--color-text-secondary);
-  transition: all var(--duration-fast, 0.2s) var(--ease-standard, ease);
+  border-radius: var(--radius-full, 999px);
   cursor: pointer;
+  transition: background-color 0.2s ease;
 }
 
 .chip:hover {
-  border-color: var(--color-primary, #007bff);
-  color: var(--color-primary, #007bff);
+  background-color: var(--color-bg-2, #e9ecef);
 }
 
-.chip--active {
-  background-color: var(--color-primary, #007bff);
-  border-color: var(--color-primary, #007bff);
-  color: var(--color-white, #fff);
+.active-filters {
+  margin-top: var(--space-24, 24px);
+  padding-top: var(--space-16, 16px);
+  border-top: 1px solid var(--color-border);
+}
+
+.active-filters h4 {
+  margin: 0 0 var(--space-12, 12px) 0;
+  font-size: var(--font-size-base, 1rem);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium, 500);
+}
+
+.active-filter-group {
+  margin-bottom: var(--space-12, 12px);
+}
+
+.filter-label {
+  display: block;
+  font-size: var(--font-size-sm, 0.875rem);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium, 500);
+  margin-bottom: var(--space-8, 8px);
+}
+
+.active-filter-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8, 8px);
+}
+
+.active-filter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6, 6px);
+  background-color: var(--color-primary);
+  color: var(--color-btn-primary-text);
+  padding: var(--space-4, 4px) var(--space-8, 8px);
+  border-radius: var(--radius-base, 4px);
+  font-size: var(--font-size-sm, 0.875rem);
+  font-weight: var(--font-weight-medium, 500);
+}
+
+.remove-filter {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: var(--font-size-lg, 1.125rem);
+  cursor: pointer;
+  padding: 0;
+  margin-left: var(--space-4, 4px);
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.remove-filter:hover {
+  transform: scale(1.2);
 }
 
 /* Responsive Design */

@@ -129,35 +129,26 @@ exports.getAllEvents = async (req, res) => {
     `;
     const result = await pool.query(query, [limit, offset]);
 
-    const shaped = result.rows.map((row) => {
-      const numericPrice = row.price != null && !Number.isNaN(Number(row.price))
-        ? Number(row.price)
-        : null;
-
-      return {
-        id: row.id,
-        title: row.title,
-        organiser: row.organiser_name || 'Unknown',
-        category: row.category || '',
-        tags: [],
-        price: formatPriceTag(row.price),
-        priceValue: numericPrice,
-        date: formatDateISO(row.datetime),
-        datetime: row.datetime, // Keep full datetime for frontend filtering
-        time: formatTimeRange(row.datetime, row.enddatetime),
-        location: row.location || '',
-        venue: row.venue || '',
-        attendees: 0,
-        maxAttendees: row.capacity != null ? Number(row.capacity) : null,
-        description: row.description || '',
-        image: row.image_url || '',
-        latitude: row.latitude,
-        altitude: row.altitude,
-        ownerId: row.owner_id,
-        clubCategoryId: row.club_category_id != null ? Number(row.club_category_id) : null,
-        clubCategoryName: row.club_category_name || ''
-      };
-    });
+    const shaped = result.rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      organiser: row.organiser_name || 'Unknown',
+      category: row.category || '',
+      tags: [],
+      price: formatPriceTag(row.price),
+      date: formatDateISO(row.datetime),
+      datetime: row.datetime, // Keep full datetime for frontend filtering
+      time: formatTimeRange(row.datetime, row.enddatetime),
+      location: row.location || '',
+      venue: row.venue || '',
+      attendees: 0,
+      maxAttendees: row.capacity != null ? Number(row.capacity) : null,
+      description: row.description || '',
+      image: row.image_url || '',
+      latitude: row.latitude,
+      altitude: row.altitude,
+      ownerId: row.owner_id
+    }));
 
     // Return events with pagination metadata
     res.json({

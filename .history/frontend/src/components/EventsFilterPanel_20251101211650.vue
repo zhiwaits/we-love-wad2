@@ -6,9 +6,9 @@ export default {
   
   data() {
     return {
-      showCategories: false,
-      showTags: false,
-      showStatus: false
+      showCategories: true,
+      showTags: true,
+      showStatus: true
     };
   },
   
@@ -172,9 +172,8 @@ export default {
 
     <!-- Status Filter Section -->
     <div class="filter-section">
-      <div class="filter-section-header" @click="toggleStatusSection">
+      <div class="filter-section-header">
         <h4>Status</h4>
-        <span class="toggle-icon">{{ showStatus ? '−' : '+' }}</span>
       </div>
       
       <div v-show="showStatus" class="filter-section-content">

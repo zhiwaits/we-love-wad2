@@ -195,8 +195,8 @@ export default {
           <label class="filter-label" for="venue-filter-select">Venue</label>
           <select id="venue-filter-select" class="form-control filter-select" v-model="venueFilter">
             <option value="all">All Venues</option>
-            <option v-for="venue in allVenues" :key="venue.name || venue" :value="venue.name || venue">
-              {{ venue.name || venue }}
+            <option v-for="venue in allVenues" :key="venue" :value="venue">
+              {{ venue }}
             </option>
           </select>
         </div>

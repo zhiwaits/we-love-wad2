@@ -632,7 +632,20 @@ export default createStore({
     },
 
     SET_EVENT_VENUES(state, venues) {
-      state.venues = venues;
+      const normalized = Array.isArray(venues)
+        ? venues
+            .map((item) => {
+              if (!item) return null;
+              if (typeof item === 'string') return item.trim();
+              if (typeof item === 'object') {
+                const name = item.name || item.venue || item.title || item.label;
+                return name ? String(name).trim() : null;
+              }
+              return null;
+            })
+            .filter((name, index, self) => name && self.indexOf(name) === index)
+        : [];
+      state.venues = normalized;
     },
 
     SET_AVAILABLE_TAGS(state, tags) {
@@ -901,7 +914,19 @@ export default createStore({
       try {
         const response = await getAllEventVenues();
         const venuesData = Array.isArray(response.data) ? response.data : [];
-        commit('SET_EVENT_VENUES', venuesData);
+        const normalized = venuesData
+          .map((item) => {
+            if (!item) return null;
+            if (typeof item === 'string') return item.trim();
+            if (typeof item === 'object') {
+              const name = item.name || item.venue || item.title || item.label;
+              return name ? String(name).trim() : null;
+            }
+            return null;
+          })
+          .filter((name, index, self) => name && self.indexOf(name) === index)
+          .sort((a, b) => a.localeCompare(b));
+        commit('SET_EVENT_VENUES', normalized);
       } catch (error) {
         console.error('Failed to load event venues', error);
         commit('SET_EVENT_VENUES', []);

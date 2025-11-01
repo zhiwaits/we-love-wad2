@@ -102,7 +102,7 @@ export default {
       const filters = this.filters;
       const priceActive = filters.priceRange?.min != null || filters.priceRange?.max != null;
       const clubCategorySelected = filters.clubFilter?.categoryId != null && filters.clubFilter.categoryId !== 'all';
-      const dateActive = filters.dateFilter !== 'all';
+      const dateActive = filters.dateFilter !== 'all' || (filters.dateFilter === 'specific' && filters.specificDate);
       const eventStatusActive = filters.eventStatus !== 'both';
       const venueActive = filters.venueFilter !== 'all';
       const locationActive = !!filters.locationQuery;
@@ -195,8 +195,8 @@ export default {
           <label class="filter-label" for="venue-filter-select">Venue</label>
           <select id="venue-filter-select" class="form-control filter-select" v-model="venueFilter">
             <option value="all">All Venues</option>
-            <option v-for="venue in allVenues" :key="venue.name || venue" :value="venue.name || venue">
-              {{ venue.name || venue }}
+            <option v-for="venue in allVenues" :key="venue" :value="venue">
+              {{ venue }}
             </option>
           </select>
         </div>
