@@ -17,14 +17,61 @@
     <FullCalendar :options="calendarOptions" />
 
     <!-- Event Detail Modal -->
-    <EventDetailModal
-      :event="selectedEvent"
-      :visible="isModalVisible"
-      @close="closeEventModal"
-      @tag-click="handleTagFromModal"
-      @rsvp-created="handleRsvpCreated"
-      @share="handleShare"
-    />
+    <transition name="modal-fade">
+      <div v-if="selectedEvent" class="event-modal-overlay" @click.self="closeEventModal">
+        <div class="event-modal">
+          <button class="modal-close-btn" @click="closeEventModal">×</button>
+
+          <div class="modal-content">
+            <div class="event-image" v-if="selectedEvent.extendedProps.imageUrl">
+              <img :src="selectedEvent.extendedProps.imageUrl" :alt="selectedEvent.title" />
+            </div>
+
+            <div class="event-details">
+              <span class="event-badge" :class="selectedEvent.extendedProps.eventType">
+                {{ selectedEvent.extendedProps.eventType === 'rsvp' ? 'RSVP\'d' : 
+                   selectedEvent.extendedProps.eventType === 'saved' ? 'Saved' : 
+                   'Saved & RSVP\'d' }}
+              </span>
+
+              <h2>{{ selectedEvent.title }}</h2>
+
+              <div class="event-meta">
+                <div class="meta-row">
+                  <span class="icon">📅</span>
+                  <span>{{ formatEventDate(selectedEvent.start) }}</span>
+                </div>
+                <div class="meta-row" v-if="selectedEvent.extendedProps.time">
+                  <span class="icon">⏰</span>
+                  <span>{{ selectedEvent.extendedProps.time }}</span>
+                </div>
+                <div class="meta-row" v-if="selectedEvent.extendedProps.venue">
+                  <span class="icon">📍</span>
+                  <span>{{ selectedEvent.extendedProps.venue }}</span>
+                </div>
+                <div class="meta-row" v-if="selectedEvent.extendedProps.category">
+                  <span class="icon">🏷️</span>
+                  <span>{{ selectedEvent.extendedProps.category }}</span>
+                </div>
+              </div>
+
+              <div class="event-description" v-if="selectedEvent.extendedProps.description">
+                <p>{{ selectedEvent.extendedProps.description }}</p>
+              </div>
+
+              <div class="event-actions">
+                <router-link
+                  :to="`/events/${selectedEvent.extendedProps.eventId}`"
+                  class="btn btn-primary"
+                >
+                  View Full Details
+                </router-link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -36,8 +83,6 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import listPlugin from '@fullcalendar/list';
-import EventDetailModal from './EventDetailModal.vue';
-import { shareEventLink } from '../utils/shareEvent';
 
 const store = useStore();
 
@@ -47,7 +92,6 @@ const userRSVPs = computed(() => store.state.userRSVPs);
 const savedEvents = computed(() => store.state.savedEvents);
 
 const selectedEvent = ref(null);
-const isModalVisible = ref(false);
 
 // Transform events for FullCalendar
 const calendarEvents = computed(() => {
@@ -152,7 +196,7 @@ const calendarOptions = ref({
     center: 'title',
     right: 'dayGridMonth,timeGridWeek,listWeek'
   },
-  events: [], // Start with empty array, will be updated by watch
+  events: calendarEvents,
   eventClick: handleEventClick,
   editable: false,
   selectable: true,
@@ -172,71 +216,16 @@ const calendarOptions = ref({
 // Watch for events changes and update calendar
 watch(calendarEvents, (newEvents) => {
   calendarOptions.value.events = newEvents;
-}, { deep: true, immediate: true });
+}, { deep: true });
 
 // Handle event click
 function handleEventClick(info) {
-  // Find the full event object from allEvents using the eventId from extendedProps
-  const eventId = info.event.extendedProps.eventId;
-  const fullEvent = allEvents.value.find(event => Number(event.id) === Number(eventId));
-  
-  selectedEvent.value = fullEvent || info.event.extendedProps;
-  isModalVisible.value = true;
-  
-  // Load fresh user data when modal opens
-  const userId = store.getters['auth/currentUser']?.id;
-  if (userId) {
-    store.dispatch('fetchUserRSVPs', userId);
-    store.dispatch('loadSavedEvents');
-  }
+  selectedEvent.value = info.event;
 }
 
 // Close modal
 function closeEventModal() {
-  isModalVisible.value = false;
   selectedEvent.value = null;
-}
-
-// Handle tag click from modal
-function handleTagFromModal(tag) {
-  // For calendar, we might not need to toggle tags like in EventsGrid
-  // But we should close the modal as expected
-  closeEventModal();
-}
-
-// Handle RSVP creation
-async function handleRsvpCreated(rsvpData) {
-  console.log('RSVP Created from calendar:', rsvpData);
-  
-  // Refresh the events data to get updated attendee counts
-  await store.dispatch('fetchAllEvents');
-  
-  // Update the selected event with the new attendee count if needed
-  if (selectedEvent.value) {
-    const updatedEvent = allEvents.value.find(e => e.id === selectedEvent.value.id);
-    if (updatedEvent) {
-      selectedEvent.value = { ...selectedEvent.value, ...updatedEvent };
-    }
-  }
-}
-
-// Handle share event
-async function handleShare() {
-  if (!selectedEvent.value) return;
-
-  try {
-    await shareEventLink(selectedEvent.value);
-    store.dispatch('showToast', {
-      message: 'Event link copied to your clipboard.',
-      type: 'success'
-    });
-  } catch (error) {
-    console.error('Unable to share event', error);
-    store.dispatch('showToast', {
-      message: 'Unable to share this event. Please try again.',
-      type: 'error'
-    });
-  }
 }
 
 // Format date for display

@@ -176,11 +176,7 @@ watch(calendarEvents, (newEvents) => {
 
 // Handle event click
 function handleEventClick(info) {
-  // Find the full event object from allEvents using the eventId from extendedProps
-  const eventId = info.event.extendedProps.eventId;
-  const fullEvent = allEvents.value.find(event => Number(event.id) === Number(eventId));
-  
-  selectedEvent.value = fullEvent || info.event.extendedProps;
+  selectedEvent.value = info.event.extendedProps;
   isModalVisible.value = true;
   
   // Load fresh user data when modal opens

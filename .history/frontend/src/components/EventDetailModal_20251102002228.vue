@@ -264,21 +264,6 @@ export default {
                     });
                 }
             }
-        },
-
-        userRSVPs: {
-            handler() {
-                // Update pending status when RSVPs data changes
-                if (this.event && this.visible) {
-                    const rsvp = this.userRSVPs.find(r => r.event_id === this.event.id);
-                    if (rsvp) {
-                        this.isPending = rsvp.status === 'pending';
-                    } else {
-                        this.isPending = false;
-                    }
-                }
-            },
-            deep: true
         }
     },
 
@@ -287,6 +272,7 @@ export default {
             document.body.classList.add('modal-open');
             const rsvp = this.userRSVPs.find(r => r.event_id === this.event.id);
             if (rsvp) {
+                this.hasJoined = rsvp.status === 'confirmed';
                 this.isPending = rsvp.status === 'pending';
             }
         }

@@ -18,12 +18,9 @@
 
     <!-- Event Detail Modal -->
     <EventDetailModal
+      v-if="selectedEvent"
       :event="selectedEvent"
-      :visible="isModalVisible"
       @close="closeEventModal"
-      @tag-click="handleTagFromModal"
-      @rsvp-created="handleRsvpCreated"
-      @share="handleShare"
     />
   </div>
 </template>
@@ -37,7 +34,6 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import listPlugin from '@fullcalendar/list';
 import EventDetailModal from './EventDetailModal.vue';
-import { shareEventLink } from '../utils/shareEvent';
 
 const store = useStore();
 
@@ -152,7 +148,7 @@ const calendarOptions = ref({
     center: 'title',
     right: 'dayGridMonth,timeGridWeek,listWeek'
   },
-  events: [], // Start with empty array, will be updated by watch
+  events: calendarEvents,
   eventClick: handleEventClick,
   editable: false,
   selectable: true,
@@ -172,71 +168,16 @@ const calendarOptions = ref({
 // Watch for events changes and update calendar
 watch(calendarEvents, (newEvents) => {
   calendarOptions.value.events = newEvents;
-}, { deep: true, immediate: true });
+}, { deep: true });
 
 // Handle event click
 function handleEventClick(info) {
-  // Find the full event object from allEvents using the eventId from extendedProps
-  const eventId = info.event.extendedProps.eventId;
-  const fullEvent = allEvents.value.find(event => Number(event.id) === Number(eventId));
-  
-  selectedEvent.value = fullEvent || info.event.extendedProps;
-  isModalVisible.value = true;
-  
-  // Load fresh user data when modal opens
-  const userId = store.getters['auth/currentUser']?.id;
-  if (userId) {
-    store.dispatch('fetchUserRSVPs', userId);
-    store.dispatch('loadSavedEvents');
-  }
+  selectedEvent.value = info.event;
 }
 
 // Close modal
 function closeEventModal() {
-  isModalVisible.value = false;
   selectedEvent.value = null;
-}
-
-// Handle tag click from modal
-function handleTagFromModal(tag) {
-  // For calendar, we might not need to toggle tags like in EventsGrid
-  // But we should close the modal as expected
-  closeEventModal();
-}
-
-// Handle RSVP creation
-async function handleRsvpCreated(rsvpData) {
-  console.log('RSVP Created from calendar:', rsvpData);
-  
-  // Refresh the events data to get updated attendee counts
-  await store.dispatch('fetchAllEvents');
-  
-  // Update the selected event with the new attendee count if needed
-  if (selectedEvent.value) {
-    const updatedEvent = allEvents.value.find(e => e.id === selectedEvent.value.id);
-    if (updatedEvent) {
-      selectedEvent.value = { ...selectedEvent.value, ...updatedEvent };
-    }
-  }
-}
-
-// Handle share event
-async function handleShare() {
-  if (!selectedEvent.value) return;
-
-  try {
-    await shareEventLink(selectedEvent.value);
-    store.dispatch('showToast', {
-      message: 'Event link copied to your clipboard.',
-      type: 'success'
-    });
-  } catch (error) {
-    console.error('Unable to share event', error);
-    store.dispatch('showToast', {
-      message: 'Unable to share this event. Please try again.',
-      type: 'error'
-    });
-  }
 }
 
 // Format date for display

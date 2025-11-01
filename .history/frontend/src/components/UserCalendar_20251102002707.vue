@@ -21,9 +21,6 @@
       :event="selectedEvent"
       :visible="isModalVisible"
       @close="closeEventModal"
-      @tag-click="handleTagFromModal"
-      @rsvp-created="handleRsvpCreated"
-      @share="handleShare"
     />
   </div>
 </template>
@@ -152,7 +149,7 @@ const calendarOptions = ref({
     center: 'title',
     right: 'dayGridMonth,timeGridWeek,listWeek'
   },
-  events: [], // Start with empty array, will be updated by watch
+  events: calendarEvents,
   eventClick: handleEventClick,
   editable: false,
   selectable: true,
@@ -172,15 +169,11 @@ const calendarOptions = ref({
 // Watch for events changes and update calendar
 watch(calendarEvents, (newEvents) => {
   calendarOptions.value.events = newEvents;
-}, { deep: true, immediate: true });
+}, { deep: true });
 
 // Handle event click
 function handleEventClick(info) {
-  // Find the full event object from allEvents using the eventId from extendedProps
-  const eventId = info.event.extendedProps.eventId;
-  const fullEvent = allEvents.value.find(event => Number(event.id) === Number(eventId));
-  
-  selectedEvent.value = fullEvent || info.event.extendedProps;
+  selectedEvent.value = info.event.extendedProps;
   isModalVisible.value = true;
   
   // Load fresh user data when modal opens

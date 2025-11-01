@@ -17,14 +17,61 @@
     <FullCalendar :options="calendarOptions" />
 
     <!-- Event Detail Modal -->
-    <EventDetailModal
-      :event="selectedEvent"
-      :visible="isModalVisible"
-      @close="closeEventModal"
-      @tag-click="handleTagFromModal"
-      @rsvp-created="handleRsvpCreated"
-      @share="handleShare"
-    />
+    <transition name="modal-fade">
+      <div v-if="selectedEvent" class="event-modal-overlay" @click.self="closeEventModal">
+        <div class="event-modal">
+          <button class="modal-close-btn" @click="closeEventModal">×</button>
+
+          <div class="modal-content">
+            <div class="event-image" v-if="selectedEvent.extendedProps.imageUrl">
+              <img :src="selectedEvent.extendedProps.imageUrl" :alt="selectedEvent.title" />
+            </div>
+
+            <div class="event-details">
+              <span class="event-badge" :class="selectedEvent.extendedProps.eventType">
+                {{ selectedEvent.extendedProps.eventType === 'rsvp' ? 'RSVP\'d' : 
+                   selectedEvent.extendedProps.eventType === 'saved' ? 'Saved' : 
+                   'Saved & RSVP\'d' }}
+              </span>
+
+              <h2>{{ selectedEvent.title }}</h2>
+
+              <div class="event-meta">
+                <div class="meta-row">
+                  <span class="icon">📅</span>
+                  <span>{{ formatEventDate(selectedEvent.start) }}</span>
+                </div>
+                <div class="meta-row" v-if="selectedEvent.extendedProps.time">
+                  <span class="icon">⏰</span>
+                  <span>{{ selectedEvent.extendedProps.time }}</span>
+                </div>
+                <div class="meta-row" v-if="selectedEvent.extendedProps.venue">
+                  <span class="icon">📍</span>
+                  <span>{{ selectedEvent.extendedProps.venue }}</span>
+                </div>
+                <div class="meta-row" v-if="selectedEvent.extendedProps.category">
+                  <span class="icon">🏷️</span>
+                  <span>{{ selectedEvent.extendedProps.category }}</span>
+                </div>
+              </div>
+
+              <div class="event-description" v-if="selectedEvent.extendedProps.description">
+                <p>{{ selectedEvent.extendedProps.description }}</p>
+              </div>
+
+              <div class="event-actions">
+                <router-link
+                  :to="`/events/${selectedEvent.extendedProps.eventId}`"
+                  class="btn btn-primary"
+                >
+                  View Full Details
+                </router-link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -36,8 +83,6 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import listPlugin from '@fullcalendar/list';
-import EventDetailModal from './EventDetailModal.vue';
-import { shareEventLink } from '../utils/shareEvent';
 
 const store = useStore();
 
@@ -47,7 +92,6 @@ const userRSVPs = computed(() => store.state.userRSVPs);
 const savedEvents = computed(() => store.state.savedEvents);
 
 const selectedEvent = ref(null);
-const isModalVisible = ref(false);
 
 // Transform events for FullCalendar
 const calendarEvents = computed(() => {
@@ -59,12 +103,8 @@ const calendarEvents = computed(() => {
 
   // Add events that are both saved and RSVP'd (special gradient styling)
   allEvents.value.forEach(event => {
-    const eventId = Number(event.id);
-    const isRsvp = userRSVPs.value.some(rsvp => Number(rsvp.event_id || rsvp) === eventId);
-    const isSaved = savedEvents.value.some(saved => Number(saved.event_id || saved) === eventId);
-    
-    if (isRsvp && isSaved) {
-      console.log('Found BOTH event:', eventId, event.title);
+    if (userRSVPs.value.includes(event.id) && savedEvents.value.includes(event.id)) {
+      console.log('Found BOTH event:', event.id, event.title);
       events.push({
         id: `both-${event.id}`,
         title: event.title,
@@ -86,12 +126,8 @@ const calendarEvents = computed(() => {
 
   // Add RSVP'd events (only those not already added as both)
   allEvents.value.forEach(event => {
-    const eventId = Number(event.id);
-    const isRsvp = userRSVPs.value.some(rsvp => Number(rsvp.event_id || rsvp) === eventId);
-    const isSaved = savedEvents.value.some(saved => Number(saved.event_id || saved) === eventId);
-    
-    if (isRsvp && !isSaved) {
-      console.log('Found RSVP-only event:', eventId, event.title);
+    if (userRSVPs.value.includes(event.id) && !savedEvents.value.includes(event.id)) {
+      console.log('Found RSVP-only event:', event.id, event.title);
       events.push({
         id: `rsvp-${event.id}`,
         title: event.title,
@@ -113,12 +149,8 @@ const calendarEvents = computed(() => {
 
   // Add saved events (only those not already added as both or RSVP'd)
   allEvents.value.forEach(event => {
-    const eventId = Number(event.id);
-    const isRsvp = userRSVPs.value.some(rsvp => Number(rsvp.event_id || rsvp) === eventId);
-    const isSaved = savedEvents.value.some(saved => Number(saved.event_id || saved) === eventId);
-    
-    if (isSaved && !isRsvp) {
-      console.log('Found SAVED-only event:', eventId, event.title);
+    if (savedEvents.value.includes(event.id) && !userRSVPs.value.includes(event.id)) {
+      console.log('Found SAVED-only event:', event.id, event.title);
       events.push({
         id: `saved-${event.id}`,
         title: event.title,
@@ -152,7 +184,7 @@ const calendarOptions = ref({
     center: 'title',
     right: 'dayGridMonth,timeGridWeek,listWeek'
   },
-  events: [], // Start with empty array, will be updated by watch
+  events: calendarEvents,
   eventClick: handleEventClick,
   editable: false,
   selectable: true,
@@ -172,71 +204,16 @@ const calendarOptions = ref({
 // Watch for events changes and update calendar
 watch(calendarEvents, (newEvents) => {
   calendarOptions.value.events = newEvents;
-}, { deep: true, immediate: true });
+}, { deep: true });
 
 // Handle event click
 function handleEventClick(info) {
-  // Find the full event object from allEvents using the eventId from extendedProps
-  const eventId = info.event.extendedProps.eventId;
-  const fullEvent = allEvents.value.find(event => Number(event.id) === Number(eventId));
-  
-  selectedEvent.value = fullEvent || info.event.extendedProps;
-  isModalVisible.value = true;
-  
-  // Load fresh user data when modal opens
-  const userId = store.getters['auth/currentUser']?.id;
-  if (userId) {
-    store.dispatch('fetchUserRSVPs', userId);
-    store.dispatch('loadSavedEvents');
-  }
+  selectedEvent.value = info.event;
 }
 
 // Close modal
 function closeEventModal() {
-  isModalVisible.value = false;
   selectedEvent.value = null;
-}
-
-// Handle tag click from modal
-function handleTagFromModal(tag) {
-  // For calendar, we might not need to toggle tags like in EventsGrid
-  // But we should close the modal as expected
-  closeEventModal();
-}
-
-// Handle RSVP creation
-async function handleRsvpCreated(rsvpData) {
-  console.log('RSVP Created from calendar:', rsvpData);
-  
-  // Refresh the events data to get updated attendee counts
-  await store.dispatch('fetchAllEvents');
-  
-  // Update the selected event with the new attendee count if needed
-  if (selectedEvent.value) {
-    const updatedEvent = allEvents.value.find(e => e.id === selectedEvent.value.id);
-    if (updatedEvent) {
-      selectedEvent.value = { ...selectedEvent.value, ...updatedEvent };
-    }
-  }
-}
-
-// Handle share event
-async function handleShare() {
-  if (!selectedEvent.value) return;
-
-  try {
-    await shareEventLink(selectedEvent.value);
-    store.dispatch('showToast', {
-      message: 'Event link copied to your clipboard.',
-      type: 'success'
-    });
-  } catch (error) {
-    console.error('Unable to share event', error);
-    store.dispatch('showToast', {
-      message: 'Unable to share this event. Please try again.',
-      type: 'error'
-    });
-  }
 }
 
 // Format date for display
@@ -365,26 +342,19 @@ function formatEventDate(date) {
   color: #1f2937;
 }
 
-:deep(.fc-event.event-both),
-:deep(.fc-event.event-both:hover),
-:deep(.fc-event.event-both:focus) {
+:deep(.fc-event.event-both) {
   background: linear-gradient(45deg, #3788d8 50%, #fb923c 50%) !important;
   border: 1px solid #2563eb !important;
   color: #ffffff !important;
-  background-image: linear-gradient(45deg, #3788d8 50%, #fb923c 50%) !important;
 }
 
-:deep(.fc-event.event-rsvp),
-:deep(.fc-event.event-rsvp:hover),
-:deep(.fc-event.event-rsvp:focus) {
+:deep(.fc-event.event-rsvp) {
   background-color: #3788d8 !important;
   border-color: #2563eb !important;
   color: #ffffff !important;
 }
 
-:deep(.fc-event.event-saved),
-:deep(.fc-event.event-saved:hover),
-:deep(.fc-event.event-saved:focus) {
+:deep(.fc-event.event-saved) {
   background-color: #fb923c !important;
   border-color: #f97316 !important;
   color: #ffffff !important;
