@@ -13,8 +13,6 @@ const store = useStore();
 const club = ref(null);
 const loading = ref(true);
 const error = ref('');
-const upcomingEvents = ref(0);
-const totalEvents = ref(0);
 
 const fetchClub = async (id) => {
     try {
@@ -25,11 +23,6 @@ const fetchClub = async (id) => {
             throw new Error('Not a club profile');
         }
         club.value = response.data;
-        
-        // Fetch club stats
-        const statsResponse = await getClubStats(id);
-        upcomingEvents.value = statsResponse.data.upcomingEvents;
-        totalEvents.value = statsResponse.data.totalEvents;
     } catch (err) {
         console.error(err);
         error.value = err?.response?.status === 404 ? 'Club not found' : 'Unable to load club details right now.';
@@ -94,8 +87,6 @@ const handleShare = async () => {
             :followers-count="club ? store.getters['clubs/followersCount'](club.id) : 0"
             :is-following="club ? store.getters['clubs/isFollowing'](club.id) : false"
             :club-category="club ? store.getters['clubs/categoryNameById'](club.club_category_id) || 'Others' : ''"
-            :upcoming-events="upcomingEvents"
-            :total-events="totalEvents"
             @close="handleClose"
             @view-events="handleViewEvents"
             @toggle-follow="handleToggleFollow"

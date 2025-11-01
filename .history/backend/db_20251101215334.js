@@ -2,20 +2,8 @@ const { Pool } = require('pg');
 require('dotenv').config();
 
 let pool;
-let isReconnecting = false;
 
-function createPool(forceNew = false) {
-    if (!forceNew && pool) {
-        // Don't create a new pool if one exists and is not ended
-        try {
-            if (!pool.ended) {
-                return pool;
-            }
-        } catch (e) {
-            // Pool might be in a bad state
-        }
-    }
-
+function createPool() {
     pool = new Pool({
         user: process.env.SUPABASE_USER || 'postgres.okkqvwmdmnwadkokzynz',
         host: process.env.SUPABASE_HOST || 'aws-1-ap-southeast-1.pooler.supabase.com',
@@ -34,18 +22,14 @@ function createPool(forceNew = false) {
 
     pool.on('error', (err, client) => {
         console.error('Unexpected error on idle client:', err.message);
-        if ((err.code === 'XX000' || err.message.includes('db_termination') || err.message.includes('shutdown')) && !isReconnecting) {
+        if (err.code === 'XX000' || err.message.includes('db_termination') || err.message.includes('shutdown')) {
             console.log('Database connection terminated. Attempting to reconnect in 5 seconds...');
-            isReconnecting = true;
-            setTimeout(() => {
-                console.log('Creating new database connection pool...');
-                createPool(true); // Force creation of new pool
-                isReconnecting = false;
-            }, 5000);
+            pool.end();
+            setTimeout(createPool, 5000); 
         }
     });
 
-    // Test the connection
+   
     pool.query('SELECT NOW()', (err, res) => {
         if (err) {
             console.error('Database connection error:', err.message);
@@ -56,6 +40,7 @@ function createPool(forceNew = false) {
 
     return pool;
 }
+
 
 pool = createPool();
 

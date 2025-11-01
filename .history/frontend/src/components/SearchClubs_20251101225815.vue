@@ -78,11 +78,12 @@ export default {
           <option v-for="opt in categoryOptions" :key="opt.id" :value="opt.id">{{ opt.name }}</option>
         </select>
 
-        <select class="form-control filter-select" v-model="followStatus">
-          <option value="all">All Clubs</option>
-          <option value="followed">Followed Clubs</option>
-          <option value="unfollowed">Unfollowed Clubs</option>
-        </select>
+        
+
+              <label class="checkbox-inline">
+          <input type="checkbox" v-model="onlyWithUpcoming" />
+          <span>Only clubs with upcoming events</span>
+        </label>
       </div>
 
     

@@ -216,8 +216,6 @@ export default {
             :followers-count="selectedClub ? followersCount(selectedClub.id) : 0"
             :is-following="selectedClub ? isFollowing(selectedClub.id) : false"
             :club-category="selectedClub ? resolveCategory(selectedClub) : ''"
-            :upcoming-events="upcomingEvents"
-            :total-events="totalEvents"
             @close="closeClubModal"
             @view-events="handleViewEvents"
             @toggle-follow="handleToggleFollow"

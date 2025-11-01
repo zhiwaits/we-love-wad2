@@ -25,20 +25,6 @@
                                 <span>{{ formatNumber(followersCount) }}</span>
                             </div>
                         </div>
-                        <div class="meta-item">
-                            <span class="icon">📅</span>
-                            <div>
-                                <span class="meta-label">Upcoming Events</span>
-                                <span>{{ formatNumber(upcomingEvents) }}</span>
-                            </div>
-                        </div>
-                        <div class="meta-item">
-                            <span class="icon">🎉</span>
-                            <div>
-                                <span class="meta-label">Total Events</span>
-                                <span>{{ formatNumber(totalEvents) }}</span>
-                            </div>
-                        </div>
                     </section>
 
                     <section class="club-description" v-if="club.club_description">
@@ -254,7 +240,7 @@ export default {
 
 .club-meta {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 16px 20px;
 }
 

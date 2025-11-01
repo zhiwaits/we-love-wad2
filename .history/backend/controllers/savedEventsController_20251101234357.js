@@ -22,7 +22,8 @@ exports.getSavedByUserId = async (req, res) => {
 
 exports.getSavedByEventId = async (req, res) => {
     try {
-        const result = await pool.query(`SELECT * FROM ${table} WHERE event_id = $1`, [req.params.id]);
+        const result = await pool.query(`SELECT * FROM ${table} WHERE user_id = $1`, [req.params.id]);
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Rsvp not found' });
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({ error: err.message });

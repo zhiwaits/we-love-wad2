@@ -43,6 +43,8 @@ export default {
       const q = (s.filters.searchQuery || '').trim().toLowerCase();
       const catId = s.filters.categoryId;
       const followStatus = s.filters.followStatus;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
       return s.clubs.filter(club => {
         const username = (club.username || '').toLowerCase();
@@ -51,13 +53,11 @@ export default {
         const byCat = catId === 'all' ? true : Number(club.club_category_id) === Number(catId);
         if (!matchesName || !byCat) return false;
 
-        // Filter by follow status
-        if (followStatus === 'followed') {
-          if (!g.isFollowing(club.id)) return false;
-        } else if (followStatus === 'unfollowed') {
-          if (g.isFollowing(club.id)) return false;
-        }
-        // 'all' shows all clubs
+        const clubIdNum = Number(club.id);
+        const clubEvents = g.eventsByOwnerId.get(clubIdNum) || [];
+
+        if (followStatus === 'followed' && !s.followingClubIds.includes(clubIdNum)) return false;
+        if (followStatus === 'unfollowed' && s.followingClubIds.includes(clubIdNum)) return false;
 
         return true;
       });
@@ -143,8 +143,8 @@ export default {
     // Filters API
     updateClubSearch({ commit }, query) { commit('SET_CLUB_SEARCH_QUERY', query); },
     updateClubCategoryFilter({ commit }, categoryId) { commit('SET_CLUB_CATEGORY_FILTER', categoryId); },
-    setFollowStatus({ commit }, status) { commit('SET_FOLLOW_STATUS', status); },
     resetClubFilters({ commit }) { commit('RESET_CLUB_FILTERS'); },
+    setOnlyWithUpcoming({ commit }, val) { commit('SET_ONLY_WITH_UPCOMING', val); },
 
     // Ensure categories present for search dropdown
     async ensureCategories({ state, commit }) {

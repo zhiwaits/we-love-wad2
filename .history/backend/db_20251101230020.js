@@ -4,8 +4,8 @@ require('dotenv').config();
 let pool;
 let isReconnecting = false;
 
-function createPool(forceNew = false) {
-    if (!forceNew && pool) {
+function createPool() {
+    if (pool) {
         // Don't create a new pool if one exists and is not ended
         try {
             if (!pool.ended) {
@@ -39,7 +39,7 @@ function createPool(forceNew = false) {
             isReconnecting = true;
             setTimeout(() => {
                 console.log('Creating new database connection pool...');
-                createPool(true); // Force creation of new pool
+                createPool();
                 isReconnecting = false;
             }, 5000);
         }

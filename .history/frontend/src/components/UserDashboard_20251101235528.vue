@@ -788,7 +788,6 @@ watch(savedEvents, () => {
   line-height: var(--line-height-normal);
   margin: 0;
   display: -webkit-box;
-  line-clamp: 3;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
@@ -833,26 +832,6 @@ watch(savedEvents, () => {
 .badge-career { background-color: #17a2b8; color: #fff; }
 .badge-social { background-color: #6f42c1; color: #fff; }
 .badge-sports { background-color: #fd7e14; color: #fff; }
-
-/* RSVP and Saved Badges */
-.rsvp-badge,
-.saved-badge {
-  position: absolute;
-  top: var(--space-12);
-  left: var(--space-12);
-  background-color: var(--color-primary);
-  color: var(--color-white);
-  padding: var(--space-4) var(--space-8);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-bold);
-  z-index: 2;
-  box-shadow: var(--shadow-sm);
-}
-
-.saved-badge {
-  background-color: var(--color-success);
-}
 
 /* Carousel Styles */
 .carousel-container {

@@ -46,8 +46,6 @@ const profileLoading = ref(false);
 
 // Preview modal
 const showPreviewModal = ref(false);
-const previewUpcomingEvents = ref(0);
-const previewTotalEvents = ref(0);
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 const FALLBACK_PLACEHOLDER = 'https://placehold.co/600x400?text=Event';
@@ -218,16 +216,7 @@ const handleTagFromModal = (tag) => {
 };
 
 // Preview modal methods
-const openPreviewModal = async () => {
-  try {
-    const statsResponse = await getClubStats(currentUser.value.id);
-    previewUpcomingEvents.value = statsResponse.data.upcomingEvents;
-    previewTotalEvents.value = statsResponse.data.totalEvents;
-  } catch (error) {
-    console.error('Failed to fetch club stats for preview:', error);
-    previewUpcomingEvents.value = 0;
-    previewTotalEvents.value = 0;
-  }
+const openPreviewModal = () => {
   showPreviewModal.value = true;
 };
 
@@ -466,8 +455,6 @@ const previewClubCategory = computed(() => {
       :followersCount="clubStats.followers"
       :isFollowing="false"
       :clubCategory="previewClubCategory"
-      :upcoming-events="previewUpcomingEvents"
-      :total-events="previewTotalEvents"
       @close="closePreviewModal"
       @view-events="$emit('view-events', previewClub)"
       @share="$emit('share-club', previewClub)"

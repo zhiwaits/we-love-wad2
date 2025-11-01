@@ -18,8 +18,6 @@ export default {
             imageErrors: {},
             selectedClub: null,
             modalVisible: false,
-            upcomingEvents: 0,
-            totalEvents: 0,
         };
     },
 
@@ -122,7 +120,6 @@ export default {
         openClubModal(club) {
             this.selectedClub = club;
             this.modalVisible = true;
-            this.fetchClubStats(club.id);
         },
         closeClubModal() {
             this.modalVisible = false;
@@ -144,18 +141,7 @@ export default {
                 console.error('Failed to share club:', error);
                 this.$store.dispatch('showToast', { message: 'Failed to share club', type: 'error' });
             }
-        },
-        async fetchClubStats(clubId) {
-            try {
-                const response = await getClubStats(clubId);
-                this.upcomingEvents = response.data.upcomingEvents;
-                this.totalEvents = response.data.totalEvents;
-            } catch (error) {
-                console.error('Failed to fetch club stats:', error);
-                this.upcomingEvents = 0;
-                this.totalEvents = 0;
-            }
-        },
+        }
     }
 }
 </script>
@@ -216,8 +202,6 @@ export default {
             :followers-count="selectedClub ? followersCount(selectedClub.id) : 0"
             :is-following="selectedClub ? isFollowing(selectedClub.id) : false"
             :club-category="selectedClub ? resolveCategory(selectedClub) : ''"
-            :upcoming-events="upcomingEvents"
-            :total-events="totalEvents"
             @close="closeClubModal"
             @view-events="handleViewEvents"
             @toggle-follow="handleToggleFollow"

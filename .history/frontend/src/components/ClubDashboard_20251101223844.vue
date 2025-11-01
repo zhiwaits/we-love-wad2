@@ -218,16 +218,7 @@ const handleTagFromModal = (tag) => {
 };
 
 // Preview modal methods
-const openPreviewModal = async () => {
-  try {
-    const statsResponse = await getClubStats(currentUser.value.id);
-    previewUpcomingEvents.value = statsResponse.data.upcomingEvents;
-    previewTotalEvents.value = statsResponse.data.totalEvents;
-  } catch (error) {
-    console.error('Failed to fetch club stats for preview:', error);
-    previewUpcomingEvents.value = 0;
-    previewTotalEvents.value = 0;
-  }
+const openPreviewModal = () => {
   showPreviewModal.value = true;
 };
 
@@ -466,8 +457,6 @@ const previewClubCategory = computed(() => {
       :followersCount="clubStats.followers"
       :isFollowing="false"
       :clubCategory="previewClubCategory"
-      :upcoming-events="previewUpcomingEvents"
-      :total-events="previewTotalEvents"
       @close="closePreviewModal"
       @view-events="$emit('view-events', previewClub)"
       @share="$emit('share-club', previewClub)"

@@ -466,8 +466,6 @@ const previewClubCategory = computed(() => {
       :followersCount="clubStats.followers"
       :isFollowing="false"
       :clubCategory="previewClubCategory"
-      :upcoming-events="previewUpcomingEvents"
-      :total-events="previewTotalEvents"
       @close="closePreviewModal"
       @view-events="$emit('view-events', previewClub)"
       @share="$emit('share-club', previewClub)"

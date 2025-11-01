@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useStore } from 'vuex';
 import StatCard from './StatCard.vue';
 import EventDetailModal from './EventDetailModal.vue';
@@ -21,94 +21,19 @@ const savedEvents = computed(() => store.getters.userSavedEvents);
 const selectedEvent = ref(null);
 const showEventModal = ref(false);
 
-const upcomingCarouselWrapper = ref(null);
-const savedCarouselWrapper = ref(null);
-const upcomingCarouselWidth = ref(0);
-const savedCarouselWidth = ref(0);
-
-const CAROUSEL_GAP = 24;
-const MIN_CARD_WIDTH = 280;
-const MAX_CARD_WIDTH = 360;
-
 // Carousel state
 const upcomingCarouselIndex = ref(0);
 const savedCarouselIndex = ref(0);
-
-// Reactive window width for responsive carousel
-const windowWidth = ref(window.innerWidth);
-const updateCarouselWidths = () => {
-  upcomingCarouselWidth.value = upcomingCarouselWrapper.value?.offsetWidth || 0;
-  savedCarouselWidth.value = savedCarouselWrapper.value?.offsetWidth || 0;
-};
-const updateWindowWidth = () => {
-  windowWidth.value = window.innerWidth;
-  nextTick(updateCarouselWidths);
-};
-
-// Items per view based on screen size
-const itemsPerView = computed(() => {
-  return windowWidth.value <= 768 ? 1 : windowWidth.value <= 1200 ? 2 : 3;
-});
-
-const calculateCardWidth = (containerWidth) => {
-  const items = itemsPerView.value || 1;
-  const availableWidth = containerWidth || 0;
-  if (!availableWidth) {
-    return MAX_CARD_WIDTH;
-  }
-  const width = (availableWidth - (items - 1) * CAROUSEL_GAP) / items;
-  return Math.max(MIN_CARD_WIDTH, Math.min(MAX_CARD_WIDTH, width));
-};
-
-const upcomingCardWidth = computed(() => calculateCardWidth(upcomingCarouselWidth.value));
-const savedCardWidth = computed(() => calculateCardWidth(savedCarouselWidth.value));
-
-const upcomingCardStyle = computed(() => ({
-  flex: '0 0 auto',
-  width: `${upcomingCardWidth.value}px`,
-  minWidth: `${MIN_CARD_WIDTH}px`,
-  maxWidth: `${MAX_CARD_WIDTH}px`
-}));
-
-const savedCardStyle = computed(() => ({
-  flex: '0 0 auto',
-  width: `${savedCardWidth.value}px`,
-  minWidth: `${MIN_CARD_WIDTH}px`,
-  maxWidth: `${MAX_CARD_WIDTH}px`
-}));
-
-const upcomingCarouselMaxIndex = computed(() => Math.max(0, upcomingEvents.value.length - itemsPerView.value));
-const savedCarouselMaxIndex = computed(() => Math.max(0, savedEvents.value.length - itemsPerView.value));
-
-// Carousel navigation methods
-const nextUpcoming = () => {
-  upcomingCarouselIndex.value = Math.min(upcomingCarouselIndex.value + 1, upcomingCarouselMaxIndex.value);
-};
-
-const prevUpcoming = () => {
-  upcomingCarouselIndex.value = Math.max(upcomingCarouselIndex.value - 1, 0);
-};
-
-const nextSaved = () => {
-  savedCarouselIndex.value = Math.min(savedCarouselIndex.value + 1, savedCarouselMaxIndex.value);
-};
-
-const prevSaved = () => {
-  savedCarouselIndex.value = Math.max(savedCarouselIndex.value - 1, 0);
-};
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 const FALLBACK_PLACEHOLDER = 'https://placehold.co/600x400?text=Event';
 
 // Fetch data on mount
 onMounted(async () => {
-  window.addEventListener('resize', updateWindowWidth);
-  
   const userId = currentUser.value.id;
   
   // Fetch all data
   await store.dispatch('fetchAllEvents');
-  await store.dispatch('loadSavedEvents');
   await store.dispatch('fetchUserStats', userId);
   await store.dispatch('fetchUserRSVPs', userId);
   
@@ -145,14 +70,6 @@ onMounted(async () => {
   })));
   
   console.log('=== END DEBUG ===');
-
-  await nextTick();
-  updateCarouselWidths();
-});
-
-// Cleanup
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', updateWindowWidth);
 });
 
 // Format date for display
@@ -221,39 +138,33 @@ const handleTagFromModal = (tag) => {
 
 // Carousel computed properties
 const visibleUpcomingEvents = computed(() => {
-  return upcomingEvents.value;
+  const start = upcomingCarouselIndex.value;
+  return upcomingEvents.value.slice(start, start + 3);
 });
 
 const visibleSavedEvents = computed(() => {
-  return savedEvents.value;
+  const start = savedCarouselIndex.value;
+  return savedEvents.value.slice(start, start + 3);
 });
 
-// Carousel transform styles
-const upcomingCarouselTransform = computed(() => {
-  const step = upcomingCardWidth.value + CAROUSEL_GAP;
-  return `translateX(-${upcomingCarouselIndex.value * step}px)`;
-});
+// Carousel navigation methods
+const nextUpcoming = () => {
+  const maxIndex = Math.max(0, upcomingEvents.value.length - 3);
+  upcomingCarouselIndex.value = Math.min(upcomingCarouselIndex.value + 1, maxIndex);
+};
 
-const savedCarouselTransform = computed(() => {
-  const step = savedCardWidth.value + CAROUSEL_GAP;
-  return `translateX(-${savedCarouselIndex.value * step}px)`;
-});
+const prevUpcoming = () => {
+  upcomingCarouselIndex.value = Math.max(upcomingCarouselIndex.value - 1, 0);
+};
 
-watch(itemsPerView, () => {
-  upcomingCarouselIndex.value = Math.min(upcomingCarouselIndex.value, upcomingCarouselMaxIndex.value);
-  savedCarouselIndex.value = Math.min(savedCarouselIndex.value, savedCarouselMaxIndex.value);
-  nextTick(updateCarouselWidths);
-});
+const nextSaved = () => {
+  const maxIndex = Math.max(0, savedEvents.value.length - 3);
+  savedCarouselIndex.value = Math.min(savedCarouselIndex.value + 1, maxIndex);
+};
 
-watch(upcomingEvents, () => {
-  upcomingCarouselIndex.value = Math.min(upcomingCarouselIndex.value, upcomingCarouselMaxIndex.value);
-  nextTick(updateCarouselWidths);
-});
-
-watch(savedEvents, () => {
-  savedCarouselIndex.value = Math.min(savedCarouselIndex.value, savedCarouselMaxIndex.value);
-  nextTick(updateCarouselWidths);
-});
+const prevSaved = () => {
+  savedCarouselIndex.value = Math.max(savedCarouselIndex.value - 1, 0);
+};
 </script>
 
 <template>
@@ -335,13 +246,12 @@ watch(savedEvents, () => {
             ‹
           </button>
           
-          <div class="carousel-wrapper" ref="upcomingCarouselWrapper">
-            <div class="events-carousel" :style="{ transform: upcomingCarouselTransform }">
+          <div class="carousel-wrapper">
+            <div class="events-carousel">
               <div
                 v-for="event in visibleUpcomingEvents"
                 :key="event.id"
                 class="event-card"
-                :style="upcomingCardStyle"
                 role="button"
                 tabindex="0"
                 @click="openEventModal(event)"
@@ -399,7 +309,7 @@ watch(savedEvents, () => {
           <button 
             class="carousel-btn carousel-btn--next" 
             @click="nextUpcoming"
-            :disabled="upcomingCarouselIndex >= upcomingCarouselMaxIndex"
+            :disabled="upcomingCarouselIndex >= upcomingEvents.length - 3"
             aria-label="Next events"
           >
             ›
@@ -431,13 +341,12 @@ watch(savedEvents, () => {
             ‹
           </button>
           
-          <div class="carousel-wrapper" ref="savedCarouselWrapper">
-            <div class="events-carousel" :style="{ transform: savedCarouselTransform }">
+          <div class="carousel-wrapper">
+            <div class="events-carousel">
               <div
                 v-for="event in visibleSavedEvents"
                 :key="event.id"
                 class="event-card"
-                :style="savedCardStyle"
                 role="button"
                 tabindex="0"
                 @click="openEventModal(event)"
@@ -492,7 +401,7 @@ watch(savedEvents, () => {
           <button 
             class="carousel-btn carousel-btn--next" 
             @click="nextSaved"
-            :disabled="savedCarouselIndex >= savedCarouselMaxIndex"
+            :disabled="savedCarouselIndex >= savedEvents.length - 3"
             aria-label="Next events"
           >
             ›
@@ -639,221 +548,6 @@ watch(savedEvents, () => {
   gap: var(--space-24);
 }
 
-.event-card {
-  background-color: var(--color-surface);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--color-card-border);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
-  transition: transform var(--duration-normal) var(--ease-standard),
-    box-shadow var(--duration-normal) var(--ease-standard),
-    border-color var(--duration-normal) var(--ease-standard);
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  position: relative;
-}
-
-.event-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: var(--color-primary);
-  transform: scaleX(0);
-  transition: transform var(--duration-normal) var(--ease-standard);
-}
-
-.event-card:hover {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-4px);
-  border-color: var(--color-primary);
-}
-
-.event-card:hover::before {
-  transform: scaleX(1);
-}
-
-.event-image {
-  position: relative;
-  height: 200px;
-  background: var(--color-bg-1);
-  flex-shrink: 0;
-}
-
-.event-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-  display: block;
-}
-
-.event-image-placeholder {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(135deg, var(--color-bg-1) 0%, var(--color-bg-2) 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.event-price-tag {
-  position: absolute;
-  top: var(--space-12);
-  right: var(--space-12);
-  background-color: var(--color-charcoal-700);
-  color: var(--color-white);
-  padding: var(--space-4) var(--space-12);
-  border-radius: var(--radius-full);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-bold);
-}
-
-.price-free {
-  background-color: var(--color-success) !important;
-  color: var(--color-white) !important;
-}
-
-.event-content {
-  padding: var(--space-20);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-12);
-  flex: 1;
-}
-
-.event-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--space-12);
-}
-
-.event-category {
-  background-color: var(--color-secondary);
-  color: var(--color-text);
-  padding: var(--space-4) var(--space-12);
-  border-radius: var(--radius-full);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-}
-
-.event-status {
-  background-color: var(--color-warning);
-  color: var(--color-white);
-  padding: var(--space-4) var(--space-8);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-bold);
-}
-
-.event-title {
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-text);
-  margin: 0 0 var(--space-6) 0;
-  line-height: var(--line-height-tight);
-}
-
-.event-details {
-  margin-bottom: var(--space-16);
-}
-
-.event-details > div {
-  margin-bottom: var(--space-8);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-}
-
-.event-details > div:last-child {
-  margin-bottom: 0;
-}
-
-.event-datetime {
-  font-weight: var(--font-weight-medium);
-}
-
-.event-organiser span {
-  font-weight: var(--font-weight-semibold, 550);
-  font-size: var(--font-size-base);
-}
-
-.event-description {
-  font-size: var(--font-size-base);
-  color: var(--color-text-secondary);
-  line-height: var(--line-height-normal);
-  margin: 0;
-  display: -webkit-box;
-  line-clamp: 3;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  flex: 1;
-}
-
-.event-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-8);
-  margin-top: auto;
-}
-
-.tag-badge {
-  background-color: var(--color-bg-1, #f0f0f0);
-  color: var(--color-text-secondary);
-  padding: var(--space-4) var(--space-8);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-  transition: all 0.2s ease;
-  cursor: pointer;
-  border: 1px solid transparent;
-}
-
-.tag-badge:hover {
-  background-color: var(--color-bg-2, #e0e0e0);
-  transform: translateY(-1px);
-}
-
-.tag-badge.tag-selected {
-  background-color: var(--color-primary, #007bff);
-  color: white;
-  border-color: var(--color-primary, #007bff);
-}
-
-/* Category badge color fallbacks (ensure consistent palette) */
-.badge-academic { background-color: #007bff; color: #fff; }
-.badge-workshop { background-color: #28a745; color: #fff; }
-.badge-performance { background-color: #dc3545; color: #fff; }
-.badge-recreation { background-color: #ffc107; color: #222; }
-.badge-career { background-color: #17a2b8; color: #fff; }
-.badge-social { background-color: #6f42c1; color: #fff; }
-.badge-sports { background-color: #fd7e14; color: #fff; }
-
-/* RSVP and Saved Badges */
-.rsvp-badge,
-.saved-badge {
-  position: absolute;
-  top: var(--space-12);
-  left: var(--space-12);
-  background-color: var(--color-primary);
-  color: var(--color-white);
-  padding: var(--space-4) var(--space-8);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-bold);
-  z-index: 2;
-  box-shadow: var(--shadow-sm);
-}
-
-.saved-badge {
-  background-color: var(--color-success);
-}
-
 /* Carousel Styles */
 .carousel-container {
   position: relative;
@@ -866,16 +560,14 @@ watch(savedEvents, () => {
   flex: 1;
   overflow: hidden;
   border-radius: var(--radius-lg);
-  width: 100%;
-  max-width: 1128px;
-  margin: 0 auto;
 }
 
 .events-carousel {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: var(--space-24);
   transform: translateX(0);
-  transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   will-change: transform;
 }
 
@@ -923,6 +615,10 @@ watch(savedEvents, () => {
   .events-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+  
+  .events-carousel {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 @media (max-width: 768px) {
@@ -941,6 +637,20 @@ watch(savedEvents, () => {
 
   .events-grid {
     grid-template-columns: 1fr;
+  }
+  
+  .events-carousel {
+    grid-template-columns: 1fr;
+  }
+
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-12);
+  }
+
+  .event-image {
+    height: 180px;
   }
   
   .carousel-container {

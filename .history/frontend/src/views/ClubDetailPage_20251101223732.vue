@@ -94,8 +94,6 @@ const handleShare = async () => {
             :followers-count="club ? store.getters['clubs/followersCount'](club.id) : 0"
             :is-following="club ? store.getters['clubs/isFollowing'](club.id) : false"
             :club-category="club ? store.getters['clubs/categoryNameById'](club.club_category_id) || 'Others' : ''"
-            :upcoming-events="upcomingEvents"
-            :total-events="totalEvents"
             @close="handleClose"
             @view-events="handleViewEvents"
             @toggle-follow="handleToggleFollow"

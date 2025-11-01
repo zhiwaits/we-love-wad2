@@ -28,17 +28,17 @@ export default {
       set(value) { this.updateClubCategoryFilter(value); }
     },
 
-    followStatus: {
-      get() { return this.filters.followStatus; },
-      set(value) { this.setFollowStatus(value); }
+    onlyWithUpcoming: {
+      get() { return this.filters.onlyWithUpcoming; },
+      set(v) { this.setOnlyWithUpcoming(v); }
     },
 
     hasActiveFilters() {
-      return this.searchQuery || this.categoryId !== 'all' || this.followStatus !== 'all';
+      return this.searchQuery || this.categoryId !== 'all' || this.onlyWithUpcoming;
     }
   },
   methods: {
-    ...mapActions('clubs', ['updateClubSearch', 'updateClubCategoryFilter', 'resetClubFilters', 'setFollowStatus']),
+    ...mapActions('clubs', ['updateClubSearch', 'updateClubCategoryFilter', 'resetClubFilters', 'setOnlyWithUpcoming']),
     handleResetFilters() {
       this.resetClubFilters();
     },
@@ -78,11 +78,12 @@ export default {
           <option v-for="opt in categoryOptions" :key="opt.id" :value="opt.id">{{ opt.name }}</option>
         </select>
 
-        <select class="form-control filter-select" v-model="followStatus">
-          <option value="all">All Clubs</option>
-          <option value="followed">Followed Clubs</option>
-          <option value="unfollowed">Unfollowed Clubs</option>
-        </select>
+        
+
+              <label class="checkbox-inline">
+          <input type="checkbox" v-model="onlyWithUpcoming" />
+          <span>Only clubs with upcoming events</span>
+        </label>
       </div>
 
     

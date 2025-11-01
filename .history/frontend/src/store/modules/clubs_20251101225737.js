@@ -143,8 +143,8 @@ export default {
     // Filters API
     updateClubSearch({ commit }, query) { commit('SET_CLUB_SEARCH_QUERY', query); },
     updateClubCategoryFilter({ commit }, categoryId) { commit('SET_CLUB_CATEGORY_FILTER', categoryId); },
-    setFollowStatus({ commit }, status) { commit('SET_FOLLOW_STATUS', status); },
     resetClubFilters({ commit }) { commit('RESET_CLUB_FILTERS'); },
+    setOnlyWithUpcoming({ commit }, val) { commit('SET_ONLY_WITH_UPCOMING', val); },
 
     // Ensure categories present for search dropdown
     async ensureCategories({ state, commit }) {
