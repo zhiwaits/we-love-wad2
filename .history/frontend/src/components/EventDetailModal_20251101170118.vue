@@ -234,10 +234,6 @@ export default {
             console.log('  - result:', hasCoords);
             
             return hasCoords;
-        },
-
-        isEventSaved() {
-            return this.$store.getters.isEventSaved(this.event?.id);
         }
     },
 
@@ -543,13 +539,7 @@ calculateTravelTime(origin, destination) {
         }
     );
 
-},
-
-handleToggleSave() {
-    if (!this.event?.id) return;
-    this.$store.dispatch('toggleSaveEvent', this.event.id);
 }
-
     }
     
 };

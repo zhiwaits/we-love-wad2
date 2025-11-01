@@ -832,7 +832,7 @@ export default createStore({
       }
     },
 
-    async toggleSaveEvent({ getters, commit, rootGetters, dispatch }, eventId) {
+    async toggleSaveEvent({ getters, commit, rootGetters }, eventId) {
       const userId = rootGetters['auth/currentUser']?.id;
       if (!userId) return;
       const saved = getters.isEventSaved(eventId);
@@ -848,8 +848,6 @@ export default createStore({
           );
           commit('ADD_SAVED_EVENT', eventId);
         }
-        // Refresh user stats after save/unsave operation
-        await dispatch('fetchUserStats', userId);
       } catch (error) {
         console.error('Error toggling save event:', error);
       }

@@ -102,9 +102,8 @@ const actions = {
       // Load user's saved events
       try {
         await dispatch('loadSavedEvents', null, { root: true });
-        await dispatch('fetchUserStats', normalizedUser.id, { root: true });
       } catch (error) {
-        console.error('Failed to load saved events or stats:', error);
+        console.error('Failed to load saved events:', error);
       }
       
       return { success: true, user };
@@ -159,9 +158,8 @@ const actions = {
       // Load user's saved events
       try {
         await dispatch('loadSavedEvents', null, { root: true });
-        await dispatch('fetchUserStats', normalizedUser.id, { root: true });
       } catch (error) {
-        console.error('Failed to load saved events or stats:', error);
+        console.error('Failed to load saved events:', error);
       }
       
       return { success: true, user };

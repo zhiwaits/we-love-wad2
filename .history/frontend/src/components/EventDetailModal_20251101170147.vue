@@ -543,13 +543,7 @@ calculateTravelTime(origin, destination) {
         }
     );
 
-},
-
-handleToggleSave() {
-    if (!this.event?.id) return;
-    this.$store.dispatch('toggleSaveEvent', this.event.id);
 }
-
     }
     
 };

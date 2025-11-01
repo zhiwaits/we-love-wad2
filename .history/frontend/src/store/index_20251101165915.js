@@ -5,7 +5,6 @@ import { getAllEventCategories } from '../services/eventCategoryService.js';
 import { getAllEventVenues } from '../services/eventVenueService.js';
 import { getAllTags } from '../services/tagService.js';
 import { getAllEventTags } from '../services/eventTagService.js';
-import { getSavedByUserId } from '../services/savedEventsService.js';
 import clubs from './modules/clubs';
 
 let toastTimer = null;
@@ -820,42 +819,28 @@ export default createStore({
       }
     },
 
-    async loadSavedEvents({ rootGetters, commit }) {
-      const userId = rootGetters['auth/currentUser']?.id;
-      if (!userId) return;
+    async fetchUserRSVPs({ commit }, userId) {
       try {
-        const res = await getSavedByUserId(userId);
-        const eventIds = (res.data || []).map(saved => saved.event_id);
-        commit('SET_SAVED_EVENTS', eventIds);
+        const { getRsvpsByUserId } = await import('../services/rsvpService');
+        const response = await getRsvpsByUserId(userId);
+        // Store the full RSVP objects
+        commit('SET_USER_RSVPS', response.data);
       } catch (error) {
-        console.error('Error loading saved events:', error);
+        console.error('Error fetching user RSVPs:', error);
       }
     },
 
-    async toggleSaveEvent({ getters, commit, rootGetters, dispatch }, eventId) {
-      const userId = rootGetters['auth/currentUser']?.id;
-      if (!userId) return;
-      const saved = getters.isEventSaved(eventId);
+    async fetchClubRSVPs({ commit }, clubId) {
       try {
-        if (saved) {
-          await import('../services/savedEventsService').then(({ deleteSaved }) => 
-            deleteSaved(eventId, userId)
-          );
-          commit('REMOVE_SAVED_EVENT', eventId);
-        } else {
-          await import('../services/savedEventsService').then(({ createSaved }) => 
-            createSaved({ event_id: eventId, user_id: userId })
-          );
-          commit('ADD_SAVED_EVENT', eventId);
-        }
-        // Refresh user stats after save/unsave operation
-        await dispatch('fetchUserStats', userId);
+        const { getRsvpsForEventsByOwner } = await import('../services/rsvpService');
+        const response = await getRsvpsForEventsByOwner(clubId);
+        commit('SET_CLUB_RSVPS', response.data);
       } catch (error) {
-        console.error('Error toggling save event:', error);
+        console.error('Error fetching club RSVPs:', error);
       }
     },
 
-    // Update search query
+    // Action to update search
     updateSearch({ commit }, query) {
       commit('SET_SEARCH_QUERY', query);
     },
