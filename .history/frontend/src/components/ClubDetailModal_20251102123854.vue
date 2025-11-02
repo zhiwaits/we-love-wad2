@@ -51,7 +51,7 @@
                             View Events
                         </button>
                         <div class="secondary-actions">
-                            <button type="button" class="btn btn-primary" @click="emitToggleFollow" :disabled="isClub">
+                            <button type="button" class="btn btn-primary" @click="emitToggleFollow">
                                 {{ isFollowing ? 'Unfollow' : 'Follow' }}
                             </button>
                             <button type="button" class="btn btn-outline" @click="$emit('share')">Share</button>

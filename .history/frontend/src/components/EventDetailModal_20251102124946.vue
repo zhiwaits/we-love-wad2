@@ -103,94 +103,38 @@
                         <h3>Tags</h3>
                         <div class="tag-list">
                             <button v-for="tag in event.tags" :key="tag" type="button" class="tag-pill"
-                                @click="!isClub && $emit('tag-click', tag)">
+                                @click="$emit('tag-click', tag)">
                                 #{{ tag }}
                             </button>
                         </div>
                     </section>
 
-                    <section v-if="shouldShowAttendeesSection" class="event-attendees">
-                        <button
-                            type="button"
-                            class="attendees-toggle"
-                            @click="handleToggleAttendees"
-                            :aria-expanded="attendeesExpanded.toString()"
-                        >
-                            <span>Attendees ({{ attendees.length }})</span>
-                            <span class="toggle-icon" aria-hidden="true">{{ attendeesExpanded ? '−' : '+' }}</span>
-                        </button>
-                        <transition name="attendees-collapse">
-                            <div v-if="attendeesExpanded" class="attendees-panel">
-                                <div v-if="attendeesLoading" class="attendees-status">Loading attendees...</div>
-                                <div v-else-if="attendeesError" class="attendees-status attendees-status--error">
-                                    {{ attendeesError }}
-                                </div>
-                                <div v-else>
-                                    <div class="attendees-actions">
-                                        <button
-                                            type="button"
-                                            class="btn btn-outline"
-                                            @click="exportAttendeesCsv"
-                                            :disabled="attendees.length === 0"
-                                        >
-                                            Export CSV
-                                        </button>
-                                    </div>
-                                    <div v-if="attendees.length === 0" class="attendees-empty">No RSVPs yet.</div>
-                                    <table v-else class="attendees-table">
-                                        <thead>
-                                            <tr>
-                                                <th scope="col">Name</th>
-                                                <th scope="col">Email</th>
-                                                <th scope="col" class="attendee-actions-header">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <tr v-for="person in attendees" :key="person.id">
-                                                <td>{{ person.name || 'N/A' }}</td>
-                                                <td>{{ person.email || 'N/A' }}</td>
-                                                <td class="actions-cell">
-                                                    <button
-                                                        type="button"
-                                                        class="btn btn-outline btn-outline-danger"
-                                                        @click.stop="handleDeleteAttendee(person)"
-                                                        :disabled="attendeeRemovalId === person.userId"
-                                                    >
-                                                        {{ attendeeRemovalId === person.userId ? 'Removing…' : 'Remove' }}
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </transition>
-                    </section>
-
                     <footer class="modal-actions">
-                        <div class="modal-actions-row">
-                            <!-- UPDATED: Join Event Button with Club Restriction -->
-                            <button 
-                                type="button" 
-                                class="btn btn-primary" 
-                                @click="handleJoinEvent"
-                                :disabled="joinButtonDisabled"
-                                :class="{ 'btn-disabled': isClub || isEventFull }"
-                            >
-                                {{ joinButtonLabel }}
-                            </button>
-                            
-                            <div class="secondary-actions">
-                                <button type="button" class="btn btn-outline" @click="handleToggleSave" :disabled="isClub">
-                                    {{ isEventSaved ? 'Unsave' : 'Save' }}
-                                </button>
-                                <button type="button" class="btn btn-outline" @click="$emit('share')">Share</button>
-                            </div>
-                        </div>
-
+                        <!-- UPDATED: Join Event Button with Club Restriction -->
+                        <button 
+                            type="button" 
+                            class="btn btn-primary" 
+                            @click="handleJoinEvent"
+                            :disabled="isJoining || hasJoined || isPending || isClub"
+                            :class="{ 'btn-disabled': isClub }"
+                        >
+                            <span v-if="isClub">Clubs Cannot RSVP</span>
+                            <span v-else-if="isJoining">Joining...</span>
+                            <span v-else-if="hasJoined">✓ Joined</span>
+                            <span v-else-if="isPending">Pending Confirmation</span>
+                            <span v-else>Join Event</span>
+                        </button>
+                        
                         <!-- Error/Success Messages -->
                         <div v-if="rsvpMessage" class="rsvp-message" :class="rsvpMessageType">
                             {{ rsvpMessage }}
+                        </div>
+
+                        <div class="secondary-actions">
+                            <button type="button" class="btn btn-outline" @click="handleToggleSave" :disabled="isClub">
+                                {{ isEventSaved ? 'Unsave' : 'Save' }}
+                            </button>
+                            <button type="button" class="btn btn-outline" @click="$emit('share')">Share</button>
                         </div>
                     </footer>
                 </div>
@@ -199,8 +143,8 @@
     </transition>
 </template>
 <script>
-import { createRsvp, deleteRsvp, getRsvpsByEventId } from '@/services/rsvpService';
-import { mapState, mapGetters } from 'vuex';
+import { createRsvp, getRsvpsByEventId } from '@/services/rsvpService';
+import { mapState, mapMutations, mapGetters } from 'vuex';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 const FALLBACK_PLACEHOLDER = 'https://placehold.co/900x400?text=Event';
@@ -242,8 +186,7 @@ export default {
             attendeesLoading: false,
             attendeesError: '',
             attendeesExpanded: false,
-            attendeesLoadedFor: null,
-            attendeeRemovalId: null
+            attendeesLoadedFor: null
         };
     },
 
@@ -259,24 +202,6 @@ export default {
             if (this.event?.maxAttendees == null) return null;
             const remaining = this.event.maxAttendees - (this.event.attendees || 0);
             return remaining >= 0 ? remaining : 0;
-        },
-
-        isEventFull() {
-            if (this.event?.maxAttendees == null) return false;
-            return (this.event.attendees || 0) >= this.event.maxAttendees;
-        },
-
-        joinButtonDisabled() {
-            return this.isJoining || this.hasJoined || this.isPending || this.isClub || this.isEventFull;
-        },
-
-        joinButtonLabel() {
-            if (this.isClub) return 'Clubs Cannot RSVP';
-            if (this.isJoining) return 'Joining...';
-            if (this.hasJoined) return '✓ Joined';
-            if (this.isPending) return 'Pending Confirmation';
-            if (this.isEventFull) return 'Event Full';
-            return 'Join Event';
         },
         
         remainingPercent() {
@@ -371,20 +296,14 @@ export default {
 
             if (!oldEvent || String(newId) !== String(oldId)) {
                 this.resetAttendeesState();
-                // Refresh attendee count from updated event data
-                if (newEvent && this.shouldShowAttendeesSection) {
-                    this.fetchAttendees();
-                }
-                // Only clear message when switching to a different event
-                this.rsvpMessage = '';
             }
 
             if (this.visible) {
                 const rsvp = this.userRSVPs.find(r => r.event_id === newEvent.id);
-                // Don't override isPending if it's already true (we just created an RSVP)
-                if (!this.isPending) {
-                    this.isPending = rsvp ? rsvp.status === 'pending' : false;
+                if (rsvp) {
+                    this.isPending = rsvp.status === 'pending';
                 }
+                this.rsvpMessage = '';
                 
                 if (this.hasValidCoordinates) {
                     this.$nextTick(() => {
@@ -399,11 +318,11 @@ export default {
         userRSVPs: {
             handler() {
                 // Update pending status when RSVPs data changes
-                // Don't override if we just created a pending RSVP
-                if (this.event && this.visible && !this.isPending) {
+                if (this.event && this.visible) {
                     const rsvp = this.userRSVPs.find(r => r.event_id === this.event.id);
-                    const shouldBePending = rsvp ? rsvp.status === 'pending' : false;
-                    if (!shouldBePending) {
+                    if (rsvp) {
+                        this.isPending = rsvp.status === 'pending';
+                    } else {
                         this.isPending = false;
                     }
                 }
@@ -422,127 +341,15 @@ export default {
         }
         window.addEventListener('keyup', this.handleEsc, { passive: true });
         this.loadGoogleMapsScript();
-        this.ensureAttendeesLoaded();
     },
 
     beforeUnmount() {
         document.body.classList.remove('modal-open');
         window.removeEventListener('keyup', this.handleEsc);
-        this.resetAttendeesState();
     },
 
     methods: {
-        resetAttendeesState() {
-            this.attendees = [];
-            this.attendeesError = '';
-            this.attendeesLoading = false;
-            this.attendeesExpanded = false;
-            this.attendeesLoadedFor = null;
-            this.attendeeRemovalId = null;
-            this.isPending = false;
-        },
-
-        ensureAttendeesLoaded(force = false) {
-            if (!this.shouldShowAttendeesSection) {
-                this.attendeesExpanded = false;
-                return;
-            }
-
-            const eventId = this.event?.id ?? this.event?.event_id;
-            if (!eventId) {
-                return;
-            }
-
-            const cachedId = this.attendeesLoadedFor;
-            if (!force && cachedId !== null && String(cachedId) === String(eventId)) {
-                return;
-            }
-
-            this.fetchAttendees(force);
-        },
-
-        async fetchAttendees(force = false) {
-            const eventId = this.event?.id ?? this.event?.event_id;
-            if (!eventId) {
-                return;
-            }
-
-            if (!force && this.attendeesLoading) {
-                return;
-            }
-
-            this.attendeesLoading = true;
-            this.attendeesError = '';
-
-            try {
-                const { data } = await getRsvpsByEventId(eventId);
-                const attendees = Array.isArray(data)
-                    ? data.map(entry => ({
-                        id: entry.id ?? `${entry.event_id}-${entry.user_id}`,
-                        userId: entry.user_id,
-                        name: entry.attendee_name ?? entry.name ?? '',
-                        email: entry.attendee_email ?? entry.email ?? ''
-                    }))
-                    : [];
-
-                this.attendees = attendees;
-                this.attendeesLoadedFor = String(eventId);
-
-                if (this.event && typeof this.event === 'object') {
-                    this.event.attendees = attendees.length;
-                }
-            } catch (error) {
-                console.error('Error loading attendees:', error);
-                if (error?.response?.status === 404) {
-                    this.attendees = [];
-                    this.attendeesLoadedFor = String(eventId);
-                } else {
-                    this.attendeesError = 'Unable to fetch attendees right now.';
-                }
-            } finally {
-                this.attendeesLoading = false;
-            }
-        },
-
-        handleToggleAttendees() {
-            this.attendeesExpanded = !this.attendeesExpanded;
-            if (this.attendeesExpanded) {
-                this.ensureAttendeesLoaded();
-            }
-        },
-
-        exportAttendeesCsv() {
-            if (!this.attendees.length) {
-                return;
-            }
-
-            const escapeCsvValue = (value) => {
-                const safe = String(value ?? '').replace(/"/g, '""');
-                return `"${safe}"`;
-            };
-
-            const header = ['Name', 'Email'];
-            const rows = this.attendees.map(attendee => [
-                escapeCsvValue(attendee.name),
-                escapeCsvValue(attendee.email)
-            ].join(','));
-
-            const csvContent = [header.join(','), ...rows].join('\r\n');
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const downloadUrl = URL.createObjectURL(blob);
-            const filenameBase = (this.event?.title || 'event')
-                .toLowerCase()
-                .replace(/[^a-z0-9]+/g, '-')
-                .replace(/^-|-$/g, '') || 'event';
-
-            const link = document.createElement('a');
-            link.href = downloadUrl;
-            link.setAttribute('download', `${filenameBase}-attendees.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(downloadUrl);
-        },
+        ...mapMutations(['SET_USER_RSVPS']),
         
         emitClose() {
             this.$emit('close');
@@ -594,18 +401,8 @@ export default {
                 return;
             }
 
-            if (this.isEventFull) {
-                this.rsvpMessage = 'This event is already at full capacity.';
-                this.rsvpMessageType = 'error';
-                setTimeout(() => {
-                    this.rsvpMessage = '';
-                }, 3000);
-                return;
-            }
-
             this.isJoining = true;
             this.rsvpMessage = '';
-            this.rsvpMessageType = '';
 
             try {
                 const rsvpData = {
@@ -613,19 +410,12 @@ export default {
                     user_id: this.currentUser.id,
                 };
 
-                const { data } = await createRsvp(rsvpData);
+                await createRsvp(rsvpData);
                 
-                // Set pending state - this will be preserved until store updates
                 this.isPending = true;
-                this.rsvpMessage = data?.message || 'Confirmation email sent! Please check your inbox.';
+                this.rsvpMessage = 'Confirmation email sent! Please check your inbox.';
                 this.rsvpMessageType = 'success';
 
-                // Refresh attendee data if this is a club owner viewing attendees
-                if (this.shouldShowAttendeesSection) {
-                    await this.fetchAttendees();
-                }
-                
-                this.$emit('rsvp-created', this.event);
             } catch (error) {
                 console.error('Error creating RSVP:', error);
                 this.rsvpMessage = error.response?.data?.error || 'Failed to join event. Please try again.';
@@ -820,60 +610,6 @@ calculateTravelTime(origin, destination) {
 handleToggleSave() {
     if (!this.event?.id) return;
     this.$store.dispatch('toggleSaveEvent', this.event.id);
-},
-
-async handleDeleteAttendee(attendee) {
-    if (!attendee?.userId || !this.event?.id) return;
-
-    const attendeeName = attendee.name ? attendee.name : 'this attendee';
-    const confirmed = window.confirm(`Remove ${attendeeName} from this event?`);
-    if (!confirmed) return;
-
-    this.attendeeRemovalId = attendee.userId;
-
-    try {
-        await deleteRsvp(this.event.id, attendee.userId);
-        await this.fetchAttendees(true);
-        this.$store?.dispatch('showToast', {
-            message: 'Attendee removed from event.',
-            type: 'success'
-        });
-        this.$emit('rsvp-updated', this.event);
-    } catch (error) {
-        console.error('Failed to remove attendee:', error);
-        const message = error?.response?.data?.error || 'Unable to remove attendee. Please try again.';
-        this.$store?.dispatch('showToast', {
-            message,
-            type: 'error'
-        });
-    } finally {
-        this.attendeeRemovalId = null;
-    }
-},
-
-async handleCancelRsvp() {
-    try {
-        if (!this.currentUser?.id) {
-            this.rsvpMessage = 'Please log in to manage your RSVP';
-            this.rsvpMessageType = 'error';
-            return;
-        }
-
-        await deleteRsvp(this.event.id, this.currentUser.id);
-        this.isPending = false;
-        this.rsvpMessage = 'RSVP cancelled successfully';
-        this.rsvpMessageType = 'success';
-        
-        // Refresh attendee data if this is a club owner viewing attendees
-        if (this.shouldShowAttendeesSection) {
-            await this.fetchAttendees();
-        }
-        
-        this.$emit('rsvp-updated', this.event);
-    } catch (error) {
-        this.rsvpMessage = error.response?.data?.message || 'Failed to cancel RSVP';
-        this.rsvpMessageType = 'error';
-    }
 }
 
     }
@@ -946,6 +682,7 @@ async handleCancelRsvp() {
     padding: 8px 12px;
     border-radius: 8px;
     font-size: 14px;
+    margin-top: 8px;
     width: 100%;
     text-align: center;
 }
@@ -1192,13 +929,6 @@ async handleCancelRsvp() {
 
 .modal-actions {
     display: flex;
-    flex-direction: column;
-    gap: 12px;
-    align-items: stretch;
-}
-
-.modal-actions-row {
-    display: flex;
     flex-wrap: wrap;
     gap: 12px;
     align-items: center;
@@ -1250,131 +980,9 @@ async handleCancelRsvp() {
     background: var(--color-secondary);
 }
 
-.btn-outline-danger {
-    border-color: var(--color-error);
-    color: var(--color-error);
-}
-
-.btn-outline-danger:hover:not(:disabled) {
-    background: rgba(var(--color-error-rgb, 192, 21, 47), 0.08);
-}
-
-.btn-outline-danger:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
 .secondary-actions {
     display: flex;
     gap: 10px;
-}
-
-.event-attendees {
-    margin-top: var(--space-24);
-    padding-top: var(--space-16);
-    border-top: 1px solid var(--color-border);
-}
-
-.attendees-toggle {
-    width: 100%;
-    background: transparent;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-base);
-    padding: var(--space-12) var(--space-16);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-weight: var(--font-weight-semibold);
-    cursor: pointer;
-    transition: background 0.2s ease, border-color 0.2s ease;
-}
-
-.attendees-toggle:hover {
-    background: var(--color-secondary);
-    border-color: var(--color-primary);
-}
-
-.attendees-panel {
-    margin-top: var(--space-16);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-base);
-    background: rgba(var(--color-slate-500-rgb, 98, 108, 113), 0.05);
-    padding: var(--space-16);
-}
-
-.attendees-actions {
-    display: flex;
-    justify-content: flex-end;
-    margin-bottom: var(--space-12);
-}
-
-.attendees-table {
-    width: 100%;
-    border-collapse: collapse;
-    background: var(--color-surface);
-    border-radius: var(--radius-base);
-    overflow: hidden;
-}
-
-.attendees-table th,
-.attendees-table td {
-    padding: var(--space-12);
-    text-align: left;
-    border-bottom: 1px solid var(--color-border);
-    font-size: var(--font-size-sm);
-}
-
-.attendee-actions-header,
-.actions-cell {
-    text-align: right;
-}
-
-.attendees-table tr:last-child td {
-    border-bottom: none;
-}
-
-.status-cell {
-    text-transform: capitalize;
-    font-weight: var(--font-weight-medium);
-}
-
-.attendees-status {
-    padding: var(--space-12);
-    border-radius: var(--radius-base);
-    background: rgba(var(--color-info-rgb, 98, 108, 113), 0.1);
-    color: var(--color-text-secondary);
-    margin-bottom: var(--space-12);
-    font-size: var(--font-size-sm);
-}
-
-.attendees-status--error {
-    background: rgba(var(--color-error-rgb, 192, 21, 47), 0.1);
-    color: var(--color-error);
-}
-
-.attendees-empty {
-    text-align: center;
-    color: var(--color-text-secondary);
-    padding: var(--space-16) 0;
-    font-size: var(--font-size-sm);
-}
-
-.attendees-collapse-enter-active,
-.attendees-collapse-leave-active {
-    transition: opacity 0.2s ease, max-height 0.2s ease;
-    overflow: hidden;
-}
-
-.attendees-collapse-enter-from,
-.attendees-collapse-leave-to {
-    opacity: 0;
-    max-height: 0;
-}
-
-.attendees-collapse-enter-to,
-.attendees-collapse-leave-from {
-    opacity: 1;
-    max-height: 480px;
 }
 
 .modal-fade-enter-active,
@@ -1399,15 +1007,10 @@ async handleCancelRsvp() {
     .modal-actions {
         flex-direction: column;
         align-items: stretch;
-        gap: 12px;
-    }
-
-    .modal-actions-row {
-        flex-direction: column;
-        align-items: stretch;
     }
 
     .secondary-actions {
+        width: 100%;
         justify-content: center;
     }
 

@@ -10,7 +10,6 @@ const pruneExpiredPendingRsvps = () => pool.query(`
 
 exports.getAllRsvps = async (req, res) => {
     try {
-        await pruneExpiredPendingRsvps();
         const result = await pool.query(`SELECT * FROM ${table}`);
         res.json(result.rows);
     } catch (err) {
@@ -21,7 +20,6 @@ exports.getAllRsvps = async (req, res) => {
 
 exports.getRsvpsByEventId = async (req, res) => {
     try {
-        await pruneExpiredPendingRsvps();
         const result = await pool.query(
             `SELECT r.*, p.name AS attendee_name, p.email AS attendee_email
              FROM ${table} r
@@ -39,7 +37,6 @@ exports.getRsvpsByEventId = async (req, res) => {
 
 exports.getRsvpsByUserId = async (req, res) => {
     try {
-        await pruneExpiredPendingRsvps();
         const result = await pool.query(`SELECT * FROM ${table} WHERE user_id = $1`, [req.params.id]);
         res.json(result.rows);
     } catch (err) {
@@ -49,7 +46,6 @@ exports.getRsvpsByUserId = async (req, res) => {
 
 exports.getRsvpsForEventsByOwner = async (req, res) => {
     try {
-        await pruneExpiredPendingRsvps();
         const ownerId = req.params.id;
         // Get all RSVPs for events owned by this user
         const result = await pool.query(`
@@ -73,7 +69,10 @@ exports.createRsvp = async (req, res) => {
         } = req.body;
 
         // Expire any pending RSVPs that have been idle for more than 24 hours
-        await pruneExpiredPendingRsvps();
+        await pool.query(`
+            DELETE FROM ${table}
+            WHERE status = 'pending' AND created_at < NOW() - INTERVAL '24 hours'
+        `);
 
         // Check if event has capacity and if user hasn't already RSVP'd
         const eventCheck = await pool.query(`

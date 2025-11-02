@@ -3,14 +3,8 @@ const crypto = require('crypto');
 const { sendRsvpConfirmationEmail } = require('../notification/notification');
 const table = "rsvps";
 
-const pruneExpiredPendingRsvps = () => pool.query(`
-    DELETE FROM ${table}
-    WHERE status = 'pending' AND created_at < NOW() - INTERVAL '24 hours'
-`);
-
 exports.getAllRsvps = async (req, res) => {
     try {
-        await pruneExpiredPendingRsvps();
         const result = await pool.query(`SELECT * FROM ${table}`);
         res.json(result.rows);
     } catch (err) {
@@ -21,13 +15,12 @@ exports.getAllRsvps = async (req, res) => {
 
 exports.getRsvpsByEventId = async (req, res) => {
     try {
-        await pruneExpiredPendingRsvps();
         const result = await pool.query(
             `SELECT r.*, p.name AS attendee_name, p.email AS attendee_email
              FROM ${table} r
              LEFT JOIN profiles p ON r.user_id = p.id
              WHERE r.event_id = $1 AND r.status = 'confirmed'
-             ORDER BY r.created_at DESC`,
+             ORDER BY r.confirmed_at DESC NULLS LAST, r.created_at DESC`,
             [req.params.id]
         );
 
@@ -39,7 +32,6 @@ exports.getRsvpsByEventId = async (req, res) => {
 
 exports.getRsvpsByUserId = async (req, res) => {
     try {
-        await pruneExpiredPendingRsvps();
         const result = await pool.query(`SELECT * FROM ${table} WHERE user_id = $1`, [req.params.id]);
         res.json(result.rows);
     } catch (err) {
@@ -49,7 +41,6 @@ exports.getRsvpsByUserId = async (req, res) => {
 
 exports.getRsvpsForEventsByOwner = async (req, res) => {
     try {
-        await pruneExpiredPendingRsvps();
         const ownerId = req.params.id;
         // Get all RSVPs for events owned by this user
         const result = await pool.query(`
@@ -73,7 +64,10 @@ exports.createRsvp = async (req, res) => {
         } = req.body;
 
         // Expire any pending RSVPs that have been idle for more than 24 hours
-        await pruneExpiredPendingRsvps();
+        await pool.query(`
+            DELETE FROM ${table}
+            WHERE status = 'pending' AND created_at < NOW() - INTERVAL '24 hours'
+        `);
 
         // Check if event has capacity and if user hasn't already RSVP'd
         const eventCheck = await pool.query(`
@@ -106,11 +100,10 @@ exports.createRsvp = async (req, res) => {
         }
 
         // Check capacity
-        const currentConfirmed = parseInt(event.confirmed_rsvps, 10) || 0;
-        const maxAttendeesRaw = event.capacity != null ? Number(event.capacity) : null;
-        const maxAttendees = Number.isFinite(maxAttendeesRaw) ? maxAttendeesRaw : null;
-
-        if (maxAttendees !== null && currentConfirmed >= maxAttendees) {
+        const currentConfirmed = parseInt(event.confirmed_rsvps) || 0;
+        const maxAttendees = event.capacity != null ? parseInt(event.capacity, 10) : null;
+        
+        if (maxAttendees && currentConfirmed >= maxAttendees) {
             return res.status(400).json({ error: 'This event is at full capacity' });
         }
 
@@ -133,10 +126,7 @@ exports.createRsvp = async (req, res) => {
             await sendRsvpConfirmationEmail(user.email, user.name, eventData.title, confirmationLink);
         }
 
-        res.status(201).json({
-            message: 'Confirmation email sent! Please confirm within 24 hours.',
-            rsvp: result.rows[0]
-        });
+        res.status(201).json(result.rows[0]);
 
     } catch (err) {
         console.error('Error creating RSVP:', err);
@@ -177,46 +167,25 @@ exports.confirmRsvp = async (req, res) => {
             return res.status(410).json({ error: 'Your RSVP confirmation period has expired. Please join the event again.' });
         }
 
-        const eventRowResult = await client.query(
-            `SELECT id, capacity FROM events WHERE id = $1 FOR UPDATE`,
+        const eventUpdate = await client.query(
+            `UPDATE events
+             SET attendees = attendees + 1
+             WHERE id = $1 AND (capacity IS NULL OR attendees < capacity)
+             RETURNING id`,
             [rsvp.event_id]
         );
 
-        if (eventRowResult.rows.length === 0) {
-            await client.query('ROLLBACK');
-            return res.status(404).json({ error: 'Event not found for this RSVP.' });
-        }
-
-        const eventRow = eventRowResult.rows[0];
-        const confirmedCountResult = await client.query(
-            `SELECT COUNT(*)::int AS confirmed_count
-             FROM ${table}
-             WHERE event_id = $1 AND status = 'confirmed'`,
-            [rsvp.event_id]
-        );
-
-        const confirmedCount = confirmedCountResult.rows[0]?.confirmed_count || 0;
-        const capacityLimitRaw = eventRow.capacity != null ? Number(eventRow.capacity) : null;
-        const capacityLimit = Number.isFinite(capacityLimitRaw) ? capacityLimitRaw : null;
-
-        if (capacityLimit !== null && confirmedCount >= capacityLimit) {
+        if (eventUpdate.rows.length === 0) {
             await client.query('ROLLBACK');
             return res.status(400).json({ error: 'This event is already at full capacity.' });
         }
 
         const confirmResult = await client.query(
             `UPDATE ${table}
-             SET status = 'confirmed', confirmation_token = NULL
+             SET status = 'confirmed', confirmation_token = NULL, confirmed_at = NOW()
              WHERE id = $1
              RETURNING *`,
             [rsvp.id]
-        );
-
-        await client.query(
-            `UPDATE events
-             SET attendees = $2
-             WHERE id = $1`,
-            [rsvp.event_id, confirmedCount + 1]
         );
 
         await client.query('COMMIT');
@@ -279,18 +248,9 @@ exports.deleteRsvp = async (req, res) => {
 
         // If the RSVP was confirmed, decrement the attendee count
         if (rsvp.status === 'confirmed') {
-            const confirmedCountResult = await pool.query(
-                `SELECT COUNT(*)::int AS confirmed_count
-                 FROM ${table}
-                 WHERE event_id = $1 AND status = 'confirmed'`,
-                [eventId]
-            );
-
-            const remainingConfirmed = confirmedCountResult.rows[0]?.confirmed_count || 0;
-
             await pool.query(
-                `UPDATE events SET attendees = $2 WHERE id = $1`,
-                [eventId, remainingConfirmed]
+                `UPDATE events SET attendees = GREATEST(attendees - 1, 0) WHERE id = $1`,
+                [eventId]
             );
         }
 

@@ -1267,6 +1267,7 @@ async handleCancelRsvp() {
 .secondary-actions {
     display: flex;
     gap: 10px;
+    justify-content: center;
 }
 
 .event-attendees {

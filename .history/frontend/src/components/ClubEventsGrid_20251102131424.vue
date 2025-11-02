@@ -183,7 +183,7 @@ export default {
                         <!-- Tags Display -->
                         <div class="event-tags">
                             <span v-for="tag in event.tags" :key="tag" class="tag-badge"
-                                @click.stop="!isClub && handleTagClick(tag)" :class="{ 'tag-selected': isTagSelected(tag) }">
+                                @click.stop="handleTagClick(tag)" :class="{ 'tag-selected': isTagSelected(tag) }">
                                 #{{ tag }}
                             </span>
                         </div>

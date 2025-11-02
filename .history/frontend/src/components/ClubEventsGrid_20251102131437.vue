@@ -183,7 +183,7 @@ export default {
                         <!-- Tags Display -->
                         <div class="event-tags">
                             <span v-for="tag in event.tags" :key="tag" class="tag-badge"
-                                @click.stop="!isClub && handleTagClick(tag)" :class="{ 'tag-selected': isTagSelected(tag) }">
+                                @click.stop="!isClub && handleTagClick(tag)" :class="{ 'tag-selected': isTagSelected(tag), 'tag-disabled': isClub }">
                                 #{{ tag }}
                             </span>
                         </div>
@@ -423,6 +423,12 @@ export default {
     background-color: var(--color-primary, #007bff);
     color: white;
     border-color: var(--color-primary, #007bff);
+}
+
+.tag-badge.tag-disabled {
+    background-color: var(--color-charcoal-100);
+    color: var(--color-text-secondary);
+    cursor: not-allowed;
 }
 
 .event-actions {

@@ -168,29 +168,27 @@
                     </section>
 
                     <footer class="modal-actions">
-                        <div class="modal-actions-row">
-                            <!-- UPDATED: Join Event Button with Club Restriction -->
-                            <button 
-                                type="button" 
-                                class="btn btn-primary" 
-                                @click="handleJoinEvent"
-                                :disabled="joinButtonDisabled"
-                                :class="{ 'btn-disabled': isClub || isEventFull }"
-                            >
-                                {{ joinButtonLabel }}
-                            </button>
-                            
-                            <div class="secondary-actions">
-                                <button type="button" class="btn btn-outline" @click="handleToggleSave" :disabled="isClub">
-                                    {{ isEventSaved ? 'Unsave' : 'Save' }}
-                                </button>
-                                <button type="button" class="btn btn-outline" @click="$emit('share')">Share</button>
-                            </div>
-                        </div>
-
+                        <!-- UPDATED: Join Event Button with Club Restriction -->
+                        <button 
+                            type="button" 
+                            class="btn btn-primary" 
+                            @click="handleJoinEvent"
+                            :disabled="joinButtonDisabled"
+                            :class="{ 'btn-disabled': isClub || isEventFull }"
+                        >
+                            {{ joinButtonLabel }}
+                        </button>
+                        
                         <!-- Error/Success Messages -->
                         <div v-if="rsvpMessage" class="rsvp-message" :class="rsvpMessageType">
                             {{ rsvpMessage }}
+                        </div>
+
+                        <div class="secondary-actions">
+                            <button type="button" class="btn btn-outline" @click="handleToggleSave" :disabled="isClub">
+                                {{ isEventSaved ? 'Unsave' : 'Save' }}
+                            </button>
+                            <button type="button" class="btn btn-outline" @click="$emit('share')">Share</button>
                         </div>
                     </footer>
                 </div>
@@ -946,6 +944,7 @@ async handleCancelRsvp() {
     padding: 8px 12px;
     border-radius: 8px;
     font-size: 14px;
+    margin-top: 8px;
     width: 100%;
     text-align: center;
 }
@@ -1192,13 +1191,6 @@ async handleCancelRsvp() {
 
 .modal-actions {
     display: flex;
-    flex-direction: column;
-    gap: 12px;
-    align-items: stretch;
-}
-
-.modal-actions-row {
-    display: flex;
     flex-wrap: wrap;
     gap: 12px;
     align-items: center;
@@ -1399,15 +1391,10 @@ async handleCancelRsvp() {
     .modal-actions {
         flex-direction: column;
         align-items: stretch;
-        gap: 12px;
-    }
-
-    .modal-actions-row {
-        flex-direction: column;
-        align-items: stretch;
     }
 
     .secondary-actions {
+        width: 100%;
         justify-content: center;
     }
 

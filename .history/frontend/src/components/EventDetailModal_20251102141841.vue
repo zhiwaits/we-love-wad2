@@ -168,29 +168,27 @@
                     </section>
 
                     <footer class="modal-actions">
-                        <div class="modal-actions-row">
-                            <!-- UPDATED: Join Event Button with Club Restriction -->
-                            <button 
-                                type="button" 
-                                class="btn btn-primary" 
-                                @click="handleJoinEvent"
-                                :disabled="joinButtonDisabled"
-                                :class="{ 'btn-disabled': isClub || isEventFull }"
-                            >
-                                {{ joinButtonLabel }}
-                            </button>
-                            
-                            <div class="secondary-actions">
-                                <button type="button" class="btn btn-outline" @click="handleToggleSave" :disabled="isClub">
-                                    {{ isEventSaved ? 'Unsave' : 'Save' }}
-                                </button>
-                                <button type="button" class="btn btn-outline" @click="$emit('share')">Share</button>
-                            </div>
-                        </div>
-
+                        <!-- UPDATED: Join Event Button with Club Restriction -->
+                        <button 
+                            type="button" 
+                            class="btn btn-primary" 
+                            @click="handleJoinEvent"
+                            :disabled="joinButtonDisabled"
+                            :class="{ 'btn-disabled': isClub || isEventFull }"
+                        >
+                            {{ joinButtonLabel }}
+                        </button>
+                        
                         <!-- Error/Success Messages -->
                         <div v-if="rsvpMessage" class="rsvp-message" :class="rsvpMessageType">
                             {{ rsvpMessage }}
+                        </div>
+
+                        <div class="secondary-actions">
+                            <button type="button" class="btn btn-outline" @click="handleToggleSave" :disabled="isClub">
+                                {{ isEventSaved ? 'Unsave' : 'Save' }}
+                            </button>
+                            <button type="button" class="btn btn-outline" @click="$emit('share')">Share</button>
                         </div>
                     </footer>
                 </div>
@@ -225,6 +223,7 @@ export default {
             isPending: false,
             rsvpMessage: '',
             rsvpMessageType: '',
+            localPendingRsvp: null, // Local pending RSVP that overrides store state
             
             // Map State
             map: null,
@@ -251,6 +250,10 @@ export default {
         ...mapState(['userRSVPs']), // Use your existing state
         ...mapGetters('auth', ['isClub', 'currentUser']),
         hasJoined() {
+            // Check local pending RSVP first
+            if (this.localPendingRsvp && this.localPendingRsvp.status === 'confirmed') return true;
+            if (this.localPendingRsvp && this.localPendingRsvp.status === 'pending') return false;
+            
             if (!this.event || !this.userRSVPs) return false;
             const rsvp = this.userRSVPs.find(r => r.event_id === this.event.id);
             return rsvp && rsvp.status === 'confirmed';
@@ -381,8 +384,7 @@ export default {
 
             if (this.visible) {
                 const rsvp = this.userRSVPs.find(r => r.event_id === newEvent.id);
-                // Don't override isPending if it's already true (we just created an RSVP)
-                if (!this.isPending) {
+                if (!this.ignoreRsvpWatchers) {
                     this.isPending = rsvp ? rsvp.status === 'pending' : false;
                 }
                 
@@ -440,6 +442,7 @@ export default {
             this.attendeesLoadedFor = null;
             this.attendeeRemovalId = null;
             this.isPending = false;
+            this.ignoreRsvpWatchers = false;
         },
 
         ensureAttendeesLoaded(force = false) {
@@ -615,10 +618,16 @@ export default {
 
                 const { data } = await createRsvp(rsvpData);
                 
-                // Set pending state - this will be preserved until store updates
+                // Set pending state and ignore watchers temporarily
                 this.isPending = true;
+                this.ignoreRsvpWatchers = true;
                 this.rsvpMessage = data?.message || 'Confirmation email sent! Please check your inbox.';
                 this.rsvpMessageType = 'success';
+
+                // Clear the ignore flag after a short delay to allow store updates
+                setTimeout(() => {
+                    this.ignoreRsvpWatchers = false;
+                }, 100);
 
                 // Refresh attendee data if this is a club owner viewing attendees
                 if (this.shouldShowAttendeesSection) {
@@ -946,6 +955,7 @@ async handleCancelRsvp() {
     padding: 8px 12px;
     border-radius: 8px;
     font-size: 14px;
+    margin-top: 8px;
     width: 100%;
     text-align: center;
 }
@@ -1192,13 +1202,6 @@ async handleCancelRsvp() {
 
 .modal-actions {
     display: flex;
-    flex-direction: column;
-    gap: 12px;
-    align-items: stretch;
-}
-
-.modal-actions-row {
-    display: flex;
     flex-wrap: wrap;
     gap: 12px;
     align-items: center;
@@ -1399,15 +1402,10 @@ async handleCancelRsvp() {
     .modal-actions {
         flex-direction: column;
         align-items: stretch;
-        gap: 12px;
-    }
-
-    .modal-actions-row {
-        flex-direction: column;
-        align-items: stretch;
     }
 
     .secondary-actions {
+        width: 100%;
         justify-content: center;
     }
 

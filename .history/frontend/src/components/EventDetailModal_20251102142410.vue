@@ -1197,14 +1197,6 @@ async handleCancelRsvp() {
     align-items: stretch;
 }
 
-.modal-actions-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    align-items: center;
-    justify-content: space-between;
-}
-
 .btn {
     border-radius: 12px;
     padding: 12px 20px;
@@ -1267,6 +1259,7 @@ async handleCancelRsvp() {
 .secondary-actions {
     display: flex;
     gap: 10px;
+    justify-content: center;
 }
 
 .event-attendees {
@@ -1400,11 +1393,6 @@ async handleCancelRsvp() {
         flex-direction: column;
         align-items: stretch;
         gap: 12px;
-    }
-
-    .modal-actions-row {
-        flex-direction: column;
-        align-items: stretch;
     }
 
     .secondary-actions {

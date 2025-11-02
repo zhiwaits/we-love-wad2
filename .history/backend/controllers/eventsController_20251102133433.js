@@ -221,7 +221,7 @@ exports.getEventById = async (req, res) => {
       time: formatTimeRange(row.datetime, row.enddatetime),
       location: row.location || '',
       venue: row.venue || '',
-      attendees: Number(row.confirmed_attendees) || 0,
+      attendees: 0,
       maxAttendees: row.capacity != null ? Number(row.capacity) : null,
       description: row.description || '',
       image: row.image_url || '',
@@ -408,31 +408,6 @@ exports.updateEvent = async (req, res) => {
   const sgDatetime = convertToSGTime(datetime);
   const sgEnddatetime = convertToSGTime(enddatetime);
   try {
-    const normalizedCapacity = capacity === null || capacity === '' || typeof capacity === 'undefined'
-      ? null
-      : Number(capacity);
-
-    if (normalizedCapacity !== null && !Number.isFinite(normalizedCapacity)) {
-      return res.status(400).json({ error: 'Capacity must be a valid number or left empty.' });
-    }
-
-    if (normalizedCapacity !== null) {
-      const confirmedResult = await pool.query(
-        `SELECT COUNT(*)::int AS confirmed_count
-         FROM rsvps
-         WHERE event_id = $1 AND status = 'confirmed'`,
-        [id]
-      );
-
-      const confirmedCount = confirmedResult.rows[0]?.confirmed_count || 0;
-
-      if (normalizedCapacity < confirmedCount) {
-        return res.status(409).json({
-          error: `Capacity (${normalizedCapacity}) cannot be lower than current confirmed attendees (${confirmedCount}).`
-        });
-      }
-    }
-
     let finalImageUrl = image_url;
 
     if (imageBase64 && imageOriginalName) {
@@ -449,7 +424,7 @@ exports.updateEvent = async (req, res) => {
     const result = await pool.query(
       `UPDATE ${table} SET title=$1, description=$2, datetime=$3, location=$4,
        category=$5, capacity=$6, image_url=$7, owner_id=$8, venue=$9, enddatetime=$10, price=$11, latitude=$12, altitude=$13 WHERE id=$14 RETURNING *`,
-      [title, description, sgDatetime, location, category, normalizedCapacity, finalImageUrl, owner_id, venue, sgEnddatetime, price, latitude, altitude, id]
+      [title, description, sgDatetime, location, category, capacity, finalImageUrl, owner_id, venue, sgEnddatetime, price, latitude, altitude, id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Event not found' });
     res.json(result.rows[0]);

@@ -168,24 +168,22 @@
                     </section>
 
                     <footer class="modal-actions">
-                        <div class="modal-actions-row">
-                            <!-- UPDATED: Join Event Button with Club Restriction -->
-                            <button 
-                                type="button" 
-                                class="btn btn-primary" 
-                                @click="handleJoinEvent"
-                                :disabled="joinButtonDisabled"
-                                :class="{ 'btn-disabled': isClub || isEventFull }"
-                            >
-                                {{ joinButtonLabel }}
+                        <!-- UPDATED: Join Event Button with Club Restriction -->
+                        <button 
+                            type="button" 
+                            class="btn btn-primary" 
+                            @click="handleJoinEvent"
+                            :disabled="joinButtonDisabled"
+                            :class="{ 'btn-disabled': isClub || isEventFull }"
+                        >
+                            {{ joinButtonLabel }}
+                        </button>
+                        
+                        <div class="secondary-actions">
+                            <button type="button" class="btn btn-outline" @click="handleToggleSave" :disabled="isClub">
+                                {{ isEventSaved ? 'Unsave' : 'Save' }}
                             </button>
-                            
-                            <div class="secondary-actions">
-                                <button type="button" class="btn btn-outline" @click="handleToggleSave" :disabled="isClub">
-                                    {{ isEventSaved ? 'Unsave' : 'Save' }}
-                                </button>
-                                <button type="button" class="btn btn-outline" @click="$emit('share')">Share</button>
-                            </div>
+                            <button type="button" class="btn btn-outline" @click="$emit('share')">Share</button>
                         </div>
 
                         <!-- Error/Success Messages -->
@@ -1197,14 +1195,6 @@ async handleCancelRsvp() {
     align-items: stretch;
 }
 
-.modal-actions-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    align-items: center;
-    justify-content: space-between;
-}
-
 .btn {
     border-radius: 12px;
     padding: 12px 20px;
@@ -1267,6 +1257,7 @@ async handleCancelRsvp() {
 .secondary-actions {
     display: flex;
     gap: 10px;
+    justify-content: center;
 }
 
 .event-attendees {
@@ -1402,12 +1393,8 @@ async handleCancelRsvp() {
         gap: 12px;
     }
 
-    .modal-actions-row {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
     .secondary-actions {
+        width: 100%;
         justify-content: center;
     }
 
