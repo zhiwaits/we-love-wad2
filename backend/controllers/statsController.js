@@ -21,9 +21,12 @@ exports.getUserStats = async (req, res) => {
       [userId]
     );
     
-    // Get saved events count (you'll need to add a 'saved_events' table later)
-    // For now, return 0
-    const savedCount = 0;
+    // Get saved events count from event_saved table
+    const savedCountResult = await pool.query(
+      `SELECT COUNT(*) FROM event_saved WHERE user_id = $1`,
+      [userId]
+    );
+    const savedCount = parseInt(savedCountResult.rows[0].count);
     
     // Get clubs followed count (from user_follows table)
     const clubsFollowed = await pool.query(

@@ -85,7 +85,7 @@ const actions = {
   /**
    * Login existing user
    */
-  async login({ commit }, { email, password }) {
+  async login({ commit, dispatch }, { email, password }) {
     commit('SET_LOADING', true);
     commit('CLEAR_ERROR');
     
@@ -98,6 +98,14 @@ const actions = {
   commit('SET_USER', normalizedUser);
       commit('SET_TOKEN', token);
       commit('SET_LOADING', false);
+      
+      // Load user's saved events
+      try {
+        await dispatch('loadSavedEvents', null, { root: true });
+        await dispatch('fetchUserStats', normalizedUser.id, { root: true });
+      } catch (error) {
+        console.error('Failed to load saved events or stats:', error);
+      }
       
       return { success: true, user };
     } catch (error) {
@@ -131,7 +139,7 @@ const actions = {
    * Check authentication status (restore session)
    * Call this when app loads
    */
-  async checkAuth({ commit, state }) {
+  async checkAuth({ commit, state, dispatch }) {
     // If no token, user is not authenticated
     if (!state.token) {
       commit('LOGOUT');
@@ -147,6 +155,14 @@ const actions = {
       
   commit('SET_USER', normalizedUser);
       commit('SET_LOADING', false);
+      
+      // Load user's saved events
+      try {
+        await dispatch('loadSavedEvents', null, { root: true });
+        await dispatch('fetchUserStats', normalizedUser.id, { root: true });
+      } catch (error) {
+        console.error('Failed to load saved events or stats:', error);
+      }
       
       return { success: true, user };
     } catch (error) {
