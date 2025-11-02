@@ -273,7 +273,7 @@ export default {
 
         joinButtonLabel() {
             if (this.isClub) return 'Clubs Cannot RSVP';
-            if (this.isJoining) return this.isPending ? 'Cancelling...' : 'Joining...';
+            if (this.isJoining) return 'Joining...';
             if (this.hasJoined) return '✓ Joined';
             if (this.isPending) return 'Pending Confirmation';
             if (this.isEventFull) return 'Event Full';
@@ -622,10 +622,6 @@ export default {
                 // Refresh attendee data if this is a club owner viewing attendees
                 if (this.shouldShowAttendeesSection) {
                     await this.fetchAttendees();
-                }
-
-                if (this.currentUser?.id) {
-                    this.$store.dispatch('fetchUserRSVPs', this.currentUser.id).catch(() => {});
                 }
                 
                 this.$emit('rsvp-created', this.event);

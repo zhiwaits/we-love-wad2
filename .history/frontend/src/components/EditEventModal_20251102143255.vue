@@ -349,17 +349,6 @@ export default {
                     return priceStr.replace('$', '').trim();
                 };
 
-                const confirmedAttendeesRaw =
-                    eventData.attendees ??
-                    eventData.confirmed_attendees ??
-                    eventData.confirmedAttendees ??
-                    this.event?.attendees ??
-                    0;
-                const confirmedAttendees = Number(confirmedAttendeesRaw);
-                this.confirmedAttendeeCount = Number.isFinite(confirmedAttendees) && confirmedAttendees > 0
-                    ? confirmedAttendees
-                    : 0;
-
                 this.form = {
                     title: eventData.title || '',
                     description: eventData.description || '',
@@ -462,7 +451,6 @@ export default {
             this.success = '';
             this.tagInput = '';
             this.tagFeedback = '';
-            this.confirmedAttendeeCount = 0;
         },
 
         onFileChange(e) {
@@ -589,24 +577,6 @@ export default {
 
         async handleSubmit() {
             if (!this.isValid) return;
-
-            const rawCapacity = this.form.capacity;
-            const desiredCapacity = rawCapacity === '' || rawCapacity === null || typeof rawCapacity === 'undefined'
-                ? null
-                : Number(rawCapacity);
-
-            if (desiredCapacity !== null && (!Number.isFinite(desiredCapacity) || desiredCapacity < 0)) {
-                this.error = 'Capacity must be a non-negative number or left blank.';
-                this.success = '';
-                return;
-            }
-
-            if (desiredCapacity !== null && desiredCapacity < this.confirmedAttendeeCount) {
-                this.error = `Capacity cannot be lower than the ${this.confirmedAttendeeCount} confirmed attendees already registered.`;
-                this.success = '';
-                return;
-            }
-
             this.error = '';
             this.success = '';
             this.submitting = true;
@@ -667,7 +637,7 @@ export default {
                     enddatetime: this.toIsoString(this.form.end),
                     location: this.formatLocation(),
                     category: this.form.category,
-                    capacity: desiredCapacity,
+                    capacity: this.form.capacity ? Number(this.form.capacity) : null,
                     price: this.form.price ? Number(this.form.price) : 0,
                     owner_id: this.currentUser.id,
                     venue: this.form.venue,

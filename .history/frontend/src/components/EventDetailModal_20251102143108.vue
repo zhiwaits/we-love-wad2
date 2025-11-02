@@ -273,7 +273,7 @@ export default {
 
         joinButtonLabel() {
             if (this.isClub) return 'Clubs Cannot RSVP';
-            if (this.isJoining) return this.isPending ? 'Cancelling...' : 'Joining...';
+            if (this.isJoining) return 'Joining...';
             if (this.hasJoined) return '✓ Joined';
             if (this.isPending) return 'Pending Confirmation';
             if (this.isEventFull) return 'Event Full';
@@ -382,7 +382,10 @@ export default {
 
             if (this.visible) {
                 const rsvp = this.userRSVPs.find(r => r.event_id === newEvent.id);
-                this.isPending = rsvp ? rsvp.status === 'pending' : false;
+                // Don't override isPending if it's already true (we just created an RSVP)
+                if (!this.isPending) {
+                    this.isPending = rsvp ? rsvp.status === 'pending' : false;
+                }
                 
                 if (this.hasValidCoordinates) {
                     this.$nextTick(() => {
@@ -397,9 +400,13 @@ export default {
         userRSVPs: {
             handler() {
                 // Update pending status when RSVPs data changes
-                if (this.event && this.visible) {
+                // Don't override if we just created a pending RSVP
+                if (this.event && this.visible && !this.isPending) {
                     const rsvp = this.userRSVPs.find(r => r.event_id === this.event.id);
-                    this.isPending = rsvp ? rsvp.status === 'pending' : false;
+                    const shouldBePending = rsvp ? rsvp.status === 'pending' : false;
+                    if (!shouldBePending) {
+                        this.isPending = false;
+                    }
                 }
             },
             deep: true
@@ -576,12 +583,7 @@ export default {
 
         // Handle Join Event Button Click
         async handleJoinEvent() {
-            if (this.isJoining || this.hasJoined) return;
-
-            if (this.isPending) {
-                await this.cancelPendingRsvp();
-                return;
-            }
+            if (this.isJoining || this.hasJoined || this.isPending) return;
 
             // Check if user is logged in
             if (!this.currentUser || !this.currentUser.id) {
@@ -623,51 +625,11 @@ export default {
                 if (this.shouldShowAttendeesSection) {
                     await this.fetchAttendees();
                 }
-
-                if (this.currentUser?.id) {
-                    this.$store.dispatch('fetchUserRSVPs', this.currentUser.id).catch(() => {});
-                }
                 
                 this.$emit('rsvp-created', this.event);
             } catch (error) {
                 console.error('Error creating RSVP:', error);
                 this.rsvpMessage = error.response?.data?.error || 'Failed to join event. Please try again.';
-                this.rsvpMessageType = 'error';
-            } finally {
-                this.isJoining = false;
-            }
-        },
-
-        async cancelPendingRsvp() {
-            if (!this.currentUser?.id || !this.event?.id) return;
-
-            const confirmed = window.confirm('Cancel your pending RSVP for this event?');
-            if (!confirmed) return;
-
-            this.isJoining = true;
-            this.rsvpMessage = '';
-            this.rsvpMessageType = '';
-
-            try {
-                await deleteRsvp(this.event.id, this.currentUser.id);
-                this.isPending = false;
-                this.rsvpMessage = 'Pending RSVP cancelled.';
-                this.rsvpMessageType = 'success';
-
-                // Refresh attendee data if this is a club owner viewing attendees
-                if (this.shouldShowAttendeesSection) {
-                    await this.fetchAttendees(true);
-                }
-
-                // Refresh user RSVPs so other UI stays in sync
-                if (this.currentUser?.id) {
-                    this.$store.dispatch('fetchUserRSVPs', this.currentUser.id).catch(() => {});
-                }
-
-                this.$emit('rsvp-updated', this.event);
-            } catch (error) {
-                console.error('Error cancelling pending RSVP:', error);
-                this.rsvpMessage = error.response?.data?.error || 'Unable to cancel pending RSVP. Please try again.';
                 this.rsvpMessageType = 'error';
             } finally {
                 this.isJoining = false;

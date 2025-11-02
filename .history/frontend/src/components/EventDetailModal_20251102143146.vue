@@ -273,7 +273,7 @@ export default {
 
         joinButtonLabel() {
             if (this.isClub) return 'Clubs Cannot RSVP';
-            if (this.isJoining) return this.isPending ? 'Cancelling...' : 'Joining...';
+            if (this.isJoining) return 'Joining...';
             if (this.hasJoined) return '✓ Joined';
             if (this.isPending) return 'Pending Confirmation';
             if (this.isEventFull) return 'Event Full';
@@ -382,7 +382,10 @@ export default {
 
             if (this.visible) {
                 const rsvp = this.userRSVPs.find(r => r.event_id === newEvent.id);
-                this.isPending = rsvp ? rsvp.status === 'pending' : false;
+                // Don't override isPending if it's already true (we just created an RSVP)
+                if (!this.isPending) {
+                    this.isPending = rsvp ? rsvp.status === 'pending' : false;
+                }
                 
                 if (this.hasValidCoordinates) {
                     this.$nextTick(() => {
@@ -397,9 +400,13 @@ export default {
         userRSVPs: {
             handler() {
                 // Update pending status when RSVPs data changes
-                if (this.event && this.visible) {
+                // Don't override if we just created a pending RSVP
+                if (this.event && this.visible && !this.isPending) {
                     const rsvp = this.userRSVPs.find(r => r.event_id === this.event.id);
-                    this.isPending = rsvp ? rsvp.status === 'pending' : false;
+                    const shouldBePending = rsvp ? rsvp.status === 'pending' : false;
+                    if (!shouldBePending) {
+                        this.isPending = false;
+                    }
                 }
             },
             deep: true
@@ -622,10 +629,6 @@ export default {
                 // Refresh attendee data if this is a club owner viewing attendees
                 if (this.shouldShowAttendeesSection) {
                     await this.fetchAttendees();
-                }
-
-                if (this.currentUser?.id) {
-                    this.$store.dispatch('fetchUserRSVPs', this.currentUser.id).catch(() => {});
                 }
                 
                 this.$emit('rsvp-created', this.event);

@@ -623,10 +623,6 @@ export default {
                 if (this.shouldShowAttendeesSection) {
                     await this.fetchAttendees();
                 }
-
-                if (this.currentUser?.id) {
-                    this.$store.dispatch('fetchUserRSVPs', this.currentUser.id).catch(() => {});
-                }
                 
                 this.$emit('rsvp-created', this.event);
             } catch (error) {
