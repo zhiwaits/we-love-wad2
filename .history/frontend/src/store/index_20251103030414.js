@@ -238,6 +238,9 @@ const clearToastTimer = () => {
 
 export default createStore({
 
+<<<<<<< HEAD
+  state: getDefaultRootState(),
+=======
   state: {
     // All events from your EventsGrid
     allEvents: [],
@@ -305,6 +308,7 @@ export default createStore({
       visible: false
     }
   },
+>>>>>>> 26ff6b3d1ed16649b5a836152ab76ad10c17ae63
 
   getters: {
 
@@ -825,6 +829,9 @@ export default createStore({
 
     // Reset all filters
     RESET_FILTERS(state) {
+<<<<<<< HEAD
+      state.filters = createDefaultFilters();
+=======
       state.filters = {
         searchQuery: '',
         selectedCategories: [],
@@ -835,6 +842,7 @@ export default createStore({
         locationQuery: '',
         eventStatus: 'both'
       };
+>>>>>>> 26ff6b3d1ed16649b5a836152ab76ad10c17ae63
     },
 
     // Club Event Filter Mutations
@@ -1001,30 +1009,31 @@ export default createStore({
         const eventTagMap = buildEventTagMap(eventTags, tags);
         const normalizedEvents = normalizeEventsWithMetadata(events, eventTagMap);
 
+<<<<<<< HEAD
+        commit('setAllEvents', normalizedEvents);
+        // Keep clubs module events in sync so club pages render immediately.
+        commit('clubs/setEvents', normalizedEvents, { root: true });
+=======
         // Create a map of event_id to array of tag_names
-        const tagMap = {};
-        tags.forEach(tag => {
-          tagMap[tag.id] = tag.tag_name || tag.name || '';
-        });
-
-        const eventTagsMap = {};
+        const eventTagMap = {};
         eventTags.forEach(et => {
-          if (!eventTagsMap[et.event_id]) {
-            eventTagsMap[et.event_id] = [];
+          if (!eventTagMap[et.event_id]) {
+            eventTagMap[et.event_id] = [];
           }
           const tagName = tagMap[et.tag_id];
           if (tagName) {
-            eventTagsMap[et.event_id].push(tagName);
+            eventTagMap[et.event_id].push(tagName);
           }
         });
 
         // Assign tags to events
         events.forEach(event => {
-          event.tags = eventTagsMap[event.id] || [];
+          event.tags = eventTagMap[event.id] || [];
         });
 
         console.log('fetchAllEvents - events with tags:', events);
         commit('setAllEvents', events);
+>>>>>>> 26ff6b3d1ed16649b5a836152ab76ad10c17ae63
       } catch (error) {
         console.error('fetchAllEvents - error:', error);
       }
@@ -1193,55 +1202,13 @@ export default createStore({
       }
     },
 
-    async fetchClubRSVPs({ commit, state, dispatch, rootGetters }, clubId) {
-      const ownerIdRaw = clubId ?? rootGetters['auth/currentUser']?.id;
-      const ownerId = Number(ownerIdRaw);
-      if (!Number.isFinite(ownerId)) {
-        commit('SET_CLUB_RSVPS', []);
-        return;
-      }
-
+    async fetchClubRSVPs({ commit }, clubId) {
       try {
-        // Fetch club events first if not already loaded
-        if (!Array.isArray(state.clubOwnedEvents) || state.clubOwnedEvents.length === 0) {
-          await dispatch('fetchClubOwnedEvents', { force: true });
-        }
-
-        const ownedEvents = (state.clubOwnedEvents || []).filter((event) => getNumericOwnerId(event) === ownerId);
-
-        if (ownedEvents.length === 0) {
-          commit('SET_CLUB_RSVPS', []);
-          return;
-        }
-
-        const { getRsvpsByEventId } = await import('../services/rsvpService');
-        const aggregated = [];
-
-        for (const event of ownedEvents) {
-          if (!event || event.id == null) {
-            continue;
-          }
-          try {
-            const eventResponse = await getRsvpsByEventId(event.id);
-            const eventRsvps = Array.isArray(eventResponse.data) ? eventResponse.data : [];
-            const augmented = eventRsvps.map((rsvp) => ({
-              ...rsvp,
-              event_id: Number(event.id),
-              event_title: event.title || '',
-              event_date: event.date || event.datetime || null,
-              event_time: event.time || event.start_time || event.startTime || null,
-              venue: event.venue || event.location || null
-            }));
-            aggregated.push(...augmented);
-          } catch (innerError) {
-            console.error(`Error fetching RSVPs for event ${event.id}:`, innerError);
-          }
-        }
-
-        commit('SET_CLUB_RSVPS', aggregated);
+        const { getRsvpsForEventsByOwner } = await import('../services/rsvpService');
+        const response = await getRsvpsForEventsByOwner(clubId);
+        commit('SET_CLUB_RSVPS', response.data);
       } catch (error) {
         console.error('Error fetching club RSVPs:', error);
-        commit('SET_CLUB_RSVPS', []);
       }
     },
 

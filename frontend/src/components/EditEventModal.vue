@@ -61,7 +61,7 @@
                         <!-- Location Picker with Map -->
                         <LocationPicker
                             :initialLat="form.latitude || 1.3521"
-                            :initialLng="form.longitude || 103.8198"
+                            :initialLng="form.altitude || 103.8198"
                             @location-selected="handleLocationSelected"
                         />
 
@@ -198,7 +198,7 @@ export default {
                 price: '0',
                 tags: [],
                 latitude: null,
-                longitude: null
+                altitude: null
             },
             originalForm: null,
             imageFile: null,
@@ -372,7 +372,7 @@ export default {
                     price: parsePrice(eventData.price),
                     tags: Array.isArray(eventData.tags) ? [...eventData.tags] : [],
                     latitude: eventData.latitude || 1.3521,
-                    longitude: eventData.longitude || 103.8198
+                    altitude: eventData.altitude || 103.8198
                 };
 
                 // Store original form state
@@ -452,7 +452,7 @@ export default {
                 price: '0',
                 tags: [],
                 latitude: null,
-                longitude: null
+                altitude: null
             };
             this.originalForm = null;
             this.imageFile = null;
@@ -538,8 +538,27 @@ export default {
         },
 
         handleLocationSelected(locationData) {
+            // Only update if this is a user action (not initialization)
+            // If isUserAction is false/missing, skip the update to prevent auto-submit
+            console.log('[EditEventModal] handleLocationSelected called:', {
+                isUserAction: locationData.isUserAction,
+                latitude: locationData.latitude,
+                altitude: locationData.altitude
+            });
+            
+            if (locationData.isUserAction === false) {
+                console.log('[EditEventModal] Skipping - not a user action');
+                return;
+            }
+            
+            console.log('[EditEventModal] Updating form coordinates');
             this.form.latitude = locationData.latitude;
-            this.form.longitude = locationData.longitude;
+            this.form.altitude = locationData.altitude;
+            console.log('[EditEventModal] New form state:', {
+                latitude: this.form.latitude,
+                altitude: this.form.altitude,
+                hasChanges: this.hasChanges
+            });
         },
 
         handleVenueSelected(selectedVenue) {
@@ -553,9 +572,9 @@ export default {
             
             if (venue) {
                 // If venue is an object with coordinates
-                if (typeof venue === 'object' && venue.latitude && venue.longitude) {
+                if (typeof venue === 'object' && venue.latitude && venue.altitude) {
                     this.form.latitude = parseFloat(venue.latitude);
-                    this.form.longitude = parseFloat(venue.longitude);
+                    this.form.altitude = parseFloat(venue.altitude);
                     this.form.location = venue.name;
                 }
                 // If venue is just a name string, just set the location
@@ -588,7 +607,13 @@ export default {
         },
 
         async handleSubmit() {
-            if (!this.isValid) return;
+            console.log('[EditEventModal] handleSubmit called');
+            console.log('[EditEventModal] handleSubmit - Stack trace:');
+            console.trace();
+            if (!this.isValid) {
+                console.log('[EditEventModal] Form invalid, returning');
+                return;
+            }
 
             const rawCapacity = this.form.capacity;
             const desiredCapacity = rawCapacity === '' || rawCapacity === null || typeof rawCapacity === 'undefined'
@@ -672,8 +697,8 @@ export default {
                     owner_id: this.currentUser.id,
                     venue: this.form.venue,
                     image_url: this.originalImageUrl, // Keep existing image URL
-                    latitude: null,
-                    altitude: null
+                    latitude: this.form.latitude,
+                    altitude: this.form.altitude
                 };
 
                 // If a new image was selected, include it

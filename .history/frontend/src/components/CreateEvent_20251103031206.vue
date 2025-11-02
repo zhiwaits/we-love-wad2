@@ -420,8 +420,9 @@ const handleSubmit = async () => {
 						<label class="checkbox-label">
 							<input type="checkbox" v-model="showMapPicker" />
 							<span class="checkmark"></span>
-							Add map location
+							Use interactive map for precise location (optional)
 						</label>
+						<div class="field-hint">Enable this if you need to set exact coordinates for your event location.</div>
 					</div>
 
 				<!-- Location Picker with Map -->

@@ -32,7 +32,6 @@ const imagePreview = ref('');
 const locationPickerRef = ref(null);
 const useMapLocation = ref(true);
 const savedMapCoordinates = ref({ lat: DEFAULT_LAT, lng: DEFAULT_LNG });
-const showMapPicker = ref(false);
 
 const submitting = ref(false);
 const error = ref('');
@@ -118,7 +117,6 @@ const resetForm = () => {
 	};
 	useMapLocation.value = true;
 	savedMapCoordinates.value = { lat: DEFAULT_LAT, lng: DEFAULT_LNG };
-	showMapPicker.value = false;
 	imageFile.value = null;
 	imagePreview.value = '';
 	tagInput.value = '';
@@ -272,17 +270,17 @@ watch(() => form.value.venue, (newVenue) => {
 watch(useMapLocation, async (enabled) => {
 	if (!enabled) {
 		const currentLat = Number(form.value.latitude);
-		const currentLng = Number(form.value.altitude);
+		const currentLng = Number(form.value.longitude);
 		if (Number.isFinite(currentLat) && Number.isFinite(currentLng)) {
 			savedMapCoordinates.value = { lat: currentLat, lng: currentLng };
 		}
 		form.value.latitude = null;
-		form.value.altitude = null;
+		form.value.longitude = null;
 	} else {
 		const lat = Number(savedMapCoordinates.value?.lat);
 		const lng = Number(savedMapCoordinates.value?.lng);
 		form.value.latitude = Number.isFinite(lat) ? lat : DEFAULT_LAT;
-		form.value.altitude = Number.isFinite(lng) ? lng : DEFAULT_LNG;
+		form.value.longitude = Number.isFinite(lng) ? lng : DEFAULT_LNG;
 		await nextTick();
 	}
 });
@@ -307,7 +305,7 @@ const handleSubmit = async () => {
     }
 
 		const latitude = useMapLocation.value ? Number(form.value.latitude) : null;
-		const longitude = useMapLocation.value ? Number(form.value.altitude) : null;
+		const longitude = useMapLocation.value ? Number(form.value.longitude) : null;
 
 		const payload = {
 			title: form.value.title.trim(),
@@ -320,8 +318,8 @@ const handleSubmit = async () => {
 			price: form.value.price ? Number(form.value.price) : 0,
 			owner_id: ownerId.value,
 			venue: form.value.venue,
-			latitude: latitude,
-			longitude: longitude
+			latitude: form.value.latitude,
+			altitude: form.value.altitude
 		};
 		const tagsPayload = selectedTags.value.slice(0, MAX_TAGS);
 
@@ -415,24 +413,13 @@ const handleSubmit = async () => {
 						</div>
 					</div>
 
-					<!-- Map Location Toggle -->
-					<div class="form-group">
-						<label class="checkbox-label">
-							<input type="checkbox" v-model="showMapPicker" />
-							<span class="checkmark"></span>
-							Add map location
-						</label>
-					</div>
-
 				<!-- Location Picker with Map -->
-				<div v-if="showMapPicker" class="map-section">
-					<LocationPicker
-						ref="locationPickerRef"
-						:initialLat="form.latitude || 1.3521"
-						:initialLng="form.altitude || 103.8198"
-						@location-selected="handleLocationSelected"
-					/>
-				</div>					<div class="grid grid--two">
+				<LocationPicker
+					ref="locationPickerRef"
+					:initialLat="form.latitude || 1.3521"
+					:initialLng="form.altitude || 103.8198"
+					@location-selected="handleLocationSelected"
+				/>					<div class="grid grid--two">
 						<div class="form-group">
 							<label for="event-capacity">Capacity <span class="hint">(Optional)</span></label>
 							<input id="event-capacity" type="number" min="0" v-model="form.capacity"
@@ -860,30 +847,22 @@ textarea {
 	}
 }
 
-.map-section {
-	margin-top: var(--space-16, 16px);
-	padding: var(--space-20, 20px);
-	background: var(--color-background, #f9fafb);
-	border-radius: var(--radius-lg, 16px);
-	border: 1px solid var(--color-border, #e1e5e9);
+/* Category badge colors (match EventsFilterPanel) */
+.selected-category {
+	display: inline-block;
+	margin-left: 8px;
+	padding: 6px 10px;
+	border-radius: 999px;
+	color: var(--color-btn-primary-text, #fff);
+	font-weight: var(--font-weight-medium, 500);
+	font-size: 0.9rem;
 }
 
-.checkbox-label {
-	display: flex;
-	align-items: center;
-	gap: var(--space-12, 12px);
-	cursor: pointer;
-	font-weight: var(--font-weight-normal);
-	font-size: 1rem;
-	color: var(--color-text);
-	margin-bottom: var(--space-8, 8px);
-}
-
-.checkbox-label input[type="checkbox"] {
-	width: 18px;
-	height: 18px;
-	margin: 0;
-	cursor: pointer;
-	accent-color: var(--color-primary, #2563eb);
-}
+.badge-academic { background-color: #007bff; }
+.badge-workshop { background-color: #28a745; }
+.badge-performance { background-color: #dc3545; }
+.badge-recreation { background-color: #ffc107; color: #333; }
+.badge-career { background-color: #17a2b8; }
+.badge-social { background-color: #6f42c1; }
+.badge-sports { background-color: #fd7e14; }
 </style>

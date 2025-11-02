@@ -307,7 +307,7 @@ const handleSubmit = async () => {
     }
 
 		const latitude = useMapLocation.value ? Number(form.value.latitude) : null;
-		const longitude = useMapLocation.value ? Number(form.value.altitude) : null;
+		const longitude = useMapLocation.value ? Number(form.value.longitude) : null;
 
 		const payload = {
 			title: form.value.title.trim(),
@@ -320,8 +320,8 @@ const handleSubmit = async () => {
 			price: form.value.price ? Number(form.value.price) : 0,
 			owner_id: ownerId.value,
 			venue: form.value.venue,
-			latitude: latitude,
-			longitude: longitude
+			latitude: form.value.latitude,
+			altitude: form.value.altitude
 		};
 		const tagsPayload = selectedTags.value.slice(0, MAX_TAGS);
 
@@ -420,8 +420,9 @@ const handleSubmit = async () => {
 						<label class="checkbox-label">
 							<input type="checkbox" v-model="showMapPicker" />
 							<span class="checkmark"></span>
-							Add map location
+							Use interactive map for precise location (optional)
 						</label>
+						<div class="field-hint">Enable this if you need to set exact coordinates for your event location.</div>
 					</div>
 
 				<!-- Location Picker with Map -->

@@ -118,7 +118,6 @@ const resetForm = () => {
 	};
 	useMapLocation.value = true;
 	savedMapCoordinates.value = { lat: DEFAULT_LAT, lng: DEFAULT_LNG };
-	showMapPicker.value = false;
 	imageFile.value = null;
 	imagePreview.value = '';
 	tagInput.value = '';
@@ -272,17 +271,17 @@ watch(() => form.value.venue, (newVenue) => {
 watch(useMapLocation, async (enabled) => {
 	if (!enabled) {
 		const currentLat = Number(form.value.latitude);
-		const currentLng = Number(form.value.altitude);
+		const currentLng = Number(form.value.longitude);
 		if (Number.isFinite(currentLat) && Number.isFinite(currentLng)) {
 			savedMapCoordinates.value = { lat: currentLat, lng: currentLng };
 		}
 		form.value.latitude = null;
-		form.value.altitude = null;
+		form.value.longitude = null;
 	} else {
 		const lat = Number(savedMapCoordinates.value?.lat);
 		const lng = Number(savedMapCoordinates.value?.lng);
 		form.value.latitude = Number.isFinite(lat) ? lat : DEFAULT_LAT;
-		form.value.altitude = Number.isFinite(lng) ? lng : DEFAULT_LNG;
+		form.value.longitude = Number.isFinite(lng) ? lng : DEFAULT_LNG;
 		await nextTick();
 	}
 });
@@ -307,7 +306,7 @@ const handleSubmit = async () => {
     }
 
 		const latitude = useMapLocation.value ? Number(form.value.latitude) : null;
-		const longitude = useMapLocation.value ? Number(form.value.altitude) : null;
+		const longitude = useMapLocation.value ? Number(form.value.longitude) : null;
 
 		const payload = {
 			title: form.value.title.trim(),
@@ -320,8 +319,8 @@ const handleSubmit = async () => {
 			price: form.value.price ? Number(form.value.price) : 0,
 			owner_id: ownerId.value,
 			venue: form.value.venue,
-			latitude: latitude,
-			longitude: longitude
+			latitude: form.value.latitude,
+			altitude: form.value.altitude
 		};
 		const tagsPayload = selectedTags.value.slice(0, MAX_TAGS);
 
@@ -420,8 +419,9 @@ const handleSubmit = async () => {
 						<label class="checkbox-label">
 							<input type="checkbox" v-model="showMapPicker" />
 							<span class="checkmark"></span>
-							Add map location
+							Use interactive map for precise location (optional)
 						</label>
+						<div class="field-hint">Enable this if you need to set exact coordinates for your event location.</div>
 					</div>
 
 				<!-- Location Picker with Map -->

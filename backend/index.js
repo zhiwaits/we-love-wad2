@@ -19,7 +19,15 @@ const authRoutes = require('./routes/auth');
 const eventCategories = require('./routes/eventCategories');
 const eventVenues = require('./routes/eventVenues');
 
-app.use(cors());
+// Configure CORS explicitly
+const corsOptions = {
+  origin: ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
 app.use(bodyParser.json({ limit: '25mb' }));
 app.use('/uploads', express.static(path.resolve(__dirname, 'uploads')));
 app.use('/events', eventsRoutes);
