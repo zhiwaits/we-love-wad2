@@ -715,7 +715,10 @@ export default {
                 }
 
                 this.success = 'Event updated successfully!';
-                await this.$store.dispatch('fetchAllEvents');
+                await Promise.all([
+                    this.$store.dispatch('fetchAllEvents'),
+                    this.$store.dispatch('fetchClubOwnedEvents', { force: true }).catch(() => {})
+                ]);
                 setTimeout(() => {
                     this.$emit('updated');
                     this.emitClose();
