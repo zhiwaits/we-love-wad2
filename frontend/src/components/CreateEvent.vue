@@ -22,7 +22,7 @@ const form = ref({
 	price: '0',
 	tags: [],
 	latitude: null,
-	longitude: null
+	altitude: null
 });
 const imageFile = ref(null);
 const imagePreview = ref('');
@@ -109,7 +109,7 @@ const resetForm = () => {
 		price: '0',
 		tags: [],
 		latitude: null,
-		longitude: null
+		altitude: null
 	};
 	imageFile.value = null;
 	imagePreview.value = '';
@@ -228,7 +228,7 @@ const useTagSuggestion = (tag) => {
 
 const handleLocationSelected = (locationData) => {
 	form.value.latitude = locationData.latitude;
-	form.value.longitude = locationData.longitude;
+	form.value.altitude = locationData.altitude;
 };
 
 const handleVenueSelected = (selectedVenue) => {
@@ -242,9 +242,9 @@ const handleVenueSelected = (selectedVenue) => {
 	
 	if (venue) {
 		// If venue is an object with coordinates
-		if (typeof venue === 'object' && venue.latitude && venue.longitude) {
+		if (typeof venue === 'object' && venue.latitude && venue.altitude) {
 			form.value.latitude = parseFloat(venue.latitude);
-			form.value.longitude = parseFloat(venue.longitude);
+			form.value.altitude = parseFloat(venue.altitude);
 			form.value.location = venue.name;
 		}
 		// If venue is just a name string, just set the location
@@ -292,7 +292,7 @@ const handleSubmit = async () => {
 			owner_id: ownerId.value,
 			venue: form.value.venue,
 			latitude: form.value.latitude,
-			longitude: form.value.longitude
+			altitude: form.value.altitude
 		};
 		const tagsPayload = selectedTags.value.slice(0, MAX_TAGS);
 
@@ -377,13 +377,13 @@ const handleSubmit = async () => {
 						</div>
 					</div>
 
-					<!-- Location Picker with Map -->
-					<LocationPicker
-						ref="locationPickerRef"
-						@location-selected="handleLocationSelected"
-					/>
-
-					<div class="grid grid--two">
+				<!-- Location Picker with Map -->
+				<LocationPicker
+					ref="locationPickerRef"
+					:initialLat="form.latitude || 1.3521"
+					:initialLng="form.altitude || 103.8198"
+					@location-selected="handleLocationSelected"
+				/>					<div class="grid grid--two">
 						<div class="form-group">
 							<label for="event-capacity">Capacity <span class="hint">(Optional)</span></label>
 							<input id="event-capacity" type="number" min="0" v-model="form.capacity"

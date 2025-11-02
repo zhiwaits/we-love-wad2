@@ -13,33 +13,8 @@
       </div>
     </div>
 
-    <!-- Coordinates Display -->
-    <div class="coordinates-display">
-      <div class="coord-group">
-        <label>Latitude</label>
-        <input
-          type="text"
-          v-model="latitude"
-          @change="updateMarkerFromInput"
-          placeholder="0.0000"
-          readonly
-        />
-      </div>
-      <div class="coord-group">
-        <label>Longitude</label>
-        <input
-          type="text"
-          v-model="longitude"
-          @change="updateMarkerFromInput"
-          placeholder="0.0000"
-          readonly
-        />
-      </div>
-      <div v-if="address" class="address-display">
-        <label>Address</label>
-        <input type="text" v-model="address" placeholder="Address" readonly />
-      </div>
-    </div>
+    <!-- Location Display (Hidden - still recorded for backend) -->
+    <!-- Address is captured internally but not shown to user -->
 
     <!-- Search Bar -->
     <div class="search-section">
@@ -48,12 +23,12 @@
         type="text"
         placeholder="Search for a location (e.g., 'SMU', 'Marina Bay')"
         class="search-input"
-        @keyup.enter="searchLocation"
+        @keydown.enter.prevent="searchLocation"
       />
-      <button @click="searchLocation" class="btn-search" :disabled="!searchQuery.trim()">
+      <button type="button" @click="searchLocation" class="btn-search" :disabled="!searchQuery.trim()">
         Search
       </button>
-      <button @click="getCurrentLocation" class="btn-location" title="Use current location">
+      <button type="button" @click="getCurrentLocation" class="btn-location" title="Use current location">
         📍 Current Location
       </button>
     </div>
@@ -135,7 +110,7 @@ onMounted(async () => {
       longitude.value = pos.lng().toFixed(6);
       googleMap.panTo(pos);
       reverseGeocode(pos);
-      emitLocationSelected();
+      emitLocationSelected(true);  // User action: dragging marker
     });
 
     // Allow clicking on map to place marker
@@ -149,7 +124,7 @@ onMounted(async () => {
       marker.setPosition({ lat, lng });
       googleMap.panTo({ lat, lng });
       reverseGeocode({ lat, lng });
-      emitLocationSelected();
+      emitLocationSelected(true);  // User action: clicking on map
     });
 
     // Initial address lookup
@@ -198,7 +173,7 @@ const searchLocation = async () => {
         googleMap.setZoom(15);
 
         searchQuery.value = '';
-        emitLocationSelected();
+        emitLocationSelected(true);  // User action: searching location
       } else {
         error.value = 'Location not found. Please try another search.';
       }
@@ -230,7 +205,7 @@ const getCurrentLocation = () => {
       googleMap.setZoom(15);
 
       reverseGeocode({ lat, lng });
-      emitLocationSelected();
+      emitLocationSelected(true);  // User action: using current location
     },
     (err) => {
       console.error('Geolocation error:', err);
@@ -238,6 +213,21 @@ const getCurrentLocation = () => {
     }
   );
 };
+
+// Watch for prop changes (when parent updates initialLat/initialLng)
+watch([() => props.initialLat, () => props.initialLng], ([newLat, newLng]) => {
+  if (googleMap && marker && newLat && newLng) {
+    // Update map and marker to new coordinates
+    const newPos = { lat: newLat, lng: newLng };
+    latitude.value = newLat;
+    longitude.value = newLng;
+    marker.setPosition(newPos);
+    googleMap.setCenter(newPos);
+    googleMap.setZoom(15);
+    reverseGeocode(newPos);
+    // Don't emit here - this is initialization, not user action
+  }
+}, { immediate: false });
 
 // Update marker from input (if user manually edits)
 const updateMarkerFromInput = () => {
@@ -255,13 +245,14 @@ const updateMarkerFromInput = () => {
 };
 
 // Emit selected location
-const emitLocationSelected = () => {
+const emitLocationSelected = (isUserAction = false) => {
   const lat = parseFloat(latitude.value);
   const lng = parseFloat(longitude.value);
   emit('location-selected', {
     latitude: lat,
-    longitude: lng,
-    address: address.value
+    altitude: lng,
+    address: address.value,
+    isUserAction: isUserAction
   });
 };
 
@@ -269,7 +260,7 @@ const emitLocationSelected = () => {
 defineExpose({
   getCoordinates: () => ({
     latitude: parseFloat(latitude.value),
-    longitude: parseFloat(longitude.value),
+    altitude: parseFloat(longitude.value),
     address: address.value
   })
 });
