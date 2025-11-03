@@ -259,7 +259,6 @@ export default {
             :event="eventToEdit"
             @close="closeEditModal"
             @updated="handleEventUpdated"
-            @deleted="handleEventDeleted"
         />
     </section>
 </template>

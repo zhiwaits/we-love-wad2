@@ -58,23 +58,12 @@
                             </div>
                         </div>
 
-                        <!-- Map Location Toggle -->
-                        <div class="form-group">
-                            <label class="checkbox-label">
-                                <input type="checkbox" v-model="showMapPicker" />
-                                <span class="checkmark"></span>
-                                Add map location
-                            </label>
-                        </div>
-
                         <!-- Location Picker with Map -->
-                        <div v-if="showMapPicker" class="map-section">
-                            <LocationPicker
-                                :initialLat="form.latitude || 1.3521"
-                                :initialLng="form.altitude || 103.8198"
-                                @location-selected="handleLocationSelected"
-                            />
-                        </div>
+                        <LocationPicker
+                            :initialLat="form.latitude || 1.3521"
+                            :initialLng="form.altitude || 103.8198"
+                            @location-selected="handleLocationSelected"
+                        />
 
                         <!-- Capacity & Category Grid -->
                         <div class="grid grid--two">
@@ -152,21 +141,14 @@
 
                         <!-- Form Actions -->
                         <footer class="form-actions">
-                            <button type="button" class="btn btn-danger" @click="handleDeleteClick"
+                            <button type="button" class="btn btn-secondary" @click="handleCancelClick"
                                 :disabled="submitting">
-                                <span v-if="!submitting">Delete Event</span>
-                                <span v-else class="loading">Deleting...</span>
+                                Cancel
                             </button>
-                            <div class="form-actions-right">
-                                <button type="button" class="btn btn-secondary" @click="handleCancelClick"
-                                    :disabled="submitting">
-                                    Cancel
-                                </button>
-                                <button type="submit" class="btn btn-primary" :disabled="!isValid || submitting">
-                                    <span v-if="!submitting">Save Changes</span>
-                                    <span v-else class="loading">Saving...</span>
-                                </button>
-                            </div>
+                            <button type="submit" class="btn btn-primary" :disabled="!isValid || submitting">
+                                <span v-if="!submitting">Save Changes</span>
+                                <span v-else class="loading">Saving...</span>
+                            </button>
                         </footer>
                     </form>
                 </div>
@@ -177,7 +159,7 @@
 
 <script>
 import { mapGetters } from 'vuex';
-import { updateEvent, getEventById, deleteEvent } from '../services/eventService';
+import { updateEvent, getEventById } from '../services/eventService';
 import { createEventTag, deleteEventTag, getEventTagsByEventId } from '../services/eventTagService';
 import { createTag, getAllTags } from '../services/tagService';
 import LocationPicker from './LocationPicker.vue';
@@ -456,38 +438,6 @@ export default {
             this.emitClose();
         },
 
-        async handleDeleteClick() {
-            const confirmed = window.confirm(
-                `Are you sure you want to delete "${this.form.title}"? This action cannot be undone and will also remove all RSVPs and saved events for this event.`
-            );
-            if (!confirmed) return;
-
-            this.error = '';
-            this.success = '';
-            this.submitting = true;
-
-            try {
-                await deleteEvent(this.event.id);
-                this.success = 'Event deleted successfully!';
-                
-                // Refresh the events list
-                await Promise.all([
-                    this.$store.dispatch('fetchAllEvents'),
-                    this.$store.dispatch('fetchClubOwnedEvents', { force: true }).catch(() => {})
-                ]);
-                
-                setTimeout(() => {
-                    this.$emit('deleted');
-                    this.emitClose();
-                }, 1000);
-            } catch (err) {
-                console.error('Delete event failed:', err);
-                this.error = err?.response?.data?.error || err?.message || 'Failed to delete event. Please try again.';
-            } finally {
-                this.submitting = false;
-            }
-        },
-
         emitClose() {
             this.$emit('close');
             this.resetForm();
@@ -517,7 +467,6 @@ export default {
             this.tagInput = '';
             this.tagFeedback = '';
             this.confirmedAttendeeCount = 0;
-            this.showMapPicker = false;
         },
 
         onFileChange(e) {
@@ -630,15 +579,11 @@ export default {
                 if (typeof venue === 'object' && venue.latitude && venue.altitude) {
                     this.form.latitude = parseFloat(venue.latitude);
                     this.form.altitude = parseFloat(venue.altitude);
-                    if (!this.form.location.trim()) {
-                        this.form.location = venue.name;
-                    }
+                    this.form.location = venue.name;
                 }
-                // If venue is just a name string, just set the location if it's empty
+                // If venue is just a name string, just set the location
                 else if (typeof venue === 'string') {
-                    if (!this.form.location.trim()) {
-                        this.form.location = venue;
-                    }
+                    this.form.location = venue;
                 }
             }
         },
@@ -756,8 +701,8 @@ export default {
                     owner_id: this.currentUser.id,
                     venue: this.form.venue,
                     image_url: this.originalImageUrl, // Keep existing image URL
-                    latitude: this.showMapPicker ? this.form.latitude : null,
-                    altitude: this.showMapPicker ? this.form.altitude : null
+                    latitude: this.form.latitude,
+                    altitude: this.form.altitude
                 };
 
                 // If a new image was selected, include it
@@ -1038,17 +983,11 @@ textarea {
 
 .form-actions {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    justify-content: flex-end;
     gap: 12px;
     margin-top: 24px;
     padding-top: 20px;
     border-top: 1px solid var(--color-border);
-}
-
-.form-actions-right {
-    display: flex;
-    gap: 12px;
 }
 
 .btn {
@@ -1087,18 +1026,6 @@ textarea {
     background: var(--color-secondary);
 }
 
-.btn-danger {
-    background: var(--color-error);
-    color: #fff;
-    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
-}
-
-.btn-danger:hover:not(:disabled) {
-    background: #dc2626;
-    transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(220, 38, 38, 0.3);
-}
-
 .alert {
     padding: 12px 16px;
     border-radius: 12px;
@@ -1132,33 +1059,6 @@ textarea {
 .modal-fade-enter-from,
 .modal-fade-leave-to {
     opacity: 0;
-}
-
-.checkbox-label {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    cursor: pointer;
-    font-weight: normal;
-    font-size: 14px;
-    color: var(--color-text);
-    margin-bottom: 8px;
-}
-
-.checkbox-label input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    margin: 0;
-    cursor: pointer;
-    accent-color: var(--color-primary);
-}
-
-.map-section {
-    margin-top: 16px;
-    padding: 20px;
-    background: var(--color-background);
-    border-radius: 12px;
-    border: 1px solid var(--color-border);
 }
 
 @media (max-width: 640px) {

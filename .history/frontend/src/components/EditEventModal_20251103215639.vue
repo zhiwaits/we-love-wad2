@@ -1038,17 +1038,11 @@ textarea {
 
 .form-actions {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    justify-content: flex-end;
     gap: 12px;
     margin-top: 24px;
     padding-top: 20px;
     border-top: 1px solid var(--color-border);
-}
-
-.form-actions-right {
-    display: flex;
-    gap: 12px;
 }
 
 .btn {
@@ -1085,18 +1079,6 @@ textarea {
 
 .btn-secondary:hover:not(:disabled) {
     background: var(--color-secondary);
-}
-
-.btn-danger {
-    background: var(--color-error);
-    color: #fff;
-    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
-}
-
-.btn-danger:hover:not(:disabled) {
-    background: #dc2626;
-    transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(220, 38, 38, 0.3);
 }
 
 .alert {

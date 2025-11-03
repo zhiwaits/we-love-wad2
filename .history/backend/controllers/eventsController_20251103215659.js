@@ -470,10 +470,10 @@ exports.deleteEvent = async (req, res) => {
     await client.query('DELETE FROM rsvps WHERE event_id = $1', [eventId]);
 
     // Delete all saved events for this event
-    await client.query('DELETE FROM event_saved WHERE event_id = $1', [eventId]);
+    await client.query('DELETE FROM saved_events WHERE event_id = $1', [eventId]);
 
     // Delete all event tags for this event
-    await client.query('DELETE FROM event_tag_map WHERE event_id = $1', [eventId]);
+    await client.query('DELETE FROM event_tags WHERE event_id = $1', [eventId]);
 
     // Finally, delete the event
     const result = await client.query(`DELETE FROM ${table} WHERE id = $1 RETURNING *`, [eventId]);

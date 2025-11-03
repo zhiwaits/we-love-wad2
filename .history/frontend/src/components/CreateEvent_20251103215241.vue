@@ -294,7 +294,7 @@ const handleSubmit = async () => {
 			owner_id: ownerId.value,
 			venue: form.value.venue,
 			latitude: latitude,
-			altitude: longitude
+			longitude: longitude
 		};
 		const tagsPayload = selectedTags.value.slice(0, MAX_TAGS);
 

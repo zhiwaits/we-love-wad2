@@ -10,6 +10,9 @@ const router = useRouter();
 
 const MAX_TAGS = 10;
 
+const DEFAULT_LAT = 1.3521;
+const DEFAULT_LNG = 103.8198;
+
 const form = ref({
 	title: '',
 	description: '',
@@ -27,6 +30,8 @@ const form = ref({
 const imageFile = ref(null);
 const imagePreview = ref('');
 const locationPickerRef = ref(null);
+const useMapLocation = ref(true);
+const savedMapCoordinates = ref({ lat: DEFAULT_LAT, lng: DEFAULT_LNG });
 const showMapPicker = ref(false);
 
 const submitting = ref(false);
@@ -111,6 +116,8 @@ const resetForm = () => {
 		latitude: null,
 		altitude: null
 	};
+	useMapLocation.value = true;
+	savedMapCoordinates.value = { lat: DEFAULT_LAT, lng: DEFAULT_LNG };
 	showMapPicker.value = false;
 	imageFile.value = null;
 	imagePreview.value = '';
@@ -294,7 +301,7 @@ const handleSubmit = async () => {
 			owner_id: ownerId.value,
 			venue: form.value.venue,
 			latitude: latitude,
-			altitude: longitude
+			longitude: longitude
 		};
 		const tagsPayload = selectedTags.value.slice(0, MAX_TAGS);
 
