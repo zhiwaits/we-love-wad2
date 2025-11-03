@@ -77,8 +77,8 @@ export default {
             if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
             const normalized = raw.replace('/uploads/event/event_', '/uploads/event/');
             const fullUrl = `${API_BASE_URL}${normalized.startsWith('/') ? '' : '/'}${normalized}`;
-            // Add cache-busting parameter to force browser to reload updated images
-            return `${fullUrl}?v=${Date.now()}`;
+            // Add cache-busting parameter to force reload of updated images
+            return `${fullUrl}?t=${Date.now()}`;
         },
 
         handleEventImageError(eventObj, ev) {

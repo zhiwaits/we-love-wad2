@@ -668,13 +668,33 @@ export default {
             return `${location.trim()}`;
         },
 
-        updateEventInStore(eventId, updatedEventData) {
-            // The backend now returns properly shaped data, so we can use it directly
+        updateEventInStore(eventId, payload) {
+            // Create updated event object
+            const updatedEvent = {
+                ...this.event, // Keep existing properties
+                id: eventId,
+                title: payload.title,
+                description: payload.description,
+                date: new Date(payload.datetime).toISOString().split('T')[0], // Extract date part
+                time: this.formatTimeForDisplay(payload.datetime, payload.enddatetime),
+                datetime: payload.datetime,
+                enddatetime: payload.enddatetime,
+                location: payload.location,
+                category: payload.category,
+                maxAttendees: payload.capacity,
+                price: payload.price === 0 ? 'FREE' : `$${payload.price}`,
+                venue: payload.venue,
+                latitude: payload.latitude,
+                altitude: payload.altitude,
+                image: this.imageFile ? null : this.originalImageUrl, // Keep existing image if no new one
+                tags: this.selectedTags
+            };
+
             // Update allEvents in store
             if (this.$store.state.allEvents) {
                 const eventIndex = this.$store.state.allEvents.findIndex(event => event.id === eventId);
                 if (eventIndex !== -1) {
-                    this.$store.state.allEvents.splice(eventIndex, 1, updatedEventData);
+                    this.$store.state.allEvents.splice(eventIndex, 1, updatedEvent);
                 }
             }
 
@@ -682,7 +702,7 @@ export default {
             if (this.$store.state.clubOwnedEvents) {
                 const eventIndex = this.$store.state.clubOwnedEvents.findIndex(event => event.id === eventId);
                 if (eventIndex !== -1) {
-                    this.$store.state.clubOwnedEvents.splice(eventIndex, 1, updatedEventData);
+                    this.$store.state.clubOwnedEvents.splice(eventIndex, 1, updatedEvent);
                 }
             }
         },
@@ -823,9 +843,6 @@ export default {
                     };
                     const response = await updateEvent(eventId, body);
                     updatedEventData = response.data;
-                    
-                    // Add a small delay to ensure the image file is fully written to disk
-                    await new Promise(resolve => setTimeout(resolve, 500));
                 } else {
                     const response = await updateEvent(eventId, payload);
                     updatedEventData = response.data;
@@ -833,17 +850,6 @@ export default {
 
                 // Update store with the actual updated event data from backend
                 this.updateEventInStore(eventId, updatedEventData);
-
-                // Instead of fetching all events, fetch the specific updated event to ensure we have the latest data
-                try {
-                    const freshEventResponse = await getEventById(eventId);
-                    const freshEventData = freshEventResponse.data;
-                    
-                    // Update the store again with the fresh data from getEventById
-                    this.updateEventInStore(eventId, freshEventData);
-                } catch (error) {
-                    console.warn('Failed to fetch fresh event data:', error);
-                }
 
                 this.success = 'Event updated successfully!';
                 setTimeout(() => {

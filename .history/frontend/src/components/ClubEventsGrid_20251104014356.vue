@@ -77,8 +77,8 @@ export default {
             if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
             const normalized = raw.replace('/uploads/event/event_', '/uploads/event/');
             const fullUrl = `${API_BASE_URL}${normalized.startsWith('/') ? '' : '/'}${normalized}`;
-            // Add cache-busting parameter to force browser to reload updated images
-            return `${fullUrl}?v=${Date.now()}`;
+            // Add cache-busting parameter to force reload of images
+            return `${fullUrl}?t=${Date.now()}`;
         },
 
         handleEventImageError(eventObj, ev) {
@@ -151,7 +151,10 @@ export default {
                 message: 'Event updated successfully!',
                 type: 'success'
             });
-            // Store is already updated by EditEventModal, no need to refetch
+            await Promise.allSettled([
+                this.$store.dispatch('fetchClubOwnedEvents', { force: true }),
+                this.$store.dispatch('fetchAllEvents', { force: true })
+            ]);
             this.closeEditModal();
         },
 

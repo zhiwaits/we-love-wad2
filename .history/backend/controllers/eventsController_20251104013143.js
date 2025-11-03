@@ -267,8 +267,7 @@ exports.createEvent = async (req, res) => {
     ensureDir(uploadsDir);
 
     const ext = pickImageExtension(imageBase64, imageOriginalName) || '.png';
-    const timestamp = Date.now(); // Add timestamp for consistency
-    const finalFilename = `${event.id}_${timestamp}${ext}`;
+    const finalFilename = `${event.id}${ext}`;
     const finalPath = path.join(uploadsDir, finalFilename);
 
     try { fs.unlinkSync(finalPath); } catch {}
@@ -440,8 +439,7 @@ exports.updateEvent = async (req, res) => {
       const eventDir = path.join(__dirname, '..', 'uploads', 'event');
       ensureDir(eventDir);
       const ext = pickImageExtension(imageBase64, imageOriginalName);
-      const timestamp = Date.now(); // Add timestamp to ensure unique filename
-      const filename = `${id}_${timestamp}${ext}`;
+      const filename = `${id}${ext}`;
       const filepath = path.join(eventDir, filename);
       const base64Data = imageBase64.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, '');
       fs.writeFileSync(filepath, base64Data, 'base64');

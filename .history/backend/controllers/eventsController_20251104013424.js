@@ -267,8 +267,7 @@ exports.createEvent = async (req, res) => {
     ensureDir(uploadsDir);
 
     const ext = pickImageExtension(imageBase64, imageOriginalName) || '.png';
-    const timestamp = Date.now(); // Add timestamp for consistency
-    const finalFilename = `${event.id}_${timestamp}${ext}`;
+    const finalFilename = `${event.id}${ext}`;
     const finalPath = path.join(uploadsDir, finalFilename);
 
     try { fs.unlinkSync(finalPath); } catch {}
