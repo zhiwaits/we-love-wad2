@@ -6,6 +6,21 @@
 
     <FullCalendar :options="calendarOptions" />
 
+    <!-- Debug: Show events data -->
+    <div style="margin-top: 20px; padding: 10px; background: #f0f0f0; border: 1px solid #ccc;">
+      <h4>Debug: Events Data</h4>
+      <p>Club Events Count: {{ clubEvents.length }}</p>
+      <p>Calendar Events Count: {{ calendarEvents.length }}</p>
+      <div v-if="calendarEvents.length > 0">
+        <h5>Calendar Events:</h5>
+        <ul>
+          <li v-for="event in calendarEvents" :key="event.id">
+            {{ event.title }} - {{ event.start }}
+          </li>
+        </ul>
+      </div>
+    </div>
+
     <!-- Event Detail Modal -->
     <EventDetailModal
       :event="selectedEvent"
