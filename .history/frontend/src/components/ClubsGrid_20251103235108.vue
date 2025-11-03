@@ -186,18 +186,18 @@ export default {
                 this.totalEvents = 0;
             }
         },
+    },
 
-        openImageModal(club) {
-            this.selectedImage = this.clubImageSrc(club);
-            this.selectedImageAlt = club.name || 'Club image';
-            this.showImageModal = true;
-        },
+    openImageModal(club) {
+        this.selectedImage = this.clubImageSrc(club);
+        this.selectedImageAlt = club.name || 'Club image';
+        this.showImageModal = true;
+    },
 
-        closeImageModal() {
-            this.showImageModal = false;
-            this.selectedImage = '';
-            this.selectedImageAlt = '';
-        }
+    closeImageModal() {
+        this.showImageModal = false;
+        this.selectedImage = '';
+        this.selectedImageAlt = '';
     },
     watch: {
         filteredClubs() {
@@ -223,7 +223,7 @@ export default {
 
             <div v-else class="cards-container">
                 <div v-for="club in paginatedClubs" :key="club.id" class="club-card" @click="openClubModal(club)">
-                    <div class="club-image" @click.stop="openImageModal(club)">
+                    <div class="club-image">
                         <img
                             :src="clubImageSrc(club)"
                             alt="Club image"

@@ -446,6 +446,13 @@ const previewClubCategory = computed(() => {
   return selectedCategory ? selectedCategory.name : '';
 });
 
+// Format date for display
+const formatDate = (dateString) => {
+  const date = new Date(dateString);
+  const options = { weekday: 'short', day: 'numeric', month: 'short' };
+  return date.toLocaleDateString('en-US', options);
+};
+
 // Tag handling
 const handleTagClick = (tag) => {
   // Navigate to events page with tag filter

@@ -278,12 +278,6 @@ export default {
             @updated="handleEventUpdated"
             @deleted="handleEventDeleted"
         />
-        <FullImageModal
-            :visible="showImageModal"
-            :imageSrc="selectedImage"
-            :altText="selectedImageAlt"
-            @close="closeImageModal"
-        />
     </section>
 </template>
 

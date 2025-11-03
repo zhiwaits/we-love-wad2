@@ -1,19 +1,17 @@
 <script>
 import { mapGetters, mapActions, mapState } from 'vuex';
 import EventDetailModal from './EventDetailModal.vue';
-import EditEventModal from './EditEventModal.vue';
 import FullImageModal from './FullImageModal.vue';
-import { shareEventLink } from '../utils/shareEvent';
 import Pagination from './Pagination.vue';
+import { shareEventLink } from '../utils/shareEvent';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 const FALLBACK_PLACEHOLDER = 'https://placehold.co/600x400?text=Event';
 
 export default {
-    name: 'ClubEventsGrid',
+    name: 'EventsGrid',
     components: {
         EventDetailModal,
-        EditEventModal,
         FullImageModal,
         Pagination
     },
@@ -22,53 +20,29 @@ export default {
         return {
             selectedEvent: null,
             showEventModal: false,
-            showEditModal: false,
-            eventToEdit: null,
-            currentPage: 1,
-            itemsPerPage: 6,
             showImageModal: false,
             selectedImage: '',
             selectedImageAlt: ''
         };
     },
 
+
     mounted() {
-        this.$store.dispatch('fetchClubOwnedEvents').catch(() => {});
+        this.$store.dispatch('fetchAllEvents');
     },
 
     computed: {
-        ...mapGetters(['filteredClubEvents', 'categoryColorMap']),
-        ...mapGetters('auth', ['isClub']),
-        ...mapState(['clubEventFilters']),
-        ...mapState({ currentUser: state => state.auth.user }),
+        ...mapGetters(['filteredEvents']),
+        ...mapGetters(['categoryColorMap']),
+        ...mapState(['filters', 'pagination']),
 
         events() {
-            return this.filteredClubEvents;
-        },
-
-        paginatedEvents() {
-            const safePage = Math.min(Math.max(this.currentPage, 1), this.totalPages);
-            const startIndex = (safePage - 1) * this.itemsPerPage;
-            return this.events.slice(startIndex, startIndex + this.itemsPerPage);
-        },
-
-        totalPages() {
-            if (!this.events.length) {
-                return 1;
-            }
-            return Math.ceil(this.events.length / this.itemsPerPage);
+            return this.filteredEvents;
         }
     },
 
     methods: {
-        ...mapActions(['toggleClubEventTag']),
-        handlePageChange(page) {
-            if (page < 1 || page > this.totalPages) {
-                return;
-            }
-            this.currentPage = page;
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        },
+        ...mapActions(['toggleTag']),
 
         eventImageSrc(event) {
             if (!event) return FALLBACK_PLACEHOLDER;
@@ -83,6 +57,7 @@ export default {
             if (ev && ev.target) ev.target.src = FALLBACK_PLACEHOLDER;
         },
 
+        // Format attendees display
         formatAttendees(event) {
             if (event.maxAttendees) {
                 return `${event.attendees} / ${event.maxAttendees} attending`;
@@ -97,7 +72,7 @@ export default {
         },
 
         handleTagClick(tag) {
-            this.toggleClubEventTag(tag);
+            this.toggleTag(tag);
             window.scrollTo({ top: 0, behavior: 'smooth' });
         },
 
@@ -124,11 +99,6 @@ export default {
             }
         },
 
-        handleEdit(event) {
-            this.eventToEdit = event;
-            this.showEditModal = true;
-        },
-
         openEventModal(event) {
             this.selectedEvent = event;
             this.showEventModal = true;
@@ -139,31 +109,27 @@ export default {
             this.selectedEvent = null;
         },
 
-        closeEditModal() {
-            this.showEditModal = false;
-            this.eventToEdit = null;
-        },
-
-        async handleEventUpdated() {
-            this.$store.dispatch('showToast', {
-                message: 'Event updated successfully!',
-                type: 'success'
-            });
-            await this.$store.dispatch('fetchClubOwnedEvents', { force: true }).catch(() => {});
-            this.closeEditModal();
-        },
-
-        async handleEventDeleted() {
-            this.$store.dispatch('showToast', {
-                message: 'Event deleted successfully!',
-                type: 'success'
-            });
-            await this.$store.dispatch('fetchClubOwnedEvents', { force: true }).catch(() => {});
-            this.closeEditModal();
-        },
-
         isTagSelected(tag) {
-            return this.clubEventFilters.selectedTags.includes(tag);
+            return this.filters.selectedTags.includes(tag);
+        },
+        async handleRsvpCreated(rsvpData) {
+            console.log('RSVP Created:', rsvpData);
+
+            // Refresh the events data to get updated attendee counts
+            await this.$store.dispatch('fetchAllEvents', this.pagination.currentPage);
+
+            // Update the selected event with the new attendee count
+            if (this.selectedEvent) {
+                const updatedEvent = this.events.find(e => e.id === this.selectedEvent.id);
+                if (updatedEvent) {
+                    this.selectedEvent = { ...updatedEvent };
+                }
+            }
+        },
+
+        handlePageChange(page) {
+            this.$store.dispatch('fetchAllEvents', page);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         },
 
         openImageModal(event) {
@@ -177,13 +143,10 @@ export default {
             this.selectedImage = '';
             this.selectedImageAlt = '';
         }
-    },
-    watch: {
-        events() {
-            this.currentPage = 1;
-        }
     }
-}
+
+    }
+
 </script>
 
 <template>
@@ -192,17 +155,22 @@ export default {
             <!-- No Results Message -->
             <div v-if="events.length === 0" class="no-results">
                 <h3>No events found</h3>
-                <p>You haven't created any events yet, or try adjusting your filters.</p>
+                <p>Try adjusting your search or filters to find what you're looking for.</p>
             </div>
 
             <!-- Events Grid -->
             <div v-else class="events-container">
                 <div
-                    v-for="event in paginatedEvents"
+                    v-for="event in events"
                     :key="event.id"
                     class="event-card"
+                    role="button"
+                    tabindex="0"
+                    @click="openEventModal(event)"
+                    @keyup.enter.prevent="openEventModal(event)"
+                    @keyup.space.prevent="openEventModal(event)"
                 >
-                    <div class="event-image" @click.stop="openImageModal(event)">
+                    <div class="event-image" @click="openImageModal(event)">
                         <img :src="eventImageSrc(event)" alt="Event Image" class="event-img" @error="handleEventImageError(event, $event)" />
                         <div v-if="!eventImageSrc(event)" class="event-image-placeholder"></div>
                         <div class="event-price-tag" :class="{ 'price-free': event.price === 'FREE' }">
@@ -217,11 +185,15 @@ export default {
                                 :class="`badge-${(event.category||'').toLowerCase().replace(/\s+/g,'-')}`"
                                 :style="categoryColorMap && categoryColorMap[event.category] ? { backgroundColor: categoryColorMap[event.category], color: '#fff' } : {}"
                             >{{ event.category }}</span>
+                            <span v-if="event.status" class="event-status">{{ event.status }}</span>
                         </div>
 
-                        <h3 class="event-title" @click="openEventModal(event)">{{ event.title }}</h3>
+                        <h3 class="event-title">{{ event.title }}</h3>
 
                         <div class="event-details">
+                            <div class="event-organiser">
+                                <span>By {{ event.organiser }}</span>
+                            </div>
                             <div class="event-datetime">
                                 <span>{{ formatDate(event.date) }} | {{ event.time }}</span>
                             </div>
@@ -233,34 +205,27 @@ export default {
                             </div>
                         </div>
 
-                        <p class="event-description" @click="openEventModal(event)">{{ event.description }}</p>
+                        <p class="event-description">{{ event.description }}</p>
 
                         <!-- Tags Display -->
+                        <!-- Tags Display - Now Clickable! -->
                         <div class="event-tags">
                             <span v-for="tag in event.tags" :key="tag" class="tag-badge"
-                                @click.stop="!isClub && handleTagClick(tag)" :class="{ 'tag-selected': isTagSelected(tag) }">
+                                @click.stop="handleTagClick(tag)" :class="{ 'tag-selected': isTagSelected(tag) }">
                                 #{{ tag }}
                             </span>
-                        </div>
-
-                        <!-- Action Buttons -->
-                        <div class="event-actions">
-                            <button class="btn btn--primary" @click.stop="handleEdit(event)">
-                                Edit Event
-                            </button>
-                            <button class="btn btn--secondary" @click.stop="openEventModal(event)">
-                                Preview
-                            </button>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <!-- Pagination -->
             <Pagination
                 v-if="events.length > 0"
-                :currentPage="currentPage"
-                :totalPages="totalPages"
-                :totalEvents="events.length"
-                :eventsPerPage="itemsPerPage"
+                :currentPage="pagination.currentPage"
+                :totalPages="pagination.totalPages"
+                :totalEvents="pagination.totalEvents"
+                :eventsPerPage="pagination.eventsPerPage"
                 @page-change="handlePageChange"
             />
         </div>
@@ -269,14 +234,8 @@ export default {
             :event="selectedEvent"
             @close="closeEventModal"
             @tag-click="handleTagFromModal"
+            @rsvp-created="handleRsvpCreated"
             @share="handleShare"
-        />
-        <EditEventModal
-            :visible="showEditModal"
-            :event="eventToEdit"
-            @close="closeEditModal"
-            @updated="handleEventUpdated"
-            @deleted="handleEventDeleted"
         />
         <FullImageModal
             :visible="showImageModal"
@@ -323,6 +282,7 @@ export default {
     box-shadow: var(--shadow-sm);
     overflow: hidden;
     transition: transform var(--duration-normal) var(--ease-standard), box-shadow var(--duration-normal) var(--ease-standard), border-color var(--duration-normal) var(--ease-standard);
+    cursor: pointer;
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -359,7 +319,6 @@ export default {
     height: 200px;
     background: var(--color-bg-1);
     flex-shrink: 0;
-    cursor: pointer;
 }
 
 .event-img {
@@ -420,17 +379,21 @@ export default {
     font-weight: var(--font-weight-medium);
 }
 
+.event-status {
+    background-color: var(--color-warning);
+    color: var(--color-white);
+    padding: var(--space-4) var(--space-8);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+}
+
 .event-title {
     font-size: var(--font-size-xl);
     font-weight: var(--font-weight-bold);
     color: var(--color-text);
     margin: 0 0 var(--space-6) 0;
     line-height: var(--line-height-tight);
-    cursor: pointer;
-}
-
-.event-title:hover {
-    color: var(--color-primary);
 }
 
 .event-details {
@@ -451,6 +414,11 @@ export default {
     font-weight: var(--font-weight-medium);
 }
 
+.event-organiser span {
+    font-weight: var(--font-weight-semibold, 550);
+    font-size: var(--font-size-base);
+}
+
 .event-description {
     font-size: var(--font-size-base);
     color: var(--color-text-secondary);
@@ -461,7 +429,6 @@ export default {
     -webkit-box-orient: vertical;
     overflow: hidden;
     flex: 1;
-    cursor: pointer;
 }
 
 .event-tags {
@@ -469,7 +436,26 @@ export default {
     flex-wrap: wrap;
     gap: var(--space-8);
     margin-top: auto;
-    margin-bottom: var(--space-12);
+}
+
+.tag-badge {
+    background-color: var(--color-bg-1, #f0f0f0);
+    color: var(--color-text-secondary);
+    padding: var(--space-4) var(--space-8);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    transition: background-color 0.2s ease;
+}
+
+.tag-badge:hover {
+    background-color: var(--color-bg-2, #e0e0e0);
+}
+
+.event-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-8);
 }
 
 .tag-badge {
@@ -495,47 +481,7 @@ export default {
     border-color: var(--color-primary, #007bff);
 }
 
-.event-actions {
-    display: flex;
-    gap: var(--space-12);
-    margin-top: auto;
-}
-
-.btn {
-    flex: 1;
-    padding: var(--space-10) var(--space-16);
-    border-radius: var(--radius-base);
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-semibold);
-    cursor: pointer;
-    transition: all 0.2s ease;
-    border: none;
-    text-align: center;
-}
-
-.btn--primary {
-    background-color: var(--color-primary);
-    color: white;
-}
-
-.btn--primary:hover {
-    background-color: var(--color-primary-hover);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-sm);
-}
-
-.btn--secondary {
-    background-color: transparent;
-    color: var(--color-text);
-    border: 1px solid var(--color-border);
-}
-
-.btn--secondary:hover {
-    background-color: var(--color-bg-1);
-    border-color: var(--color-primary);
-}
-
-/* Category badge color fallbacks */
+/* Category badge color fallbacks (ensure consistent palette) */
 .badge-academic { background-color: #007bff; color: #fff; }
 .badge-workshop { background-color: #28a745; color: #fff; }
 .badge-performance { background-color: #dc3545; color: #fff; }
@@ -553,10 +499,6 @@ export default {
 @media (max-width: 768px) {
     .events-container {
         grid-template-columns: 1fr;
-    }
-
-    .event-actions {
-        flex-direction: column;
     }
 }
 </style>

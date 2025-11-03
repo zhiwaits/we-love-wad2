@@ -202,7 +202,7 @@ export default {
                     :key="event.id"
                     class="event-card"
                 >
-                    <div class="event-image" @click.stop="openImageModal(event)">
+                    <div class="event-image" @click="openEventModal(event)">
                         <img :src="eventImageSrc(event)" alt="Event Image" class="event-img" @error="handleEventImageError(event, $event)" />
                         <div v-if="!eventImageSrc(event)" class="event-image-placeholder"></div>
                         <div class="event-price-tag" :class="{ 'price-free': event.price === 'FREE' }">
@@ -277,12 +277,6 @@ export default {
             @close="closeEditModal"
             @updated="handleEventUpdated"
             @deleted="handleEventDeleted"
-        />
-        <FullImageModal
-            :visible="showImageModal"
-            :imageSrc="selectedImage"
-            :altText="selectedImageAlt"
-            @close="closeImageModal"
         />
     </section>
 </template>

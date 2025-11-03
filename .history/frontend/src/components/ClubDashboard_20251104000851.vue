@@ -374,6 +374,14 @@ const submitProfileUpdate = async () => {
   }
 };
 
+// Format attendees display
+const formatAttendees = (event) => {
+  if (event.maxAttendees) {
+    return `${event.attendees} / ${event.maxAttendees}`;
+  }
+  return `${event.attendees}`;
+};
+
 const eventImageSrc = (event) => {
   if (!event) return FALLBACK_PLACEHOLDER;
   const raw = event.image || event.image_url || event.imageUrl || event.cover;
@@ -445,6 +453,13 @@ const previewClubCategory = computed(() => {
   const selectedCategory = clubCategories.value.find(cat => cat.id == profileForm.value.club_category_id);
   return selectedCategory ? selectedCategory.name : '';
 });
+
+// Format date for display
+const formatDate = (dateString) => {
+  const date = new Date(dateString);
+  const options = { weekday: 'short', day: 'numeric', month: 'short' };
+  return date.toLocaleDateString('en-US', options);
+};
 
 // Tag handling
 const handleTagClick = (tag) => {
@@ -521,6 +536,81 @@ const handleShare = (event) => {
       <!-- Calendar Section -->
       <section class="calendar-section">
         <ClubCalendar />
+      </section>
+
+      <!-- Upcoming Events Section -->
+      <section class="dashboard-section">
+        <div class="section-header">
+          <h2 class="section-title">My Upcoming Events <span class="section-count">({{ store.getters.upcomingClubEvents?.length || 0 }})</span></h2>
+          <button 
+            type="button" 
+            class="btn btn-outline" 
+            @click="navigateToClubEvents('upcoming')"
+          >
+            Manage Events →
+          </button>
+        </div>
+
+        <!-- Empty State -->
+        <div v-if="!store.getters.upcomingClubEvents || store.getters.upcomingClubEvents.length === 0" class="empty-state">
+          <p class="empty-message">You don't have any upcoming events</p>
+          <router-link to="/create-event" class="btn btn-primary">Create Event</router-link>
+        </div>
+
+        <!-- Events Grid -->
+        <div v-else class="events-grid">
+          <div
+            v-for="event in store.getters.upcomingClubEvents.slice(0, 6)"
+            :key="event.id"
+            class="event-card"
+            role="button"
+            tabindex="0"
+            @click="openEventModal(event)"
+            @keyup.enter.prevent="openEventModal(event)"
+            @keyup.space.prevent="openEventModal(event)"
+          >
+            <div class="event-image" @click.stop="openImageModal(event)">
+              <img :src="eventImageSrc(event)" :alt="event.title" class="event-img" @error="handleEventImageError" />
+              <div class="event-price-tag" :class="{ 'price-free': event.price === 'FREE' }">
+                {{ event.price }}
+              </div>
+            </div>
+
+            <div class="event-content">
+              <div class="event-header">
+                <span
+                  class="event-category"
+                  :style="categoryColorMap[event.category] ? { backgroundColor: categoryColorMap[event.category], color: '#fff' } : {}"
+                >{{ event.category }}</span>
+              </div>
+
+              <h3 class="event-title">{{ event.title }}</h3>
+
+              <div class="event-details">
+                <div class="event-datetime">
+                  <span>{{ formatDate(event.date) }} | {{ event.time }}</span>
+                </div>
+                <div class="event-location">
+                  <span>📍 {{ event.location }}</span>
+                </div>
+                <div class="event-attendees">
+                  <span>👥 {{ formatAttendees(event) }} attending</span>
+                </div>
+              </div>
+
+              <div class="event-tags">
+                <span
+                  v-for="tag in event.tags"
+                  :key="tag"
+                  class="tag-badge"
+                  @click.stop="handleTagClick(tag)"
+                >
+                  #{{ tag }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- Profile Edit Section -->

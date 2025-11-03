@@ -39,11 +39,6 @@ const MAX_CARD_WIDTH = 360;
 const upcomingCarouselIndex = ref(0);
 const savedCarouselIndex = ref(0);
 
-// Image modal state
-const showImageModal = ref(false);
-const selectedImage = ref('');
-const selectedImageAlt = ref('');
-
 // Reactive window width for responsive carousel
 const windowWidth = ref(window.innerWidth);
 const updateCarouselWidths = () => {
@@ -191,18 +186,6 @@ const eventImageSrc = (event) => {
 
 const handleEventImageError = (ev) => {
   if (ev?.target) ev.target.src = FALLBACK_PLACEHOLDER;
-};
-
-const openImageModal = (event) => {
-  selectedImage.value = eventImageSrc(event);
-  selectedImageAlt.value = event.title || 'Event image';
-  showImageModal.value = true;
-};
-
-const closeImageModal = () => {
-  showImageModal.value = false;
-  selectedImage.value = '';
-  selectedImageAlt.value = '';
 };
 
 const openEventModal = (event) => {
@@ -412,7 +395,7 @@ watch(savedEvents, () => {
                 @keyup.enter.prevent="openEventModal(event)"
                 @keyup.space.prevent="openEventModal(event)"
               >
-                <div class="event-image" @click.stop="openImageModal(event)">
+                <div class="event-image">
                   <img :src="eventImageSrc(event)" :alt="event.title" class="event-img" @error="handleEventImageError" />
                   <div class="event-price-tag" :class="{ 'price-free': event.price === 'FREE' }">
                     {{ event.price }}
@@ -508,7 +491,7 @@ watch(savedEvents, () => {
                 @keyup.enter.prevent="openEventModal(event)"
                 @keyup.space.prevent="openEventModal(event)"
               >
-                <div class="event-image" @click.stop="openImageModal(event)">
+                <div class="event-image">
                   <img :src="eventImageSrc(event)" :alt="event.title" class="event-img" @error="handleEventImageError" />
                   <div class="event-price-tag" :class="{ 'price-free': event.price === 'FREE' }">
                     {{ event.price }}
@@ -571,13 +554,6 @@ watch(savedEvents, () => {
       @close="closeEventModal"
       @share="handleShare"
       @tag-click="handleTagFromModal"
-    />
-
-    <FullImageModal
-      :visible="showImageModal"
-      :imageSrc="selectedImage"
-      :altText="selectedImageAlt"
-      @close="closeImageModal"
     />
   </div>
 </template>
