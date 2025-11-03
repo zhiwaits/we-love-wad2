@@ -175,7 +175,6 @@ export default {
       'updatePriceRange',
       'updatePriceFilter',
       'updateDateFilter',
-      'setDateRange',
       'setSpecificDate',
       'updateVenueFilter',
       'updateLocationQuery',
@@ -196,11 +195,6 @@ export default {
     clearSpecificDate() {
       this.updateDateFilter('all');
       this.setSpecificDate(null);
-    },
-
-    clearDateRange() {
-      this.updateDateFilter('all');
-      this.setDateRange({ start: null, end: null });
     },
 
     clearPriceRange() {
@@ -574,45 +568,6 @@ export default {
 .date-input-wrapper .filter-input {
   flex: 1;
   padding-right: 2.5rem; /* Make room for the X button */
-}
-
-.date-range-wrapper {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-  width: 100%;
-}
-
-.date-range {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.date-range .filter-input {
-  flex: 1 1 0;
-  min-width: 0;
-}
-
-.date-range__divider {
-  color: var(--color-text-secondary);
-  font-weight: var(--font-weight-bold);
-}
-
-.date-range-wrapper .date-clear-btn {
-  position: static;
-  transform: none;
-  width: auto;
-  height: auto;
-  padding: 0 var(--space-8);
-  border-radius: var(--radius-base);
-  margin-left: var(--space-8);
-}
-
-.date-range-wrapper .date-clear-btn:hover {
-  background-color: var(--color-bg-2, #e9ecef);
 }
 
 .date-clear-btn {

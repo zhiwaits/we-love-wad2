@@ -10,6 +10,9 @@ const router = useRouter();
 
 const MAX_TAGS = 10;
 
+const DEFAULT_LAT = 1.3521;
+const DEFAULT_LNG = 103.8198;
+
 const form = ref({
 	title: '',
 	description: '',
@@ -27,6 +30,8 @@ const form = ref({
 const imageFile = ref(null);
 const imagePreview = ref('');
 const locationPickerRef = ref(null);
+const useMapLocation = ref(true);
+const savedMapCoordinates = ref({ lat: DEFAULT_LAT, lng: DEFAULT_LNG });
 const showMapPicker = ref(false);
 
 const submitting = ref(false);
@@ -111,6 +116,8 @@ const resetForm = () => {
 		latitude: null,
 		altitude: null
 	};
+	useMapLocation.value = true;
+	savedMapCoordinates.value = { lat: DEFAULT_LAT, lng: DEFAULT_LNG };
 	showMapPicker.value = false;
 	imageFile.value = null;
 	imagePreview.value = '';
@@ -227,6 +234,15 @@ const useTagSuggestion = (tag) => {
 	addTag(tag);
 };
 
+const handleLocationSelected = (locationData) => {
+	// Only update if this is a user action (not initialization)
+	if (locationData.isUserAction === false) {
+		return;
+	}
+	form.value.latitude = locationData.latitude;
+	form.value.altitude = locationData.altitude;
+};
+
 const handleVenueSelected = (selectedVenue) => {
 	// Find the venue data from store
 	const eventVenues = store.state.venues || [];
@@ -257,6 +273,24 @@ const handleVenueSelected = (selectedVenue) => {
 watch(() => form.value.venue, (newVenue) => {
 	if (newVenue) {
 		handleVenueSelected(newVenue);
+	}
+});
+
+watch(useMapLocation, async (enabled) => {
+	if (!enabled) {
+		const currentLat = Number(form.value.latitude);
+		const currentLng = Number(form.value.altitude);
+		if (Number.isFinite(currentLat) && Number.isFinite(currentLng)) {
+			savedMapCoordinates.value = { lat: currentLat, lng: currentLng };
+		}
+		form.value.latitude = null;
+		form.value.altitude = null;
+	} else {
+		const lat = Number(savedMapCoordinates.value?.lat);
+		const lng = Number(savedMapCoordinates.value?.lng);
+		form.value.latitude = Number.isFinite(lat) ? lat : DEFAULT_LAT;
+		form.value.altitude = Number.isFinite(lng) ? lng : DEFAULT_LNG;
+		await nextTick();
 	}
 });
 
@@ -294,7 +328,7 @@ const handleSubmit = async () => {
 			owner_id: ownerId.value,
 			venue: form.value.venue,
 			latitude: latitude,
-			altitude: longitude
+			longitude: longitude
 		};
 		const tagsPayload = selectedTags.value.slice(0, MAX_TAGS);
 

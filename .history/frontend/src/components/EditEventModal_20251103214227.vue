@@ -152,21 +152,14 @@
 
                         <!-- Form Actions -->
                         <footer class="form-actions">
-                            <button type="button" class="btn btn-danger" @click="handleDeleteClick"
+                            <button type="button" class="btn btn-secondary" @click="handleCancelClick"
                                 :disabled="submitting">
-                                <span v-if="!submitting">Delete Event</span>
-                                <span v-else class="loading">Deleting...</span>
+                                Cancel
                             </button>
-                            <div class="form-actions-right">
-                                <button type="button" class="btn btn-secondary" @click="handleCancelClick"
-                                    :disabled="submitting">
-                                    Cancel
-                                </button>
-                                <button type="submit" class="btn btn-primary" :disabled="!isValid || submitting">
-                                    <span v-if="!submitting">Save Changes</span>
-                                    <span v-else class="loading">Saving...</span>
-                                </button>
-                            </div>
+                            <button type="submit" class="btn btn-primary" :disabled="!isValid || submitting">
+                                <span v-if="!submitting">Save Changes</span>
+                                <span v-else class="loading">Saving...</span>
+                            </button>
                         </footer>
                     </form>
                 </div>
@@ -177,7 +170,7 @@
 
 <script>
 import { mapGetters } from 'vuex';
-import { updateEvent, getEventById, deleteEvent } from '../services/eventService';
+import { updateEvent, getEventById } from '../services/eventService';
 import { createEventTag, deleteEventTag, getEventTagsByEventId } from '../services/eventTagService';
 import { createTag, getAllTags } from '../services/tagService';
 import LocationPicker from './LocationPicker.vue';
@@ -456,38 +449,6 @@ export default {
             this.emitClose();
         },
 
-        async handleDeleteClick() {
-            const confirmed = window.confirm(
-                `Are you sure you want to delete "${this.form.title}"? This action cannot be undone and will also remove all RSVPs and saved events for this event.`
-            );
-            if (!confirmed) return;
-
-            this.error = '';
-            this.success = '';
-            this.submitting = true;
-
-            try {
-                await deleteEvent(this.event.id);
-                this.success = 'Event deleted successfully!';
-                
-                // Refresh the events list
-                await Promise.all([
-                    this.$store.dispatch('fetchAllEvents'),
-                    this.$store.dispatch('fetchClubOwnedEvents', { force: true }).catch(() => {})
-                ]);
-                
-                setTimeout(() => {
-                    this.$emit('deleted');
-                    this.emitClose();
-                }, 1000);
-            } catch (err) {
-                console.error('Delete event failed:', err);
-                this.error = err?.response?.data?.error || err?.message || 'Failed to delete event. Please try again.';
-            } finally {
-                this.submitting = false;
-            }
-        },
-
         emitClose() {
             this.$emit('close');
             this.resetForm();
@@ -630,15 +591,11 @@ export default {
                 if (typeof venue === 'object' && venue.latitude && venue.altitude) {
                     this.form.latitude = parseFloat(venue.latitude);
                     this.form.altitude = parseFloat(venue.altitude);
-                    if (!this.form.location.trim()) {
-                        this.form.location = venue.name;
-                    }
+                    this.form.location = venue.name;
                 }
-                // If venue is just a name string, just set the location if it's empty
+                // If venue is just a name string, just set the location
                 else if (typeof venue === 'string') {
-                    if (!this.form.location.trim()) {
-                        this.form.location = venue;
-                    }
+                    this.form.location = venue;
                 }
             }
         },
@@ -1038,17 +995,11 @@ textarea {
 
 .form-actions {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    justify-content: flex-end;
     gap: 12px;
     margin-top: 24px;
     padding-top: 20px;
     border-top: 1px solid var(--color-border);
-}
-
-.form-actions-right {
-    display: flex;
-    gap: 12px;
 }
 
 .btn {
@@ -1085,18 +1036,6 @@ textarea {
 
 .btn-secondary:hover:not(:disabled) {
     background: var(--color-secondary);
-}
-
-.btn-danger {
-    background: var(--color-error);
-    color: #fff;
-    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
-}
-
-.btn-danger:hover:not(:disabled) {
-    background: #dc2626;
-    transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(220, 38, 38, 0.3);
 }
 
 .alert {

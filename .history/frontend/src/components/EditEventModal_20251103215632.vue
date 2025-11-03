@@ -456,38 +456,6 @@ export default {
             this.emitClose();
         },
 
-        async handleDeleteClick() {
-            const confirmed = window.confirm(
-                `Are you sure you want to delete "${this.form.title}"? This action cannot be undone and will also remove all RSVPs and saved events for this event.`
-            );
-            if (!confirmed) return;
-
-            this.error = '';
-            this.success = '';
-            this.submitting = true;
-
-            try {
-                await deleteEvent(this.event.id);
-                this.success = 'Event deleted successfully!';
-                
-                // Refresh the events list
-                await Promise.all([
-                    this.$store.dispatch('fetchAllEvents'),
-                    this.$store.dispatch('fetchClubOwnedEvents', { force: true }).catch(() => {})
-                ]);
-                
-                setTimeout(() => {
-                    this.$emit('deleted');
-                    this.emitClose();
-                }, 1000);
-            } catch (err) {
-                console.error('Delete event failed:', err);
-                this.error = err?.response?.data?.error || err?.message || 'Failed to delete event. Please try again.';
-            } finally {
-                this.submitting = false;
-            }
-        },
-
         emitClose() {
             this.$emit('close');
             this.resetForm();
@@ -1038,17 +1006,11 @@ textarea {
 
 .form-actions {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    justify-content: flex-end;
     gap: 12px;
     margin-top: 24px;
     padding-top: 20px;
     border-top: 1px solid var(--color-border);
-}
-
-.form-actions-right {
-    display: flex;
-    gap: 12px;
 }
 
 .btn {
@@ -1085,18 +1047,6 @@ textarea {
 
 .btn-secondary:hover:not(:disabled) {
     background: var(--color-secondary);
-}
-
-.btn-danger {
-    background: var(--color-error);
-    color: #fff;
-    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
-}
-
-.btn-danger:hover:not(:disabled) {
-    background: #dc2626;
-    transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(220, 38, 38, 0.3);
 }
 
 .alert {

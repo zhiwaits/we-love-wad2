@@ -580,39 +580,23 @@ export default {
   display: flex;
   align-items: center;
   gap: var(--space-8);
-  width: 100%;
 }
 
 .date-range {
   display: flex;
   align-items: center;
   gap: var(--space-8);
-  flex: 1 1 auto;
-  min-width: 0;
+  flex-wrap: nowrap;
 }
 
 .date-range .filter-input {
-  flex: 1 1 0;
+  width: 9rem;
   min-width: 0;
 }
 
 .date-range__divider {
   color: var(--color-text-secondary);
   font-weight: var(--font-weight-bold);
-}
-
-.date-range-wrapper .date-clear-btn {
-  position: static;
-  transform: none;
-  width: auto;
-  height: auto;
-  padding: 0 var(--space-8);
-  border-radius: var(--radius-base);
-  margin-left: var(--space-8);
-}
-
-.date-range-wrapper .date-clear-btn:hover {
-  background-color: var(--color-bg-2, #e9ecef);
 }
 
 .date-clear-btn {

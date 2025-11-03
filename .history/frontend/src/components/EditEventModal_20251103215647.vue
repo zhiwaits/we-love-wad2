@@ -1038,17 +1038,11 @@ textarea {
 
 .form-actions {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    justify-content: flex-end;
     gap: 12px;
     margin-top: 24px;
     padding-top: 20px;
     border-top: 1px solid var(--color-border);
-}
-
-.form-actions-right {
-    display: flex;
-    gap: 12px;
 }
 
 .btn {

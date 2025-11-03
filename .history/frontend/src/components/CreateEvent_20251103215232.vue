@@ -111,6 +111,8 @@ const resetForm = () => {
 		latitude: null,
 		altitude: null
 	};
+	useMapLocation.value = true;
+	savedMapCoordinates.value = { lat: DEFAULT_LAT, lng: DEFAULT_LNG };
 	showMapPicker.value = false;
 	imageFile.value = null;
 	imagePreview.value = '';
@@ -294,7 +296,7 @@ const handleSubmit = async () => {
 			owner_id: ownerId.value,
 			venue: form.value.venue,
 			latitude: latitude,
-			altitude: longitude
+			longitude: longitude
 		};
 		const tagsPayload = selectedTags.value.slice(0, MAX_TAGS);
 
