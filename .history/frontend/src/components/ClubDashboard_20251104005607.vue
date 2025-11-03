@@ -374,6 +374,14 @@ const submitProfileUpdate = async () => {
   }
 };
 
+// Format attendees display
+const formatAttendees = (event) => {
+  if (event.maxAttendees) {
+    return `${event.attendees} / ${event.maxAttendees}`;
+  }
+  return `${event.attendees}`;
+};
+
 const eventImageSrc = (event) => {
   if (!event) return FALLBACK_PLACEHOLDER;
   const raw = event.image || event.image_url || event.imageUrl || event.cover;
@@ -445,6 +453,13 @@ const previewClubCategory = computed(() => {
   const selectedCategory = clubCategories.value.find(cat => cat.id == profileForm.value.club_category_id);
   return selectedCategory ? selectedCategory.name : '';
 });
+
+// Format date for display
+const formatDate = (dateString) => {
+  const date = new Date(dateString);
+  const options = { weekday: 'short', day: 'numeric', month: 'short' };
+  return date.toLocaleDateString('en-US', options);
+};
 
 // Tag handling
 const handleTagClick = (tag) => {
