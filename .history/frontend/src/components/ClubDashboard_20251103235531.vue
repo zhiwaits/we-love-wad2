@@ -237,8 +237,6 @@ const handleRemoveSingleRsvp = async ({ eventId, userId }) => {
   }
 };
 
-// Preview modal methods
-
 const handleRemoveAllRsvps = async ({ eventId, rsvps }) => {
   if (!eventId || !Array.isArray(rsvps) || rsvps.length === 0 || rsvpActionKey.value) {
     return;
@@ -417,6 +415,32 @@ const closeEventModal = () => {
   selectedEvent.value = null;
 };
 
+const handleShare = async () => {
+  if (!selectedEvent.value) return;
+  try {
+    await shareEventLink(selectedEvent.value);
+    store.dispatch('showToast', {
+      message: 'Event link copied to your clipboard.',
+      type: 'success'
+    });
+  } catch (error) {
+    console.error('Unable to share event', error);
+    store.dispatch('showToast', {
+      message: 'Unable to share this event. Please try again.',
+      type: 'error'
+    });
+  }
+};
+
+const handleTagClick = (tag) => {
+  store.dispatch('toggleTag', tag);
+};
+
+const handleTagFromModal = (tag) => {
+  handleTagClick(tag);
+  closeEventModal();
+};
+
 // Preview modal methods
 const openPreviewModal = async () => {
   try {
@@ -453,29 +477,6 @@ const previewClubCategory = computed(() => {
   const selectedCategory = clubCategories.value.find(cat => cat.id == profileForm.value.club_category_id);
   return selectedCategory ? selectedCategory.name : '';
 });
-
-// Format date for display
-const formatDate = (dateString) => {
-  const date = new Date(dateString);
-  const options = { weekday: 'short', day: 'numeric', month: 'short' };
-  return date.toLocaleDateString('en-US', options);
-};
-
-// Tag handling
-const handleTagClick = (tag) => {
-  // Navigate to events page with tag filter
-  router.push({ name: 'BrowseEvents', query: { tags: tag } });
-};
-
-const handleTagFromModal = (tag) => {
-  handleTagClick(tag);
-  closeEventModal();
-};
-
-// Share event
-const handleShare = (event) => {
-  shareEventLink(event);
-};
 </script>
 
 <template>
@@ -889,13 +890,6 @@ const handleShare = (event) => {
   color: var(--color-text);
 }
 
-.section-count {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-normal);
-  color: var(--color-text-secondary);
-  margin-left: var(--space-8);
-}
-
 .section-link {
   color: var(--color-primary);
   text-decoration: none;
@@ -1272,21 +1266,6 @@ const handleShare = (event) => {
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-/* Empty State */
-.empty-state {
-  text-align: center;
-  padding: var(--space-48) var(--space-24);
-  background-color: var(--color-surface);
-  border-radius: var(--border-radius-lg);
-  border: 2px dashed var(--color-border);
-}
-
-.empty-message {
-  font-size: var(--font-size-base);
-  color: var(--color-text-secondary);
-  margin: 0 0 var(--space-24) 0;
 }
 
 </style>

@@ -186,18 +186,18 @@ export default {
                 this.totalEvents = 0;
             }
         },
+    },
 
-        openImageModal(club) {
-            this.selectedImage = this.clubImageSrc(club);
-            this.selectedImageAlt = club.name || 'Club image';
-            this.showImageModal = true;
-        },
+    openImageModal(club) {
+        this.selectedImage = this.clubImageSrc(club);
+        this.selectedImageAlt = club.name || 'Club image';
+        this.showImageModal = true;
+    },
 
-        closeImageModal() {
-            this.showImageModal = false;
-            this.selectedImage = '';
-            this.selectedImageAlt = '';
-        }
+    closeImageModal() {
+        this.showImageModal = false;
+        this.selectedImage = '';
+        this.selectedImageAlt = '';
     },
     watch: {
         filteredClubs() {

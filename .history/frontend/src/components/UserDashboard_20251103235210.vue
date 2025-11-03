@@ -508,7 +508,7 @@ watch(savedEvents, () => {
                 @keyup.enter.prevent="openEventModal(event)"
                 @keyup.space.prevent="openEventModal(event)"
               >
-                <div class="event-image" @click.stop="openImageModal(event)">
+                <div class="event-image">
                   <img :src="eventImageSrc(event)" :alt="event.title" class="event-img" @error="handleEventImageError" />
                   <div class="event-price-tag" :class="{ 'price-free': event.price === 'FREE' }">
                     {{ event.price }}

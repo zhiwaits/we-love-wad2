@@ -14,7 +14,6 @@ export default {
     components: {
         EventDetailModal,
         EditEventModal,
-        FullImageModal,
         Pagination
     },
 
@@ -25,10 +24,7 @@ export default {
             showEditModal: false,
             eventToEdit: null,
             currentPage: 1,
-            itemsPerPage: 6,
-            showImageModal: false,
-            selectedImage: '',
-            selectedImageAlt: ''
+            itemsPerPage: 6
         };
     },
 
@@ -164,18 +160,6 @@ export default {
 
         isTagSelected(tag) {
             return this.clubEventFilters.selectedTags.includes(tag);
-        },
-
-        openImageModal(event) {
-            this.selectedImage = this.eventImageSrc(event);
-            this.selectedImageAlt = event.title || 'Event image';
-            this.showImageModal = true;
-        },
-
-        closeImageModal() {
-            this.showImageModal = false;
-            this.selectedImage = '';
-            this.selectedImageAlt = '';
         }
     },
     watch: {
@@ -202,7 +186,7 @@ export default {
                     :key="event.id"
                     class="event-card"
                 >
-                    <div class="event-image" @click.stop="openImageModal(event)">
+                    <div class="event-image" @click="openEventModal(event)">
                         <img :src="eventImageSrc(event)" alt="Event Image" class="event-img" @error="handleEventImageError(event, $event)" />
                         <div v-if="!eventImageSrc(event)" class="event-image-placeholder"></div>
                         <div class="event-price-tag" :class="{ 'price-free': event.price === 'FREE' }">
@@ -277,12 +261,6 @@ export default {
             @close="closeEditModal"
             @updated="handleEventUpdated"
             @deleted="handleEventDeleted"
-        />
-        <FullImageModal
-            :visible="showImageModal"
-            :imageSrc="selectedImage"
-            :altText="selectedImageAlt"
-            @close="closeImageModal"
         />
     </section>
 </template>

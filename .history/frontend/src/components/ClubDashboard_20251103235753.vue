@@ -232,12 +232,19 @@ const handleRemoveSingleRsvp = async ({ eventId, userId }) => {
   } catch (error) {
     console.error('Failed to remove RSVP:', error);
     store.dispatch('showToast', { message: 'Failed to remove RSVP. Please try again.', type: 'error' });
+  }
+};
+
+const handleTagFromModal = (tag) => {
+  handleTagClick(tag);
+  closeEventModal();
+};
+
+// Preview modal methods
   } finally {
     rsvpActionKey.value = null;
   }
 };
-
-// Preview modal methods
 
 const handleRemoveAllRsvps = async ({ eventId, rsvps }) => {
   if (!eventId || !Array.isArray(rsvps) || rsvps.length === 0 || rsvpActionKey.value) {
@@ -415,6 +422,32 @@ const openEventModal = (event) => {
 const closeEventModal = () => {
   showEventModal.value = false;
   selectedEvent.value = null;
+};
+
+const handleShare = async () => {
+  if (!selectedEvent.value) return;
+  try {
+    await shareEventLink(selectedEvent.value);
+    store.dispatch('showToast', {
+      message: 'Event link copied to your clipboard.',
+      type: 'success'
+    });
+  } catch (error) {
+    console.error('Unable to share event', error);
+    store.dispatch('showToast', {
+      message: 'Unable to share this event. Please try again.',
+      type: 'error'
+    });
+  }
+};
+
+const handleTagClick = (tag) => {
+  store.dispatch('toggleTag', tag);
+};
+
+const handleTagFromModal = (tag) => {
+  handleTagClick(tag);
+  closeEventModal();
 };
 
 // Preview modal methods

@@ -417,6 +417,23 @@ const closeEventModal = () => {
   selectedEvent.value = null;
 };
 
+const handleShare = async () => {
+  if (!selectedEvent.value) return;
+  try {
+    await shareEventLink(selectedEvent.value);
+    store.dispatch('showToast', {
+      message: 'Event link copied to your clipboard.',
+      type: 'success'
+    });
+  } catch (error) {
+    console.error('Unable to share event', error);
+    store.dispatch('showToast', {
+      message: 'Unable to share this event. Please try again.',
+      type: 'error'
+    });
+  }
+};
+
 // Preview modal methods
 const openPreviewModal = async () => {
   try {

@@ -237,8 +237,6 @@ const handleRemoveSingleRsvp = async ({ eventId, userId }) => {
   }
 };
 
-// Preview modal methods
-
 const handleRemoveAllRsvps = async ({ eventId, rsvps }) => {
   if (!eventId || !Array.isArray(rsvps) || rsvps.length === 0 || rsvpActionKey.value) {
     return;
@@ -417,6 +415,32 @@ const closeEventModal = () => {
   selectedEvent.value = null;
 };
 
+const handleShare = async () => {
+  if (!selectedEvent.value) return;
+  try {
+    await shareEventLink(selectedEvent.value);
+    store.dispatch('showToast', {
+      message: 'Event link copied to your clipboard.',
+      type: 'success'
+    });
+  } catch (error) {
+    console.error('Unable to share event', error);
+    store.dispatch('showToast', {
+      message: 'Unable to share this event. Please try again.',
+      type: 'error'
+    });
+  }
+};
+
+const handleTagClick = (tag) => {
+  store.dispatch('toggleTag', tag);
+};
+
+const handleTagFromModal = (tag) => {
+  handleTagClick(tag);
+  closeEventModal();
+};
+
 // Preview modal methods
 const openPreviewModal = async () => {
   try {
@@ -459,6 +483,17 @@ const formatDate = (dateString) => {
   const date = new Date(dateString);
   const options = { weekday: 'short', day: 'numeric', month: 'short' };
   return date.toLocaleDateString('en-US', options);
+};
+
+// Event modal methods
+const openEventModal = (event) => {
+  selectedEvent.value = event;
+  showEventModal.value = true;
+};
+
+const closeEventModal = () => {
+  showEventModal.value = false;
+  selectedEvent.value = null;
 };
 
 // Tag handling
