@@ -2,6 +2,16 @@
   <div class="club-calendar">
     <div class="calendar-header">
       <h3>Club Events Calendar</h3>
+      <div class="calendar-legend">
+        <span class="legend-item upcoming">
+          <span class="legend-dot"></span>
+          Upcoming Events
+        </span>
+        <span class="legend-item past">
+          <span class="legend-dot"></span>
+          Past Events
+        </span>
+      </div>
     </div>
 
     <FullCalendar :options="calendarOptions" />
@@ -15,7 +25,7 @@
         <h5>Calendar Events:</h5>
         <ul>
           <li v-for="event in calendarEvents" :key="event.id">
-            {{ event.title }} - {{ event.start }}
+            {{ event.title }} - {{ event.start }} ({{ event.extendedProps.eventType }})
           </li>
         </ul>
       </div>

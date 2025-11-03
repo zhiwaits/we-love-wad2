@@ -2,9 +2,19 @@
   <div class="club-calendar">
     <div class="calendar-header">
       <h3>Club Events Calendar</h3>
+      <div class="calendar-legend">
+        <span class="legend-item upcoming">
+          <span class="legend-dot"></span>
+          Upcoming Events
+        </span>
+        <span class="legend-item past">
+          <span class="legend-dot"></span>
+          Past Events
+        </span>
+      </div>
     </div>
 
-    <FullCalendar :options="calendarOptions" />
+    <FullCalendar :options="calendarOptions" :events="calendarEvents" />
 
     <!-- Debug: Show events data -->
     <div style="margin-top: 20px; padding: 10px; background: #f0f0f0; border: 1px solid #ccc;">
@@ -15,7 +25,7 @@
         <h5>Calendar Events:</h5>
         <ul>
           <li v-for="event in calendarEvents" :key="event.id">
-            {{ event.title }} - {{ event.start }}
+            {{ event.title }} - {{ event.start }} ({{ event.extendedProps.eventStatus }})
           </li>
         </ul>
       </div>
@@ -149,54 +159,73 @@ const clubEvents = computed(() => {
 
 // Transform events for FullCalendar
 const calendarEvents = computed(() => {
+  console.log('ClubCalendar calendarEvents - clubEvents:', clubEvents.value);
   const events = [];
-  console.log('=== CLUB CALENDAR DEBUG ===');
-  console.log('Club Events:', clubEvents.value.length);
+  const now = new Date();
 
   clubEvents.value.forEach(event => {
-    console.log('Processing club event:', event.id, event.title, event.date);
-    const eventDate = new Date(event.datetime || event.date);
+    console.log('Processing event:', event.id, event.title, event.date, event.datetime);
+    // Use datetime if available, otherwise use date
+    const dateToUse = event.datetime || event.date;
+    const eventDate = new Date(dateToUse);
+    console.log('Using date:', dateToUse, 'parsed as:', eventDate, 'is valid date:', !isNaN(eventDate.getTime()));
     
+    // Ensure we have a valid date
     if (isNaN(eventDate.getTime())) {
-      console.error('Invalid date for event:', event.id, event.date);
-      return;
+      console.error('Invalid date for event:', event.id, dateToUse);
+      return; // Skip this event
     }
+    
+    const isUpcoming = eventDate > now;
+    console.log('Event date parsed:', eventDate, 'isUpcoming:', isUpcoming, 'now:', now);
 
-    events.push({
-      id: `club-${event.id}`,
+    // Count RSVPs for this event
+    const rsvpCount = clubRSVPs.value.filter(rsvp => rsvp.event_id === event.id).length;
+
+    const calendarEvent = {
+      id: `event-${event.id}`,
       title: event.title,
-      start: event.date,
+      start: eventDate, // Pass Date object directly to FullCalendar
+      backgroundColor: isUpcoming ? '#10b981' : '#6b7280',
+      borderColor: isUpcoming ? '#059669' : '#4b5563',
+      textColor: '#ffffff',
       extendedProps: {
         eventId: event.id,
-        eventType: 'club',
+        eventStatus: isUpcoming ? 'upcoming' : 'past',
         description: event.description,
         venue: event.venue || event.location,
         category: event.category,
         time: event.time,
         imageUrl: event.image,
-        organiser: event.organiser,
         price: event.price,
         capacity: event.capacity || event.maxAttendees,
-        rsvpCount: 0 // Club events don't need RSVP count in calendar
+        rsvpCount: rsvpCount
       }
-    });
+    };
+
+    console.log('Created calendar event:', calendarEvent);
+    events.push(calendarEvent);
   });
 
-  console.log('Final club calendar events:', events.length);
-  console.log('=== END CLUB CALENDAR DEBUG ===');
-  return events;
+  console.log('ClubCalendar calendarEvents - final events array:', events);
+  return [...events]; // Return a new array to ensure reactivity
 });
+
+// Force calendar update when events change
+watch(calendarEvents, (newEvents) => {
+  console.log('Calendar events changed, new events:', newEvents);
+}, { deep: true });
 
 // Calendar configuration
 const calendarOptions = ref({
   plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin],
   initialView: 'dayGridMonth',
+  initialDate: '2025-10-23', // Set initial date to when the event is
   headerToolbar: {
     left: 'prev,next today',
     center: 'title',
     right: 'dayGridMonth,timeGridWeek,listWeek'
   },
-  events: [], // Start with empty array, will be updated by watch
   eventClick: handleEventClick,
   editable: false,
   selectable: true,
@@ -210,13 +239,9 @@ const calendarOptions = ref({
     hour: '2-digit',
     minute: '2-digit',
     meridiem: 'short'
-  }
+  },
+  events: calendarEvents.value // Try setting events directly in options
 });
-
-// Watch for events changes and update calendar
-watch(calendarEvents, (newEvents) => {
-  calendarOptions.value.events = newEvents;
-}, { deep: true, immediate: true });
 
 // Handle event click
 function handleEventClick(info) {

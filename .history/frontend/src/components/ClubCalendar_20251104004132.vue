@@ -2,20 +2,30 @@
   <div class="club-calendar">
     <div class="calendar-header">
       <h3>Club Events Calendar</h3>
+      <div class="calendar-legend">
+        <span class="legend-item upcoming">
+          <span class="legend-dot"></span>
+          Upcoming Events
+        </span>
+        <span class="legend-item past">
+          <span class="legend-dot"></span>
+          Past Events
+        </span>
+      </div>
     </div>
 
-    <FullCalendar :options="calendarOptions" />
+    <FullCalendar ref="calendarRef" :options="calendarOptions" />
 
     <!-- Debug: Show events data -->
     <div style="margin-top: 20px; padding: 10px; background: #f0f0f0; border: 1px solid #ccc;">
       <h4>Debug: Events Data</h4>
       <p>Club Events Count: {{ clubEvents.length }}</p>
-      <p>Calendar Events Count: {{ calendarEvents.length }}</p>
-      <div v-if="calendarEvents.length > 0">
+      <p>Calendar Events Count: {{ calendarEventsRef.length }}</p>
+      <div v-if="calendarEventsRef.length > 0">
         <h5>Calendar Events:</h5>
         <ul>
-          <li v-for="event in calendarEvents" :key="event.id">
-            {{ event.title }} - {{ event.start }}
+          <li v-for="event in calendarEventsRef" :key="event.id">
+            {{ event.title }} - {{ event.start }} ({{ event.extendedProps.eventStatus }})
           </li>
         </ul>
       </div>
@@ -123,6 +133,8 @@ const currentUser = computed(() => store.getters['auth/currentUser']);
 const clubRSVPs = computed(() => store.state.clubRSVPs);
 
 const selectedEvent = ref(null);
+const calendarEventsRef = ref([]);
+const calendarRef = ref(null);
 
 // Load events on mount
 onMounted(async () => {
@@ -138,7 +150,7 @@ onMounted(async () => {
 
   // Log final calendar events after everything is loaded
   await nextTick();
-  console.log('ClubCalendar onMounted - final calendarEvents:', calendarEvents.value);
+  console.log('ClubCalendar onMounted - final calendarEventsRef:', calendarEventsRef.value);
 });
 
 // Get club's events only
@@ -148,44 +160,72 @@ const clubEvents = computed(() => {
 });
 
 // Transform events for FullCalendar
-const calendarEvents = computed(() => {
+const updateCalendarEvents = () => {
+  console.log('updateCalendarEvents - clubEvents:', clubEvents.value);
   const events = [];
-  console.log('=== CLUB CALENDAR DEBUG ===');
-  console.log('Club Events:', clubEvents.value.length);
+  const now = new Date();
 
   clubEvents.value.forEach(event => {
-    console.log('Processing club event:', event.id, event.title, event.date);
-    const eventDate = new Date(event.datetime || event.date);
+    console.log('Processing event:', event.id, event.title, event.date, event.datetime);
+    // Use datetime if available, otherwise use date
+    const dateToUse = event.datetime || event.date;
+    const eventDate = new Date(dateToUse);
+    console.log('Using date:', dateToUse, 'parsed as:', eventDate, 'is valid date:', !isNaN(eventDate.getTime()));
     
+    // Ensure we have a valid date
     if (isNaN(eventDate.getTime())) {
-      console.error('Invalid date for event:', event.id, event.date);
-      return;
+      console.error('Invalid date for event:', event.id, dateToUse);
+      return; // Skip this event
     }
+    
+    const isUpcoming = eventDate > now;
+    console.log('Event date parsed:', eventDate, 'isUpcoming:', isUpcoming, 'now:', now);
 
-    events.push({
-      id: `club-${event.id}`,
+    // Count RSVPs for this event
+    const rsvpCount = clubRSVPs.value.filter(rsvp => rsvp.event_id === event.id).length;
+
+    const calendarEvent = {
+      id: `event-${event.id}`,
       title: event.title,
-      start: event.date,
+      start: eventDate, // Pass Date object directly to FullCalendar
+      backgroundColor: isUpcoming ? '#10b981' : '#6b7280',
+      borderColor: isUpcoming ? '#059669' : '#4b5563',
+      textColor: '#ffffff',
       extendedProps: {
         eventId: event.id,
-        eventType: 'club',
+        eventStatus: isUpcoming ? 'upcoming' : 'past',
         description: event.description,
         venue: event.venue || event.location,
         category: event.category,
         time: event.time,
         imageUrl: event.image,
-        organiser: event.organiser,
         price: event.price,
         capacity: event.capacity || event.maxAttendees,
-        rsvpCount: 0 // Club events don't need RSVP count in calendar
+        rsvpCount: rsvpCount
       }
-    });
+    };
+
+    console.log('Created calendar event:', calendarEvent);
+    events.push(calendarEvent);
   });
 
-  console.log('Final club calendar events:', events.length);
-  console.log('=== END CLUB CALENDAR DEBUG ===');
-  return events;
-});
+  console.log('updateCalendarEvents - final events array:', events);
+  calendarEventsRef.value = [...events]; // Update the ref
+  
+  // If calendar is mounted, add events directly
+  if (calendarRef.value) {
+    console.log('Adding events directly to calendar');
+    const calendarApi = calendarRef.value.getApi();
+    calendarApi.removeAllEvents(); // Clear existing events
+    calendarApi.addEventSource(events); // Add new events
+  }
+};
+
+// Watch for changes in clubEvents and update calendar events
+watch(clubEvents, () => {
+  console.log('clubEvents changed, updating calendar events');
+  updateCalendarEvents();
+}, { immediate: true });
 
 // Calendar configuration
 const calendarOptions = ref({
@@ -196,7 +236,6 @@ const calendarOptions = ref({
     center: 'title',
     right: 'dayGridMonth,timeGridWeek,listWeek'
   },
-  events: [], // Start with empty array, will be updated by watch
   eventClick: handleEventClick,
   editable: false,
   selectable: true,
@@ -212,11 +251,6 @@ const calendarOptions = ref({
     meridiem: 'short'
   }
 });
-
-// Watch for events changes and update calendar
-watch(calendarEvents, (newEvents) => {
-  calendarOptions.value.events = newEvents;
-}, { deep: true, immediate: true });
 
 // Handle event click
 function handleEventClick(info) {

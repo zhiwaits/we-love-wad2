@@ -2,24 +2,19 @@
   <div class="club-calendar">
     <div class="calendar-header">
       <h3>Club Events Calendar</h3>
-    </div>
-
-    <FullCalendar :options="calendarOptions" />
-
-    <!-- Debug: Show events data -->
-    <div style="margin-top: 20px; padding: 10px; background: #f0f0f0; border: 1px solid #ccc;">
-      <h4>Debug: Events Data</h4>
-      <p>Club Events Count: {{ clubEvents.length }}</p>
-      <p>Calendar Events Count: {{ calendarEvents.length }}</p>
-      <div v-if="calendarEvents.length > 0">
-        <h5>Calendar Events:</h5>
-        <ul>
-          <li v-for="event in calendarEvents" :key="event.id">
-            {{ event.title }} - {{ event.start }}
-          </li>
-        </ul>
+      <div class="calendar-legend">
+        <span class="legend-item upcoming">
+          <span class="legend-dot"></span>
+          Upcoming Events
+        </span>
+        <span class="legend-item past">
+          <span class="legend-dot"></span>
+          Past Events
+        </span>
       </div>
     </div>
+
+    <FullCalendar :options="calendarOptions" :events="calendarEvents" />
 
     <!-- Event Detail Modal -->
     <transition name="modal-fade">
@@ -106,7 +101,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useStore } from 'vuex';
 import FullCalendar from '@fullcalendar/vue3';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -117,73 +112,71 @@ import listPlugin from '@fullcalendar/list';
 const store = useStore();
 
 // Get events from store
-const allEvents = computed(() => store.state.allEvents);
-const clubOwnedEvents = computed(() => store.state.clubOwnedEvents);
+const ownedEventSource = computed(() => {
+  const owned = store.state.clubOwnedEvents;
+  if (Array.isArray(owned) && owned.length > 0) {
+    return owned;
+  }
+  return store.state.allEvents;
+});
 const currentUser = computed(() => store.getters['auth/currentUser']);
 const clubRSVPs = computed(() => store.state.clubRSVPs);
 
 const selectedEvent = ref(null);
 
-// Load events on mount
+// Load club events on mount
 onMounted(async () => {
-  console.log('ClubCalendar onMounted - currentUser:', currentUser.value);
-  console.log('ClubCalendar onMounted - clubOwnedEvents length:', clubOwnedEvents.value.length);
-  
-  // Ensure club owned events are loaded
-  if (clubOwnedEvents.value.length === 0) {
-    console.log('ClubCalendar - fetching club owned events');
-    await store.dispatch('fetchClubOwnedEvents');
-    console.log('ClubCalendar - after fetch, clubOwnedEvents length:', clubOwnedEvents.value.length);
+  const userId = currentUser.value?.id;
+  if (userId) {
+    await store.dispatch('fetchClubOwnedEvents', userId);
   }
-
-  // Log final calendar events after everything is loaded
-  await nextTick();
-  console.log('ClubCalendar onMounted - final calendarEvents:', calendarEvents.value);
 });
 
 // Get club's events only
 const clubEvents = computed(() => {
-  console.log('ClubCalendar clubEvents - clubOwnedEvents:', clubOwnedEvents.value);
-  return clubOwnedEvents.value;
+  const ownerId = Number(currentUser.value?.id);
+  if (!Number.isFinite(ownerId)) return [];
+  return (ownedEventSource.value || []).filter((event) => {
+    const possibleOwner = event?.ownerId != null ? event.ownerId : event?.owner_id;
+    const numeric = Number(possibleOwner);
+    return Number.isFinite(numeric) && numeric === ownerId;
+  });
 });
 
 // Transform events for FullCalendar
 const calendarEvents = computed(() => {
   const events = [];
-  console.log('=== CLUB CALENDAR DEBUG ===');
-  console.log('Club Events:', clubEvents.value.length);
+  const now = new Date();
 
   clubEvents.value.forEach(event => {
-    console.log('Processing club event:', event.id, event.title, event.date);
-    const eventDate = new Date(event.datetime || event.date);
-    
-    if (isNaN(eventDate.getTime())) {
-      console.error('Invalid date for event:', event.id, event.date);
-      return;
-    }
+    const eventDate = new Date(event.date);
+    const isUpcoming = eventDate > now;
+
+    // Count RSVPs for this event
+    const rsvpCount = clubRSVPs.value.filter(rsvp => rsvp.event_id === event.id).length;
 
     events.push({
-      id: `club-${event.id}`,
+      id: `event-${event.id}`,
       title: event.title,
       start: event.date,
+      backgroundColor: isUpcoming ? '#10b981' : '#6b7280',
+      borderColor: isUpcoming ? '#059669' : '#4b5563',
+      textColor: '#ffffff',
       extendedProps: {
         eventId: event.id,
-        eventType: 'club',
+        eventStatus: isUpcoming ? 'upcoming' : 'past',
         description: event.description,
         venue: event.venue || event.location,
         category: event.category,
         time: event.time,
         imageUrl: event.image,
-        organiser: event.organiser,
         price: event.price,
         capacity: event.capacity || event.maxAttendees,
-        rsvpCount: 0 // Club events don't need RSVP count in calendar
+        rsvpCount: rsvpCount
       }
     });
   });
 
-  console.log('Final club calendar events:', events.length);
-  console.log('=== END CLUB CALENDAR DEBUG ===');
   return events;
 });
 
@@ -196,7 +189,6 @@ const calendarOptions = ref({
     center: 'title',
     right: 'dayGridMonth,timeGridWeek,listWeek'
   },
-  events: [], // Start with empty array, will be updated by watch
   eventClick: handleEventClick,
   editable: false,
   selectable: true,
@@ -213,14 +205,16 @@ const calendarOptions = ref({
   }
 });
 
-// Watch for events changes and update calendar
-watch(calendarEvents, (newEvents) => {
-  calendarOptions.value.events = newEvents;
-}, { deep: true, immediate: true });
-
 // Handle event click
 function handleEventClick(info) {
   selectedEvent.value = info.event;
+  
+  // Load fresh user data when modal opens
+  const userId = currentUser.value?.id;
+  if (userId) {
+    store.dispatch('fetchUserRSVPs', userId);
+    store.dispatch('loadSavedEvents', userId);
+  }
 }
 
 // Close modal
@@ -333,7 +327,7 @@ function formatEventDate(date) {
 }
 
 :deep(.fc-day-today) {
-  background-color: #ecfdf5 !important;
+  background-color: #eff6ff !important;
 }
 
 :deep(.fc-event) {

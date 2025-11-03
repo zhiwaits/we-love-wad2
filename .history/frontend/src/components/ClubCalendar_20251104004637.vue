@@ -15,7 +15,7 @@
         <h5>Calendar Events:</h5>
         <ul>
           <li v-for="event in calendarEvents" :key="event.id">
-            {{ event.title }} - {{ event.start }}
+            {{ event.title }} - {{ event.start }} ({{ event.extendedProps.eventType }})
           </li>
         </ul>
       </div>

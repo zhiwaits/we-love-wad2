@@ -2,24 +2,27 @@
   <div class="club-calendar">
     <div class="calendar-header">
       <h3>Club Events Calendar</h3>
-    </div>
-
-    <FullCalendar :options="calendarOptions" />
-
-    <!-- Debug: Show events data -->
-    <div style="margin-top: 20px; padding: 10px; background: #f0f0f0; border: 1px solid #ccc;">
-      <h4>Debug: Events Data</h4>
-      <p>Club Events Count: {{ clubEvents.length }}</p>
-      <p>Calendar Events Count: {{ calendarEvents.length }}</p>
-      <div v-if="calendarEvents.length > 0">
-        <h5>Calendar Events:</h5>
-        <ul>
-          <li v-for="event in calendarEvents" :key="event.id">
-            {{ event.title }} - {{ event.start }}
-          </li>
-        </ul>
+      <div class="calendar-legend">
+        <span class="legend-item both">
+          <span class="legend-dot"></span>
+          RSVPs & Saved
+        </span>
+        <span class="legend-item rsvp">
+          <span class="legend-dot"></span>
+          Has RSVPs
+        </span>
+        <span class="legend-item saved">
+          <span class="legend-dot"></span>
+          Saved by You
+        </span>
+        <span class="legend-item none">
+          <span class="legend-dot"></span>
+          No Engagement
+        </span>
       </div>
     </div>
+
+    <FullCalendar :options="calendarOptions" :events="calendarEvents" />
 
     <!-- Event Detail Modal -->
     <transition name="modal-fade">
@@ -33,8 +36,8 @@
             </div>
 
             <div class="event-details">
-              <span class="event-badge" :class="selectedEvent.extendedProps.eventStatus">
-                {{ selectedEvent.extendedProps.eventStatus === 'upcoming' ? 'Upcoming' : 'Past' }}
+              <span class="event-badge" :class="selectedEvent.extendedProps.eventType">
+                {{ getEventTypeLabel(selectedEvent.extendedProps.eventType) }}
               </span>
 
               <h2>{{ selectedEvent.title }}</h2>
@@ -106,7 +109,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import { ref, computed } from 'vue';
 import { useStore } from 'vuex';
 import FullCalendar from '@fullcalendar/vue3';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -117,73 +120,94 @@ import listPlugin from '@fullcalendar/list';
 const store = useStore();
 
 // Get events from store
-const allEvents = computed(() => store.state.allEvents);
-const clubOwnedEvents = computed(() => store.state.clubOwnedEvents);
+const ownedEventSource = computed(() => {
+  const owned = store.state.clubOwnedEvents;
+  if (Array.isArray(owned) && owned.length > 0) {
+    return owned;
+  }
+  return store.state.allEvents;
+});
 const currentUser = computed(() => store.getters['auth/currentUser']);
 const clubRSVPs = computed(() => store.state.clubRSVPs);
+const savedEvents = computed(() => store.state.savedEvents);
 
 const selectedEvent = ref(null);
 
-// Load events on mount
-onMounted(async () => {
-  console.log('ClubCalendar onMounted - currentUser:', currentUser.value);
-  console.log('ClubCalendar onMounted - clubOwnedEvents length:', clubOwnedEvents.value.length);
-  
-  // Ensure club owned events are loaded
-  if (clubOwnedEvents.value.length === 0) {
-    console.log('ClubCalendar - fetching club owned events');
-    await store.dispatch('fetchClubOwnedEvents');
-    console.log('ClubCalendar - after fetch, clubOwnedEvents length:', clubOwnedEvents.value.length);
-  }
-
-  // Log final calendar events after everything is loaded
-  await nextTick();
-  console.log('ClubCalendar onMounted - final calendarEvents:', calendarEvents.value);
-});
-
 // Get club's events only
 const clubEvents = computed(() => {
-  console.log('ClubCalendar clubEvents - clubOwnedEvents:', clubOwnedEvents.value);
-  return clubOwnedEvents.value;
+  const ownerId = Number(currentUser.value?.id);
+  if (!Number.isFinite(ownerId)) return [];
+  return (ownedEventSource.value || []).filter((event) => {
+    const possibleOwner = event?.ownerId != null ? event.ownerId : event?.owner_id;
+    const numeric = Number(possibleOwner);
+    return Number.isFinite(numeric) && numeric === ownerId;
+  });
 });
 
 // Transform events for FullCalendar
 const calendarEvents = computed(() => {
   const events = [];
-  console.log('=== CLUB CALENDAR DEBUG ===');
-  console.log('Club Events:', clubEvents.value.length);
 
   clubEvents.value.forEach(event => {
-    console.log('Processing club event:', event.id, event.title, event.date);
-    const eventDate = new Date(event.datetime || event.date);
+    const eventId = Number(event.id);
     
-    if (isNaN(eventDate.getTime())) {
-      console.error('Invalid date for event:', event.id, event.date);
-      return;
+    // Check engagement
+    const hasRSVPs = clubRSVPs.value.some(rsvp => rsvp.event_id === eventId);
+    const isSaved = savedEvents.value.includes(eventId);
+    
+    let eventType, backgroundColor, borderColor, textColor;
+    
+    if (hasRSVPs && isSaved) {
+      // Both RSVPs and saved
+      eventType = 'both';
+      backgroundColor = 'linear-gradient(45deg, #3788d8 50%, #fb923c 50%)';
+      borderColor = '#2563eb';
+      textColor = '#ffffff';
+    } else if (hasRSVPs) {
+      // Only RSVPs
+      eventType = 'rsvp';
+      backgroundColor = '#3788d8';
+      borderColor = '#2563eb';
+      textColor = '#ffffff';
+    } else if (isSaved) {
+      // Only saved
+      eventType = 'saved';
+      backgroundColor = '#fb923c';
+      borderColor = '#f97316';
+      textColor = '#ffffff';
+    } else {
+      // No engagement
+      eventType = 'none';
+      backgroundColor = '#6b7280';
+      borderColor = '#4b5563';
+      textColor = '#ffffff';
     }
 
+    // Count RSVPs for this event
+    const rsvpCount = clubRSVPs.value.filter(rsvp => rsvp.event_id === eventId).length;
+
     events.push({
-      id: `club-${event.id}`,
+      id: `event-${eventId}`,
       title: event.title,
       start: event.date,
+      backgroundColor: backgroundColor,
+      borderColor: borderColor,
+      textColor: textColor,
       extendedProps: {
-        eventId: event.id,
-        eventType: 'club',
+        eventId: eventId,
+        eventType: eventType,
         description: event.description,
         venue: event.venue || event.location,
         category: event.category,
         time: event.time,
         imageUrl: event.image,
-        organiser: event.organiser,
         price: event.price,
         capacity: event.capacity || event.maxAttendees,
-        rsvpCount: 0 // Club events don't need RSVP count in calendar
+        rsvpCount: rsvpCount
       }
     });
   });
 
-  console.log('Final club calendar events:', events.length);
-  console.log('=== END CLUB CALENDAR DEBUG ===');
   return events;
 });
 
@@ -196,7 +220,6 @@ const calendarOptions = ref({
     center: 'title',
     right: 'dayGridMonth,timeGridWeek,listWeek'
   },
-  events: [], // Start with empty array, will be updated by watch
   eventClick: handleEventClick,
   editable: false,
   selectable: true,
@@ -212,11 +235,6 @@ const calendarOptions = ref({
     meridiem: 'short'
   }
 });
-
-// Watch for events changes and update calendar
-watch(calendarEvents, (newEvents) => {
-  calendarOptions.value.events = newEvents;
-}, { deep: true, immediate: true });
 
 // Handle event click
 function handleEventClick(info) {
@@ -238,6 +256,17 @@ function formatEventDate(date) {
     month: 'long',
     day: 'numeric'
   });
+}
+
+// Get event type label
+function getEventTypeLabel(eventType) {
+  switch (eventType) {
+    case 'both': return 'RSVP\'d & Saved';
+    case 'rsvp': return 'Has RSVPs';
+    case 'saved': return 'Saved by You';
+    case 'none': return 'No Engagement';
+    default: return 'Unknown';
+  }
 }
 </script>
 
@@ -286,11 +315,19 @@ function formatEventDate(date) {
   display: inline-block;
 }
 
-.legend-item.upcoming .legend-dot {
-  background-color: #10b981;
+.legend-item.both .legend-dot {
+  background: linear-gradient(45deg, #3788d8 50%, #fb923c 50%);
 }
 
-.legend-item.past .legend-dot {
+.legend-item.rsvp .legend-dot {
+  background-color: #3788d8;
+}
+
+.legend-item.saved .legend-dot {
+  background-color: #fb923c;
+}
+
+.legend-item.none .legend-dot {
   background-color: #6b7280;
 }
 
@@ -435,12 +472,22 @@ function formatEventDate(date) {
   margin-bottom: 12px;
 }
 
-.event-badge.upcoming {
-  background-color: #d1fae5;
-  color: #065f46;
+.event-badge.both {
+  background: linear-gradient(45deg, #dbeafe 50%, #fed7aa 50%);
+  color: #1e40af;
 }
 
-.event-badge.past {
+.event-badge.rsvp {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.event-badge.saved {
+  background-color: #fed7aa;
+  color: #c2410c;
+}
+
+.event-badge.none {
   background-color: #e5e7eb;
   color: #374151;
 }

@@ -2,20 +2,30 @@
   <div class="club-calendar">
     <div class="calendar-header">
       <h3>Club Events Calendar</h3>
+      <div class="calendar-legend">
+        <span class="legend-item upcoming">
+          <span class="legend-dot"></span>
+          Upcoming Events
+        </span>
+        <span class="legend-item past">
+          <span class="legend-dot"></span>
+          Past Events
+        </span>
+      </div>
     </div>
 
-    <FullCalendar :options="calendarOptions" />
+    <FullCalendar :options="calendarOptions" :events="calendarEventsRef" />
 
     <!-- Debug: Show events data -->
     <div style="margin-top: 20px; padding: 10px; background: #f0f0f0; border: 1px solid #ccc;">
       <h4>Debug: Events Data</h4>
       <p>Club Events Count: {{ clubEvents.length }}</p>
-      <p>Calendar Events Count: {{ calendarEvents.length }}</p>
-      <div v-if="calendarEvents.length > 0">
+      <p>Calendar Events Count: {{ calendarEventsRef.length }}</p>
+      <div v-if="calendarEventsRef.length > 0">
         <h5>Calendar Events:</h5>
         <ul>
-          <li v-for="event in calendarEvents" :key="event.id">
-            {{ event.title }} - {{ event.start }}
+          <li v-for="event in calendarEventsRef" :key="event.id">
+            {{ event.title }} - {{ event.start }} ({{ event.extendedProps.eventStatus }})
           </li>
         </ul>
       </div>
@@ -123,6 +133,7 @@ const currentUser = computed(() => store.getters['auth/currentUser']);
 const clubRSVPs = computed(() => store.state.clubRSVPs);
 
 const selectedEvent = ref(null);
+const calendarEventsRef = ref([]);
 
 // Load events on mount
 onMounted(async () => {
@@ -138,7 +149,7 @@ onMounted(async () => {
 
   // Log final calendar events after everything is loaded
   await nextTick();
-  console.log('ClubCalendar onMounted - final calendarEvents:', calendarEvents.value);
+  console.log('ClubCalendar onMounted - final calendarEventsRef:', calendarEventsRef.value);
 });
 
 // Get club's events only
@@ -166,6 +177,7 @@ const calendarEvents = computed(() => {
       id: `club-${event.id}`,
       title: event.title,
       start: event.date,
+      className: 'event-club',
       extendedProps: {
         eventId: event.id,
         eventType: 'club',
