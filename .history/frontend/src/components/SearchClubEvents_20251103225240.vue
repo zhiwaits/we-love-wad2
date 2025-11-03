@@ -551,7 +551,6 @@ export default {
     height: auto;
     padding: 0 var(--space-8);
     border-radius: var(--radius-base);
-  margin-left: var(--space-8);
 }
 
 .date-range-wrapper .date-clear-btn:hover {

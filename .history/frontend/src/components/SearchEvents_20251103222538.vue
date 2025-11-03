@@ -175,7 +175,6 @@ export default {
       'updatePriceRange',
       'updatePriceFilter',
       'updateDateFilter',
-      'setDateRange',
       'setSpecificDate',
       'updateVenueFilter',
       'updateLocationQuery',
@@ -196,11 +195,6 @@ export default {
     clearSpecificDate() {
       this.updateDateFilter('all');
       this.setSpecificDate(null);
-    },
-
-    clearDateRange() {
-      this.updateDateFilter('all');
-      this.setDateRange({ start: null, end: null });
     },
 
     clearPriceRange() {
@@ -268,40 +262,14 @@ export default {
 
         <div class="filter-group">
           <label class="filter-label" for="date-filter">Date</label>
-          <div class="date-filter-container" v-if="!['specific', 'range'].includes(dateFilter)">
+          <div class="date-filter-container" v-if="dateFilter !== 'specific'">
             <select id="date-filter-select" class="form-control filter-select" v-model="dateFilter">
               <option value="all">Any Date</option>
               <option value="today">Today</option>
               <option value="this-week">This Week</option>
               <option value="this-month">This Month</option>
-              <option value="range">Date Range</option>
               <option value="specific">Specific Date</option>
             </select>
-          </div>
-          <div class="date-filter-container" v-else-if="dateFilter === 'range'">
-            <div class="date-range-wrapper">
-              <div class="date-range">
-                <input
-                  type="date"
-                  class="form-control filter-input"
-                  v-model="dateRangeStart"
-                >
-                <span class="date-range__divider">-</span>
-                <input
-                  type="date"
-                  class="form-control filter-input"
-                  v-model="dateRangeEnd"
-                >
-              </div>
-              <button
-                type="button"
-                class="date-clear-btn"
-                @click="clearDateRange"
-                title="Return to date options"
-              >
-                ×
-              </button>
-            </div>
           </div>
           <div class="date-filter-container" v-else>
             <div class="date-input-wrapper">
@@ -574,45 +542,6 @@ export default {
 .date-input-wrapper .filter-input {
   flex: 1;
   padding-right: 2.5rem; /* Make room for the X button */
-}
-
-.date-range-wrapper {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-  width: 100%;
-}
-
-.date-range {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.date-range .filter-input {
-  flex: 1 1 0;
-  min-width: 0;
-}
-
-.date-range__divider {
-  color: var(--color-text-secondary);
-  font-weight: var(--font-weight-bold);
-}
-
-.date-range-wrapper .date-clear-btn {
-  position: static;
-  transform: none;
-  width: auto;
-  height: auto;
-  padding: 0 var(--space-8);
-  border-radius: var(--radius-base);
-  margin-left: var(--space-8);
-}
-
-.date-range-wrapper .date-clear-btn:hover {
-  background-color: var(--color-bg-2, #e9ecef);
 }
 
 .date-clear-btn {

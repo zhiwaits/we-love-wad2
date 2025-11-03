@@ -163,10 +163,6 @@ const createDefaultFilters = () => ({
   },
   dateFilter: 'all',
   specificDate: null,
-  dateRange: {
-    start: null,
-    end: null
-  },
   venueFilter: 'all',
   locationQuery: '',
   eventStatus: 'both',
@@ -186,16 +182,7 @@ const createDefaultClubEventFilters = () => ({
   searchQuery: '',
   selectedTags: [],
   priceFilter: 'all',
-  priceRange: {
-    min: null,
-    max: null
-  },
   dateFilter: 'all',
-  specificDate: null,
-  dateRange: {
-    start: null,
-    end: null
-  },
   venueFilter: 'all',
   locationQuery: '',
   eventStatus: 'both'
@@ -285,10 +272,49 @@ export default createStore({
     clubRSVPs: [], // Will hold RSVPs for events owned by the club
 
     // Filters state
-    filters: createDefaultFilters(),
+    filters: {
+      searchQuery: '',
+      selectedCategories: [],
+      selectedTags: [],
+      priceFilter: 'all',
+      priceRange: {
+        min: null,
+        max: null
+      },
+      dateFilter: 'all',
+      specificDate: null,
+      dateRange: {
+        start: null,
+        end: null
+      },
+      venueFilter: 'all',
+      locationQuery: '',
+      eventStatus: 'both',
+      clubFilter: {
+        categoryId: 'all',
+        followedOnly: false
+      }
+    },
 
     // Club event filters (for managing club's own events)
-    clubEventFilters: createDefaultClubEventFilters(),
+    clubEventFilters: {
+      searchQuery: '',
+      selectedTags: [],
+      priceFilter: 'all',
+      priceRange: {
+        min: null,
+        max: null
+      },
+      dateFilter: 'all',
+      specificDate: null,
+      dateRange: {
+        start: null,
+        end: null
+      },
+      venueFilter: 'all',
+      locationQuery: '',
+      eventStatus: 'both'
+    },
 
     categories: [],
     venues: [],
@@ -394,28 +420,6 @@ export default createStore({
           return eventDate.getMonth() === today.getMonth() &&
             eventDate.getFullYear() === today.getFullYear();
         });
-      } else if (state.filters.dateFilter === 'specific' && state.filters.specificDate) {
-        const target = new Date(state.filters.specificDate);
-        target.setHours(0, 0, 0, 0);
-        filtered = filtered.filter(event => {
-          const eventDate = new Date(event.date);
-          eventDate.setHours(0, 0, 0, 0);
-          return eventDate.getTime() === target.getTime();
-        });
-      } else if (state.filters.dateFilter === 'range') {
-        const startRaw = state.filters.dateRange?.start;
-        const endRaw = state.filters.dateRange?.end;
-        if (startRaw && endRaw) {
-          const startDate = new Date(startRaw);
-          startDate.setHours(0, 0, 0, 0);
-          const endDate = new Date(endRaw);
-          endDate.setHours(0, 0, 0, 0);
-          filtered = filtered.filter(event => {
-            const eventDate = new Date(event.date);
-            eventDate.setHours(0, 0, 0, 0);
-            return eventDate >= startDate && eventDate <= endDate;
-          });
-        }
       }
 
       // Venue filter
@@ -516,23 +520,11 @@ export default createStore({
       let clubEvents = sourceEvents.filter(event => getNumericOwnerId(event) === ownerId);
 
       // Check if any filters are active
-      const clubPriceRangeActive =
-        state.clubEventFilters.priceFilter === 'range' &&
-        ((state.clubEventFilters.priceRange?.min ?? null) !== null || (state.clubEventFilters.priceRange?.max ?? null) !== null);
-      const clubSpecificDateActive =
-        state.clubEventFilters.dateFilter === 'specific' && !!state.clubEventFilters.specificDate;
-      const clubRangeActive =
-        state.clubEventFilters.dateFilter === 'range' &&
-        !!state.clubEventFilters.dateRange?.start && !!state.clubEventFilters.dateRange?.end;
-
       const noFiltersActive =
         !state.clubEventFilters.searchQuery &&
         state.clubEventFilters.selectedTags.length === 0 &&
         state.clubEventFilters.priceFilter === 'all' &&
-        !clubPriceRangeActive &&
         state.clubEventFilters.dateFilter === 'all' &&
-        !clubSpecificDateActive &&
-        !clubRangeActive &&
         state.clubEventFilters.venueFilter === 'all' &&
         !state.clubEventFilters.locationQuery &&
         state.clubEventFilters.eventStatus === 'both';
@@ -592,28 +584,6 @@ export default createStore({
           return eventDate.getMonth() === today.getMonth() &&
             eventDate.getFullYear() === today.getFullYear();
         });
-      } else if (state.clubEventFilters.dateFilter === 'specific' && state.clubEventFilters.specificDate) {
-        const target = new Date(state.clubEventFilters.specificDate);
-        target.setHours(0, 0, 0, 0);
-        filtered = filtered.filter(event => {
-          const eventDate = new Date(event.date);
-          eventDate.setHours(0, 0, 0, 0);
-          return eventDate.getTime() === target.getTime();
-        });
-      } else if (state.clubEventFilters.dateFilter === 'range') {
-        const startRaw = state.clubEventFilters.dateRange?.start;
-        const endRaw = state.clubEventFilters.dateRange?.end;
-        if (startRaw && endRaw) {
-          const startDate = new Date(startRaw);
-          startDate.setHours(0, 0, 0, 0);
-          const endDate = new Date(endRaw);
-          endDate.setHours(0, 0, 0, 0);
-          filtered = filtered.filter(event => {
-            const eventDate = new Date(event.date);
-            eventDate.setHours(0, 0, 0, 0);
-            return eventDate >= startDate && eventDate <= endDate;
-          });
-        }
       }
 
       // Venue filter
@@ -868,31 +838,9 @@ export default createStore({
       state.filters.priceFilter = priceFilter;
     },
 
-    SET_PRICE_RANGE(state, range = {}) {
-      const min = range?.min;
-      const max = range?.max;
-      state.filters.priceRange = {
-        min: min === '' ? null : (min != null ? Number(min) : null),
-        max: max === '' ? null : (max != null ? Number(max) : null)
-      };
-    },
-
     // Set date filter
     SET_DATE_FILTER(state, dateFilter) {
       state.filters.dateFilter = dateFilter;
-    },
-
-    SET_SPECIFIC_DATE(state, date) {
-      state.filters.specificDate = date || null;
-    },
-
-    SET_DATE_RANGE(state, range = {}) {
-      const start = range?.start || null;
-      const end = range?.end || null;
-      state.filters.dateRange = {
-        start,
-        end
-      };
     },
 
     // Set venue filter
@@ -912,7 +860,16 @@ export default createStore({
 
     // Reset all filters
     RESET_FILTERS(state) {
-      state.filters = createDefaultFilters();
+      state.filters = {
+        searchQuery: '',
+        selectedCategories: [],
+        selectedTags: [],
+        priceFilter: 'all',
+        dateFilter: 'all',
+        venueFilter: 'all',
+        locationQuery: '',
+        eventStatus: 'both'
+      };
     },
 
     // Club Event Filter Mutations
@@ -933,30 +890,8 @@ export default createStore({
       state.clubEventFilters.priceFilter = priceFilter;
     },
 
-    SET_CLUB_EVENT_PRICE_RANGE(state, range = {}) {
-      const min = range?.min;
-      const max = range?.max;
-      state.clubEventFilters.priceRange = {
-        min: min === '' ? null : (min != null ? Number(min) : null),
-        max: max === '' ? null : (max != null ? Number(max) : null)
-      };
-    },
-
     SET_CLUB_EVENT_DATE_FILTER(state, dateFilter) {
       state.clubEventFilters.dateFilter = dateFilter;
-    },
-
-    SET_CLUB_EVENT_SPECIFIC_DATE(state, date) {
-      state.clubEventFilters.specificDate = date || null;
-    },
-
-    SET_CLUB_EVENT_DATE_RANGE(state, range = {}) {
-      const start = range?.start || null;
-      const end = range?.end || null;
-      state.clubEventFilters.dateRange = {
-        start,
-        end
-      };
     },
 
     SET_CLUB_EVENT_VENUE_FILTER(state, venue) {
@@ -1375,45 +1310,11 @@ export default createStore({
     // Action to update price filter
     updatePriceFilter({ commit }, filter) {
       commit('SET_PRICE_FILTER', filter);
-      if (filter !== 'range') {
-        commit('SET_PRICE_RANGE', { min: null, max: null });
-      }
-    },
-
-    updatePriceRange({ commit, state }, range = {}) {
-      const startRange = {
-        min: range?.min ?? state.filters.priceRange?.min ?? null,
-        max: range?.max ?? state.filters.priceRange?.max ?? null
-      };
-      commit('SET_PRICE_RANGE', startRange);
     },
 
     // Action to update date filter
     updateDateFilter({ commit }, filter) {
       commit('SET_DATE_FILTER', filter);
-      if (filter !== 'specific') {
-        commit('SET_SPECIFIC_DATE', null);
-      }
-      if (filter === 'range') {
-        const today = new Date();
-        const todayIso = today.toISOString().slice(0, 10);
-        commit('SET_DATE_RANGE', { start: todayIso, end: todayIso });
-      } else {
-        commit('SET_DATE_RANGE', { start: null, end: null });
-      }
-    },
-
-    setSpecificDate({ commit }, date) {
-      commit('SET_SPECIFIC_DATE', date);
-    },
-
-    setDateRange({ commit, state }, range = {}) {
-      let start = range?.start ?? state.filters.dateRange?.start ?? null;
-      let end = range?.end ?? state.filters.dateRange?.end ?? null;
-      if (start && end && start > end) {
-        end = start;
-      }
-      commit('SET_DATE_RANGE', { start, end });
     },
 
     // Action to update venue filter
@@ -1447,43 +1348,10 @@ export default createStore({
 
     updateClubEventPriceFilter({ commit }, filter) {
       commit('SET_CLUB_EVENT_PRICE_FILTER', filter);
-      if (filter !== 'range') {
-        commit('SET_CLUB_EVENT_PRICE_RANGE', { min: null, max: null });
-      }
-    },
-
-    updateClubEventPriceRange({ commit, state }, range = {}) {
-      const nextRange = {
-        min: range?.min ?? state.clubEventFilters.priceRange?.min ?? null,
-        max: range?.max ?? state.clubEventFilters.priceRange?.max ?? null
-      };
-      commit('SET_CLUB_EVENT_PRICE_RANGE', nextRange);
     },
 
     updateClubEventDateFilter({ commit }, filter) {
       commit('SET_CLUB_EVENT_DATE_FILTER', filter);
-      if (filter !== 'specific') {
-        commit('SET_CLUB_EVENT_SPECIFIC_DATE', null);
-      }
-      if (filter === 'range') {
-        const today = new Date().toISOString().slice(0, 10);
-        commit('SET_CLUB_EVENT_DATE_RANGE', { start: today, end: today });
-      } else {
-        commit('SET_CLUB_EVENT_DATE_RANGE', { start: null, end: null });
-      }
-    },
-
-    setClubEventSpecificDate({ commit }, date) {
-      commit('SET_CLUB_EVENT_SPECIFIC_DATE', date);
-    },
-
-    setClubEventDateRange({ commit, state }, range = {}) {
-      let start = range?.start ?? state.clubEventFilters.dateRange?.start ?? null;
-      let end = range?.end ?? state.clubEventFilters.dateRange?.end ?? null;
-      if (start && end && start > end) {
-        end = start;
-      }
-      commit('SET_CLUB_EVENT_DATE_RANGE', { start, end });
     },
 
     updateClubEventVenueFilter({ commit }, venue) {

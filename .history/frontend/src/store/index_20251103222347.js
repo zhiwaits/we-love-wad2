@@ -285,10 +285,49 @@ export default createStore({
     clubRSVPs: [], // Will hold RSVPs for events owned by the club
 
     // Filters state
-    filters: createDefaultFilters(),
+    filters: {
+      searchQuery: '',
+      selectedCategories: [],
+      selectedTags: [],
+      priceFilter: 'all',
+      priceRange: {
+        min: null,
+        max: null
+      },
+      dateFilter: 'all',
+      specificDate: null,
+      dateRange: {
+        start: null,
+        end: null
+      },
+      venueFilter: 'all',
+      locationQuery: '',
+      eventStatus: 'both',
+      clubFilter: {
+        categoryId: 'all',
+        followedOnly: false
+      }
+    },
 
     // Club event filters (for managing club's own events)
-    clubEventFilters: createDefaultClubEventFilters(),
+    clubEventFilters: {
+      searchQuery: '',
+      selectedTags: [],
+      priceFilter: 'all',
+      priceRange: {
+        min: null,
+        max: null
+      },
+      dateFilter: 'all',
+      specificDate: null,
+      dateRange: {
+        start: null,
+        end: null
+      },
+      venueFilter: 'all',
+      locationQuery: '',
+      eventStatus: 'both'
+    },
 
     categories: [],
     venues: [],
@@ -1375,45 +1414,11 @@ export default createStore({
     // Action to update price filter
     updatePriceFilter({ commit }, filter) {
       commit('SET_PRICE_FILTER', filter);
-      if (filter !== 'range') {
-        commit('SET_PRICE_RANGE', { min: null, max: null });
-      }
-    },
-
-    updatePriceRange({ commit, state }, range = {}) {
-      const startRange = {
-        min: range?.min ?? state.filters.priceRange?.min ?? null,
-        max: range?.max ?? state.filters.priceRange?.max ?? null
-      };
-      commit('SET_PRICE_RANGE', startRange);
     },
 
     // Action to update date filter
     updateDateFilter({ commit }, filter) {
       commit('SET_DATE_FILTER', filter);
-      if (filter !== 'specific') {
-        commit('SET_SPECIFIC_DATE', null);
-      }
-      if (filter === 'range') {
-        const today = new Date();
-        const todayIso = today.toISOString().slice(0, 10);
-        commit('SET_DATE_RANGE', { start: todayIso, end: todayIso });
-      } else {
-        commit('SET_DATE_RANGE', { start: null, end: null });
-      }
-    },
-
-    setSpecificDate({ commit }, date) {
-      commit('SET_SPECIFIC_DATE', date);
-    },
-
-    setDateRange({ commit, state }, range = {}) {
-      let start = range?.start ?? state.filters.dateRange?.start ?? null;
-      let end = range?.end ?? state.filters.dateRange?.end ?? null;
-      if (start && end && start > end) {
-        end = start;
-      }
-      commit('SET_DATE_RANGE', { start, end });
     },
 
     // Action to update venue filter
@@ -1447,43 +1452,10 @@ export default createStore({
 
     updateClubEventPriceFilter({ commit }, filter) {
       commit('SET_CLUB_EVENT_PRICE_FILTER', filter);
-      if (filter !== 'range') {
-        commit('SET_CLUB_EVENT_PRICE_RANGE', { min: null, max: null });
-      }
-    },
-
-    updateClubEventPriceRange({ commit, state }, range = {}) {
-      const nextRange = {
-        min: range?.min ?? state.clubEventFilters.priceRange?.min ?? null,
-        max: range?.max ?? state.clubEventFilters.priceRange?.max ?? null
-      };
-      commit('SET_CLUB_EVENT_PRICE_RANGE', nextRange);
     },
 
     updateClubEventDateFilter({ commit }, filter) {
       commit('SET_CLUB_EVENT_DATE_FILTER', filter);
-      if (filter !== 'specific') {
-        commit('SET_CLUB_EVENT_SPECIFIC_DATE', null);
-      }
-      if (filter === 'range') {
-        const today = new Date().toISOString().slice(0, 10);
-        commit('SET_CLUB_EVENT_DATE_RANGE', { start: today, end: today });
-      } else {
-        commit('SET_CLUB_EVENT_DATE_RANGE', { start: null, end: null });
-      }
-    },
-
-    setClubEventSpecificDate({ commit }, date) {
-      commit('SET_CLUB_EVENT_SPECIFIC_DATE', date);
-    },
-
-    setClubEventDateRange({ commit, state }, range = {}) {
-      let start = range?.start ?? state.clubEventFilters.dateRange?.start ?? null;
-      let end = range?.end ?? state.clubEventFilters.dateRange?.end ?? null;
-      if (start && end && start > end) {
-        end = start;
-      }
-      commit('SET_CLUB_EVENT_DATE_RANGE', { start, end });
     },
 
     updateClubEventVenueFilter({ commit }, venue) {
