@@ -323,9 +323,6 @@ watch(savedEvents, () => {
             <p class="dashboard-subtitle">Here's your personalized event overview</p>
         </div>
         <div class="header-actions">
-            <router-link to="/" class="btn btn--outline">
-            Browse Events
-            </router-link>
         </div>
         </div>
     </div>
@@ -379,7 +376,7 @@ watch(savedEvents, () => {
   <section class="dashboard-section" ref="upcomingSectionRef">
         <div class="section-header">
           <h2 class="section-title">My Upcoming Events <span class="section-count">({{ upcomingEvents.length }})</span></h2>
-          <router-link to="/" class="section-link">Browse More →</router-link>
+          
         </div>
 
         <!-- Empty State -->
@@ -475,7 +472,7 @@ watch(savedEvents, () => {
   <section class="dashboard-section" ref="savedSectionRef">
         <div class="section-header">
           <h2 class="section-title">Saved Events <span class="section-count">({{ savedEvents.length }})</span></h2>
-          <router-link to="/" class="section-link">Browse More →</router-link>
+         
         </div>
 
         <!-- Empty State -->
@@ -870,7 +867,8 @@ watch(savedEvents, () => {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-8);
-  margin-top: auto;
+  min-height: 56px;
+  align-items: flex-start;
 }
 
 .tag-badge {

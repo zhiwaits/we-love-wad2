@@ -130,11 +130,6 @@ const handleKeyPress = (event) => {
         />
       </div>
 
-      <!-- Forgot Password Link -->
-      <div class="form-footer">
-        <a href="#" class="forgot-link">Forgot password?</a>
-      </div>
-
       <!-- Login Button -->
       <button
         type="submit"

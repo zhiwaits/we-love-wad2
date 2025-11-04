@@ -1069,7 +1069,8 @@ const handleShare = (event) => {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-8);
-  margin-top: auto;
+  min-height: 56px;
+  align-items: flex-start;
 }
 
 .tag-badge {
