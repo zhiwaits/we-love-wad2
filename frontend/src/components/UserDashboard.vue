@@ -21,6 +21,10 @@ const upcomingEvents = computed(() => store.getters.upcomingUserEvents);
 const recommendedEvents = computed(() => store.getters.recommendedEvents);
 const savedEvents = computed(() => store.getters.userSavedEvents);
 
+// Stat counts
+const upcomingRsvpCount = computed(() => store.getters.upcomingRsvpCount);
+const pastAttendedCount = computed(() => store.getters.pastAttendedCount);
+
 const selectedEvent = ref(null);
 const showEventModal = ref(false);
 const upcomingSectionRef = ref(null);
@@ -337,7 +341,7 @@ watch(savedEvents, () => {
         <div class="stats-grid">
           <StatCard 
             icon="📅" 
-            :value="userStats.upcomingRSVPs ?? upcomingEvents.length" 
+            :value="upcomingRsvpCount" 
             label="Upcoming RSVPs" 
             color="primary"
             clickable
@@ -345,7 +349,7 @@ watch(savedEvents, () => {
           />
           <StatCard 
             icon="✅" 
-            :value="userStats.totalAttended || 0" 
+            :value="pastAttendedCount" 
             label="Events Attended" 
             color="success"
             clickable

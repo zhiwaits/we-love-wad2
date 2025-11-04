@@ -415,7 +415,6 @@ export default {
             }
         }
         window.addEventListener('keyup', this.handleEsc, { passive: true });
-        this.loadGoogleMapsScript();
         this.ensureAttendeesLoaded();
     },
 
@@ -674,46 +673,6 @@ export default {
             }
         },
 
-        // Load Google Maps Script
-        // Load Google Maps Script with better error handling
-loadGoogleMapsScript() {
-    if (window.google && window.google.maps) {
-        console.log('✅ Google Maps already loaded');
-        return Promise.resolve();
-    }
-
-    console.log('🔄 Loading Google Maps script...');
-    
-    return new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        
-        // Replace with your actual API key
-        const apiKey = 'AIzaSyD9_8oOwKCEvgntkep-QfxBBxFMCBAqrzM';  // TODO: Replace this!
-        
-        if (!apiKey || apiKey === 'YOUR_GOOGLE_MAPS_API_KEY') {
-            console.error('❌ Google Maps API key not configured!');
-            reject(new Error('Google Maps API key not configured'));
-            return;
-        }
-        
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
-        script.async = true;
-        script.defer = true;
-        
-        script.onload = () => {
-            console.log('✅ Google Maps script loaded successfully');
-            resolve();
-        };
-        
-        script.onerror = (error) => {
-            console.error('❌ Failed to load Google Maps script:', error);
-            reject(error);
-        };
-        
-        document.head.appendChild(script);
-    });
-},
-
 // Initialize Google Map with better debugging
 async initMap() {
     console.log('🗺️ initMap called');
@@ -722,25 +681,30 @@ async initMap() {
     console.log('Latitude:', this.event?.latitude);
     console.log('Altitude:', this.event?.altitude);
     console.log('Venue:', this.event?.venue);
-    
+
     if (!this.hasValidCoordinates) {
         console.warn('⚠️ Invalid coordinates or Virtual event, skipping map');
         return;
     }
-    
+
     if (!this.$refs.mapContainer) {
         console.warn('⚠️ Map container ref not found');
         return;
     }
 
-    try {
-        await this.loadGoogleMapsScript();
+    // Check if Google Maps is loaded (loaded globally in index.html)
+    if (!window.google?.maps) {
+        console.error('❌ Google Maps not loaded');
+        this.travelInfo.error = 'Google Maps not available';
+        return;
+    }
 
+    try {
         const eventLocation = {
             lat: parseFloat(this.event.latitude),
             lng: parseFloat(this.event.altitude)
         };
-        
+
         console.log('📍 Event location:', eventLocation);
 
         this.map = new window.google.maps.Map(this.$refs.mapContainer, {
@@ -750,7 +714,7 @@ async initMap() {
             streetViewControl: false,
             fullscreenControl: false
         });
-        
+
         console.log('✅ Map created:', this.map);
 
         this.marker = new window.google.maps.Marker({
@@ -759,7 +723,7 @@ async initMap() {
             title: this.event.title,
             animation: window.google.maps.Animation.DROP
         });
-        
+
         console.log('✅ Marker added:', this.marker);
 
         // Get user location and calculate travel time
