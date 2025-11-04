@@ -3,6 +3,8 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useStore } from 'vuex';
 import { useRouter } from 'vue-router';
 import { getAllClubCategories } from '../services/clubCategoryService';
+import { getAllEventCategories } from '../services/eventCategoryService';
+import { getAllTags } from '../services/tagService';
 import { checkAvailability } from '../services/authService';
 
 const store = useStore();
@@ -18,11 +20,84 @@ const role = ref('user');
 const clubDescription = ref('');
 const clubCategoryId = ref('');
 const categories = ref([]);
+const eventCategories = ref([]);
+const availableTags = ref([]);
 const imageFile = ref(null);
 const imagePreview = ref('');
 const currentStep = ref(1);
 const primaryButtonClass = 'btn btn--primary btn--full-width';
 const outlineButtonClass = `${primaryButtonClass} btn--outline`;
+
+const selectedEventCategories = ref([]);
+const selectedClubCategoryPreferences = ref([]);
+const selectedTagIds = ref([]);
+
+const MAX_EVENT_CATEGORY_PREFS = 3;
+const MAX_CLUB_CATEGORY_PREFS = 3;
+const MAX_TAG_PREFS = 10;
+
+const tagSearchQuery = ref('');
+
+const eventCategoryLimitReached = computed(() => selectedEventCategories.value.length >= MAX_EVENT_CATEGORY_PREFS);
+const clubCategoryLimitReached = computed(() => selectedClubCategoryPreferences.value.length >= MAX_CLUB_CATEGORY_PREFS);
+const tagLimitReached = computed(() => selectedTagIds.value.length >= MAX_TAG_PREFS);
+const selectedTagObjects = computed(() => availableTags.value.filter(tag => selectedTagIds.value.includes(tag.id)));
+const selectedClubCategoryObjects = computed(() => {
+  if (!Array.isArray(categories.value)) return [];
+  return categories.value.filter((cat) => {
+    const numeric = Number(cat?.id);
+    return Number.isFinite(numeric) && selectedClubCategoryPreferences.value.includes(numeric);
+  });
+});
+
+const eventCategoryOptions = computed(() => {
+  if (!Array.isArray(eventCategories.value)) return [];
+  const mapped = eventCategories.value.map((item) => {
+    if (!item) return null;
+    if (typeof item === 'string') {
+      const name = item.trim();
+      return name ? { id: name, name } : null;
+    }
+    const name = (item.name || item.label || item.category || '').trim();
+    if (!name) return null;
+    return { id: item.id ?? name, name };
+  }).filter(Boolean);
+  mapped.sort((a, b) => a.name.localeCompare(b.name));
+  return mapped;
+});
+
+const clubCategoryOptions = computed(() => {
+  if (!Array.isArray(categories.value)) return [];
+  const mapped = categories.value.map((item) => {
+    if (!item) return null;
+    if (typeof item === 'string') {
+      return null;
+    }
+    const name = (item.name || item.label || '').trim();
+    const numericId = Number(item.id ?? null);
+    if (!name || !Number.isFinite(numericId)) return null;
+    return { id: numericId, name };
+  }).filter(Boolean);
+  mapped.sort((a, b) => a.name.localeCompare(b.name));
+  return mapped;
+});
+
+const tagOptions = computed(() => {
+  if (!Array.isArray(availableTags.value)) return [];
+  const mapped = availableTags.value.map((tag) => {
+    if (!tag) return null;
+    const id = Number(tag.id ?? tag.tag_id);
+    const name = (tag.tag_name || tag.name || '').trim();
+    if (!Number.isFinite(id) || !name) return null;
+    return { id, name };
+  }).filter(Boolean);
+  mapped.sort((a, b) => a.name.localeCompare(b.name));
+  
+  // Filter by search query if provided
+  const query = tagSearchQuery.value.trim().toLowerCase();
+  if (!query) return mapped;
+  return mapped.filter(tag => tag.name.toLowerCase().includes(query));
+});
 
 // Local error state
 const localError = ref('');
@@ -33,6 +108,7 @@ const availabilityChecked = ref(false);
 const isLoading = computed(() => store.getters['auth/isLoading']);
 const authError = computed(() => store.getters['auth/authError']);
 const isClub = computed(() => role.value === 'club');
+const isUser = computed(() => role.value === 'user');
 const isProcessing = computed(() => isLoading.value || isCheckingAvailability.value);
 
 // Combined error message
@@ -72,17 +148,84 @@ const stepOneError = computed(() => validateStepOne());
 const stepTwoError = computed(() => validateStepTwo());
 
 const isFormValid = computed(() => !stepOneError.value && !stepTwoError.value);
+const hasPreferenceStep = computed(() => isClub.value || isUser.value);
+
+const resetClubDetails = () => {
+  clubDescription.value = '';
+  clubCategoryId.value = '';
+  imageFile.value = null;
+  imagePreview.value = '';
+};
+
+const resetPreferenceSelections = () => {
+  selectedEventCategories.value = [];
+  selectedClubCategoryPreferences.value = [];
+  selectedTagIds.value = [];
+  tagSearchQuery.value = '';
+};
+
+const isEventCategorySelected = (name) => selectedEventCategories.value.includes(name);
+const isClubCategorySelected = (id) => {
+  const numeric = Number(id);
+  if (!Number.isFinite(numeric)) return false;
+  return selectedClubCategoryPreferences.value.includes(numeric);
+};
+const isTagSelected = (id) => {
+  const numeric = Number(id);
+  if (!Number.isFinite(numeric)) return false;
+  return selectedTagIds.value.includes(numeric);
+};
+
+const toggleEventCategoryPreference = (name) => {
+  if (!name) return;
+  if (isEventCategorySelected(name)) {
+    selectedEventCategories.value = selectedEventCategories.value.filter((item) => item !== name);
+    return;
+  }
+  if (eventCategoryLimitReached.value) return;
+  selectedEventCategories.value = [...selectedEventCategories.value, name];
+};
+
+const toggleClubCategoryPreference = (id) => {
+  const numeric = Number(id);
+  if (!Number.isFinite(numeric)) return;
+  if (isClubCategorySelected(numeric)) {
+    selectedClubCategoryPreferences.value = selectedClubCategoryPreferences.value.filter((item) => item !== numeric);
+    return;
+  }
+  if (clubCategoryLimitReached.value) return;
+  selectedClubCategoryPreferences.value = [...selectedClubCategoryPreferences.value, numeric];
+};
+
+const toggleTagPreference = (id) => {
+  const numeric = Number(id);
+  if (!Number.isFinite(numeric)) return;
+  if (isTagSelected(numeric)) {
+    selectedTagIds.value = selectedTagIds.value.filter((item) => item !== numeric);
+    return;
+  }
+  if (tagLimitReached.value) return;
+  selectedTagIds.value = [...selectedTagIds.value, numeric];
+};
 
 watch(role, (newRole, oldRole) => {
   if (newRole === oldRole) return;
   currentStep.value = 1;
   availabilityChecked.value = false;
   localError.value = '';
-  if (newRole !== 'club') {
-    clubDescription.value = '';
-    clubCategoryId.value = '';
-    imageFile.value = null;
-    imagePreview.value = '';
+
+  if (oldRole === 'club') {
+    resetClubDetails();
+  }
+  if (oldRole === 'user') {
+    resetPreferenceSelections();
+  }
+
+  if (newRole === 'club') {
+    resetPreferenceSelections();
+  }
+  if (newRole === 'user') {
+    resetClubDetails();
   }
 });
 
@@ -98,10 +241,19 @@ watch(currentStep, (newStep, oldStep) => {
 });
 onMounted(async () => {
   try {
-    const res = await getAllClubCategories();
-    categories.value = res.data || [];
+    const [clubRes, eventRes, tagRes] = await Promise.all([
+      getAllClubCategories(),
+      getAllEventCategories(),
+      getAllTags()
+    ]);
+
+    categories.value = Array.isArray(clubRes?.data) ? clubRes.data : [];
+    eventCategories.value = Array.isArray(eventRes?.data) ? eventRes.data : [];
+    availableTags.value = Array.isArray(tagRes?.data) ? tagRes.data : [];
   } catch (e) {
     categories.value = [];
+    eventCategories.value = [];
+    availableTags.value = [];
   }
 });
 
@@ -117,10 +269,11 @@ const onImageChange = async (e) => {
 };
 
 
-const handleRegister = async () => {
+const handleRegister = async (options = {}) => {
+  const skipPreferences = options.skipPreferences === true;
+
   localError.value = '';
   store.dispatch('auth/clearError');
-
 
   if (!name.value.trim()) {
     localError.value = 'Name is required';
@@ -169,23 +322,31 @@ const handleRegister = async () => {
     return;
   }
 
-  if (isClub.value && currentStep.value === 1) {
+  if (currentStep.value === 1 && hasPreferenceStep.value) {
     currentStep.value = 2;
     return;
   }
 
-  const stepTwoValidationError = stepTwoError.value;
-  if (stepTwoValidationError) {
-    localError.value = stepTwoValidationError;
-    currentStep.value = 2;
-    return;
+  if (isClub.value) {
+    const stepTwoValidationError = stepTwoError.value;
+    if (stepTwoValidationError) {
+      localError.value = stepTwoValidationError;
+      currentStep.value = 2;
+      return;
+    }
   }
 
   const availabilityBeforeSubmit = await ensureAvailability();
   if (!availabilityBeforeSubmit) {
-    currentStep.value = isClub.value ? 1 : currentStep.value;
+    currentStep.value = 1;
     return;
   }
+
+  const preferencesPayload = {
+    categoryPreferences: skipPreferences ? [] : [...selectedEventCategories.value],
+    clubCategoryPreferences: skipPreferences ? [] : [...selectedClubCategoryPreferences.value],
+    tagPreferences: skipPreferences ? [] : [...selectedTagIds.value]
+  };
 
   try {
     await store.dispatch('auth/register', {
@@ -194,16 +355,28 @@ const handleRegister = async () => {
       email: email.value.trim(),
       password: password.value,
       role: role.value,
-      club_description: clubDescription.value.trim(),
-      club_category_id: clubCategoryId.value || null,
-      imageBase64: imagePreview.value || null,
-      imageOriginalName: imageFile.value?.name || null,
+      clubDetails: isClub.value ? {
+        club_description: clubDescription.value.trim(),
+        club_category_id: clubCategoryId.value || null,
+        imageBase64: imagePreview.value || null,
+        imageOriginalName: imageFile.value?.name || null,
+      } : {},
+      preferences: isUser.value ? preferencesPayload : {
+        categoryPreferences: [],
+        clubCategoryPreferences: [],
+        tagPreferences: []
+      }
     });
 
+    if (isUser.value) {
+      resetPreferenceSelections();
+    }
+    if (isClub.value) {
+      resetClubDetails();
+    }
 
     router.push('/');
   } catch (error) {
-
     console.error('Registration failed:', error);
   }
 };
@@ -237,7 +410,7 @@ const handleKeyPress = (event) => {
 
     <form @submit.prevent="handleRegister" class="form">
 
-      <div v-if="!isClub || currentStep === 1">
+  <div v-if="currentStep === 1">
         <!-- Role Selection -->
         <div class="form-group">
           <label class="form-label">I am a...</label>
@@ -383,10 +556,121 @@ const handleKeyPress = (event) => {
         </div>
       </div>
 
+      <div v-if="isUser && currentStep === 2">
+        <div class="form-notice" style="margin-bottom: 16px;">
+          <p class="notice-text">
+            Tell us what you're interested in so we can surface relevant events. You can choose fewer than the suggested limits or skip this step.
+          </p>
+        </div>
+
+        <section class="preference-section">
+          <header class="preference-header">
+            <h3 class="preference-title">Event Categories</h3>
+            <span class="preference-count">{{ selectedEventCategories.length }} / {{ MAX_EVENT_CATEGORY_PREFS }}</span>
+          </header>
+          <div class="preference-list">
+            <label
+              v-for="option in eventCategoryOptions"
+              :key="option.name"
+              class="preference-option"
+            >
+              <input
+                type="checkbox"
+                :value="option.name"
+                :checked="isEventCategorySelected(option.name)"
+                @change="toggleEventCategoryPreference(option.name)"
+                :disabled="!isEventCategorySelected(option.name) && eventCategoryLimitReached"
+              />
+              <span>{{ option.name }}</span>
+            </label>
+            <p v-if="eventCategoryOptions.length === 0" class="preference-empty">No event categories available yet.</p>
+          </div>
+          <div v-if="selectedEventCategories.length" class="chip-list">
+            <span v-for="category in selectedEventCategories" :key="category" class="chip">{{ category }}</span>
+          </div>
+        </section>
+
+        <section class="preference-section">
+          <header class="preference-header">
+            <h3 class="preference-title">Club Categories</h3>
+            <span class="preference-count">{{ selectedClubCategoryPreferences.length }} / {{ MAX_CLUB_CATEGORY_PREFS }}</span>
+          </header>
+          <div class="preference-list">
+            <label
+              v-for="option in clubCategoryOptions"
+              :key="option.id"
+              class="preference-option"
+            >
+              <input
+                type="checkbox"
+                :value="option.id"
+                :checked="isClubCategorySelected(option.id)"
+                @change="toggleClubCategoryPreference(option.id)"
+                :disabled="!isClubCategorySelected(option.id) && clubCategoryLimitReached"
+              />
+              <span>{{ option.name }}</span>
+            </label>
+            <p v-if="clubCategoryOptions.length === 0" class="preference-empty">No club categories available yet.</p>
+          </div>
+          <div v-if="selectedClubCategoryObjects.length" class="chip-list">
+            <span
+              v-for="category in selectedClubCategoryObjects"
+              :key="category.id"
+              class="chip"
+            >{{ category.name }}</span>
+          </div>
+        </section>
+
+        <section class="preference-section">
+          <header class="preference-header">
+            <h3 class="preference-title">Event Tags</h3>
+            <span class="preference-count">{{ selectedTagIds.length }} / {{ MAX_TAG_PREFS }}</span>
+          </header>
+          
+          <div class="preference-search">
+            <input
+              type="text"
+              v-model="tagSearchQuery"
+              class="preference-search-input"
+              placeholder="Search tags..."
+              :disabled="isProcessing"
+            />
+          </div>
+          
+          <div class="preference-list preference-list--scrollable">
+            <label
+              v-for="option in tagOptions"
+              :key="option.id"
+              class="preference-option"
+            >
+              <input
+                type="checkbox"
+                :value="option.id"
+                :checked="isTagSelected(option.id)"
+                @change="toggleTagPreference(option.id)"
+                :disabled="!isTagSelected(option.id) && tagLimitReached"
+              />
+              <span>{{ option.name }}</span>
+            </label>
+            <p v-if="tagOptions.length === 0 && tagSearchQuery.trim()" class="preference-empty">
+              No tags match your search "{{ tagSearchQuery }}".
+            </p>
+            <p v-else-if="tagOptions.length === 0" class="preference-empty">No tags available yet.</p>
+          </div>
+          <div v-if="selectedTagObjects.length" class="chip-list">
+            <span
+              v-for="tag in selectedTagObjects"
+              :key="tag.id"
+              class="chip"
+            >{{ tag.tag_name || tag.name }}</span>
+          </div>
+        </section>
+      </div>
+
 
 
       <div class="form-actions">
-        <template v-if="isClub && currentStep === 2">
+        <template v-if="hasPreferenceStep && currentStep === 2">
           <button
             type="button"
             :class="outlineButtonClass"
@@ -394,6 +678,15 @@ const handleKeyPress = (event) => {
             :disabled="isProcessing"
           >
             Back
+          </button>
+          <button
+            v-if="isUser"
+            type="button"
+            :class="outlineButtonClass"
+            @click="handleRegister({ skipPreferences: true })"
+            :disabled="isProcessing"
+          >
+            Skip for now
           </button>
           <button
             type="submit"
@@ -410,7 +703,7 @@ const handleKeyPress = (event) => {
 
         <template v-else>
           <button
-            v-if="isClub && currentStep === 1"
+            v-if="hasPreferenceStep && currentStep === 1"
             type="submit"
             :class="primaryButtonClass"
             :disabled="!!stepOneError || isProcessing"
@@ -683,6 +976,131 @@ const handleKeyPress = (event) => {
 
 .notice-link:hover {
   text-decoration: underline;
+}
+
+/* Preference Selection */
+.preference-section {
+  margin-bottom: var(--space-24);
+  padding: var(--space-16);
+  background-color: var(--color-bg-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-base);
+}
+
+.preference-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-12);
+}
+
+.preference-title {
+  margin: 0;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.preference-count {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.preference-search {
+  margin-bottom: var(--space-12);
+}
+
+.preference-search-input {
+  width: 100%;
+  padding: var(--space-8) var(--space-12);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-base);
+  transition: border-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+.preference-search-input:focus {
+  border-color: var(--color-primary);
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.preference-search-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: var(--color-secondary);
+}
+
+.preference-search-input::placeholder {
+  color: var(--color-text-secondary);
+  opacity: 0.6;
+}
+
+.preference-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 160px);
+  gap: var(--space-8);
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+.preference-list--scrollable {
+  height: 220px;
+  overflow-y: auto;
+  padding-right: var(--space-4);
+}
+
+.preference-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-8);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-base);
+  background-color: var(--color-surface);
+  transition: border-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+  width: 160px;
+  flex-shrink: 0;
+}
+
+.preference-option:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-xs);
+}
+
+.preference-option input[type="checkbox"] {
+  flex-shrink: 0;
+}
+
+.preference-empty {
+  grid-column: 1 / -1;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin: var(--space-8) 0 0;
+}
+
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  margin-top: var(--space-12);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-12);
+  height: 28px;
+  border-radius: 14px;
+  background-color: var(--color-bg-2);
+  font-size: var(--font-size-xs);
+  color: var(--color-text);
 }
 
 /* Loading State */

@@ -60,12 +60,30 @@ const actions = {
   /**
    * Register a new user
    */
-  async register({ commit, dispatch }, { email, password, name, username, role, club_description, club_category_id, imageBase64, imageOriginalName }) {
+  async register({ commit, dispatch }, payload) {
+    const {
+      email,
+      password,
+      name,
+      username,
+      role,
+      clubDetails = {},
+      preferences = {}
+    } = payload || {};
+
     commit('SET_LOADING', true);
     commit('CLEAR_ERROR');
     
     try {
-  const response = await authService.register(email, password, name, username, role, { club_description, club_category_id, imageBase64, imageOriginalName });
+  const response = await authService.register(email, password, name, username, role, {
+        club_description: clubDetails.club_description,
+        club_category_id: clubDetails.club_category_id,
+        imageBase64: clubDetails.imageBase64,
+        imageOriginalName: clubDetails.imageOriginalName,
+        categoryPreferences: preferences.categoryPreferences,
+        clubCategoryPreferences: preferences.clubCategoryPreferences,
+        tagPreferences: preferences.tagPreferences
+      });
       
   const { user, token } = response.data;
   const normalizedUser = { ...user, role: user?.role || user?.account_type };
