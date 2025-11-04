@@ -386,11 +386,8 @@ export default createStore({
 
     // Get all unique tags
     allTags: (state) => {
-      const tagSet = new Set();
-      state.allEvents.forEach(event => {
-        event.tags.forEach(tag => tagSet.add(tag));
-      });
-      return Array.from(tagSet).sort();
+      if (!Array.isArray(state.availableTags)) return [];
+      return state.availableTags.map(tag => tag.tag_name || tag.name || '').filter(Boolean).sort();
     },
 
     // Category names (for backwards-compatible v-for loops)

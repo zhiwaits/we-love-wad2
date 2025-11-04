@@ -63,7 +63,7 @@ export default {
           if (selectedSet.has(lower)) return false;
           return lower.includes(input);
         })
-        .slice(0, 8);
+        .slice(0, 5);
     }
   },
   
