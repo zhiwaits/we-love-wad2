@@ -91,9 +91,17 @@ function convertToSGTime(isoString) {
 exports.getAllEvents = async (req, res) => {
   try {
     // Pagination parameters
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 1000; // Default to large number for backwards compatibility
-    const offset = (page - 1) * limit;
+    const rawLimit = typeof req.query.limit === 'string' ? req.query.limit : '';
+    let limit = null;
+    if (rawLimit && rawLimit.toLowerCase() !== 'all') {
+      const parsedLimit = parseInt(rawLimit, 10);
+      if (Number.isFinite(parsedLimit) && parsedLimit > 0) {
+        limit = parsedLimit;
+      }
+    }
+
+    const page = limit ? (parseInt(req.query.page, 10) || 1) : 1;
+    const offset = limit ? (page - 1) * limit : 0;
 
     // Filter parameters
     const searchQuery = req.query.search || '';
@@ -144,7 +152,7 @@ exports.getAllEvents = async (req, res) => {
       conditions.push(`(e.price IS NULL OR e.price = 0)`);
     } else if (priceFilter === 'paid') {
       conditions.push(`(e.price IS NOT NULL AND e.price > 0)`);
-    } else if (priceFilter === 'custom' && minPrice !== null && maxPrice !== null) {
+    } else if ((priceFilter === 'custom' || priceFilter === 'range') && minPrice !== null && maxPrice !== null) {
       params.push(minPrice, maxPrice);
       conditions.push(`e.price BETWEEN $${paramIndex} AND $${paramIndex + 1}`);
       paramIndex += 2;
@@ -193,10 +201,10 @@ exports.getAllEvents = async (req, res) => {
     `;
     const countResult = await pool.query(countQuery, params);
     const totalEvents = parseInt(countResult.rows[0].count);
-    const totalPages = Math.ceil(totalEvents / limit);
+    const totalPages = limit ? Math.ceil(totalEvents / limit) : 1;
 
     // Get paginated events with filters
-    const query = `
+    const baseQuery = `
       SELECT
         e.id,
         e.title,
@@ -223,10 +231,19 @@ exports.getAllEvents = async (req, res) => {
       ${whereClause}
       GROUP BY e.id, e.title, e.description, e.datetime, e.enddatetime, e.location, e.category, e.capacity, e.image_url, e.owner_id, e.price, e.venue, e.latitude, e.altitude, p.name, p.club_category_id, cc.name
       ORDER BY e.datetime ASC
-      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
-    params.push(limit, offset);
-    const result = await pool.query(query, params);
+
+    const queryParams = [...params];
+    let paginationClause = '';
+    if (limit) {
+      const limitPlaceholder = queryParams.length + 1;
+      const offsetPlaceholder = queryParams.length + 2;
+      paginationClause = ` LIMIT $${limitPlaceholder} OFFSET $${offsetPlaceholder}`;
+      queryParams.push(limit, offset);
+    }
+
+    const finalQuery = `${baseQuery}${paginationClause}`;
+    const result = await pool.query(finalQuery, queryParams);
 
     const shaped = result.rows.map((row) => {
       const numericPrice = row.price != null && !Number.isNaN(Number(row.price))
@@ -259,16 +276,27 @@ exports.getAllEvents = async (req, res) => {
     });
 
     // Return events with pagination metadata
+    const pagination = limit
+      ? {
+          currentPage: page,
+          totalPages: totalPages,
+          totalEvents: totalEvents,
+          eventsPerPage: limit,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1
+        }
+      : {
+          currentPage: 1,
+          totalPages: 1,
+          totalEvents: totalEvents,
+          eventsPerPage: totalEvents,
+          hasNextPage: false,
+          hasPreviousPage: false
+        };
+
     res.json({
       events: shaped,
-      pagination: {
-        currentPage: page,
-        totalPages: totalPages,
-        totalEvents: totalEvents,
-        eventsPerPage: limit,
-        hasNextPage: page < totalPages,
-        hasPreviousPage: page > 1
-      }
+      pagination
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
