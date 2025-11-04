@@ -1,5 +1,5 @@
 import { getClubProfiles } from '../../services/profileService';
-import { getFollowsByUserId, createFollow, deleteFollowByIds } from '../../services/followService';
+import { getFollowersByClubId, getFollowsByUserId, createFollow, deleteFollowByIds } from '../../services/followService';
 import { getAllClubCategories } from '../../services/clubCategoryService';
 import { getAllEvents } from '../../services/eventService';
 

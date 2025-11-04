@@ -216,26 +216,6 @@ export default {
 <template>
     <section class="clubs-grid">
         <div class="container">
-            <div
-                v-if="!loading && !error && filteredClubs.length > 0"
-                class="clubs-toolbar"
-            >
-                <div class="sort-container">
-                    <label class="sort-label" for="clubs-sort-select">Sort By</label>
-                    <select
-                        id="clubs-sort-select"
-                        class="sort-select"
-                        :value="sortOption"
-                        @change="handleSortChange"
-                    >
-                        <option value="newest">Newest</option>
-                        <option value="most-followers">Most Followers</option>
-                        <option value="most-events">Most Events</option>
-                        <option value="random">Random</option>
-                    </select>
-                </div>
-            </div>
-
             <div v-if="loading" class="no-results">
                 <h3>Loading clubs…</h3>
             </div>
@@ -397,44 +377,6 @@ export default {
     box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-.clubs-toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: var(--space-16, 16px);
-    margin-bottom: var(--space-16, 16px);
-}
-
-.clubs-toolbar .sort-container {
-    display: flex;
-    align-items: center;
-    gap: var(--space-8, 8px);
-}
-
-.clubs-toolbar .sort-label {
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: var(--color-text-secondary, #6b7280);
-}
-
-.clubs-toolbar .sort-select {
-    min-width: 180px;
-    padding: 0.5rem 0.75rem;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
-    background-color: #ffffff;
-    color: #1f2937;
-    font-size: 0.95rem;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.clubs-toolbar .sort-select:focus {
-    outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
-}
-
 @keyframes card-enter {
     from { opacity: 0; transform: translateY(12px); }
     to { opacity: 1; transform: translateY(0); }
@@ -442,15 +384,5 @@ export default {
 
 @media (max-width: 768px) {
     .cards-container { grid-template-columns: 1fr; }
-    .clubs-toolbar {
-        flex-direction: column;
-        align-items: center;
-    }
-    .clubs-toolbar .sort-container {
-        justify-content: center;
-    }
-    .clubs-toolbar .sort-select {
-        width: 100%;
-    }
 }
 </style>
