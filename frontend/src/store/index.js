@@ -5,7 +5,7 @@ import { getAllEventCategories } from '../services/eventCategoryService.js';
 import { getAllEventVenues } from '../services/eventVenueService.js';
 import { getAllTags } from '../services/tagService.js';
 import { getAllEventTags } from '../services/eventTagService.js';
-import { getSavedByUserId } from '../services/savedEventsService.js';
+import { getAllSaved, getSavedByUserId, getSavedByEventId, createSaved, deleteSaved } from '../services/savedEventsService.js';
 import clubs from './modules/clubs';
 
 let toastTimer = null;
@@ -1351,6 +1351,32 @@ export default createStore({
         commit('SET_SAVED_EVENTS', eventIds);
       } catch (error) {
         console.error('Error loading saved events:', error);
+      }
+    },
+
+    async toggleSaveEvent({ state, rootGetters, dispatch, getters }, eventId) {
+      const userId = rootGetters['auth/currentUser']?.id;
+      if (!userId || !eventId) return;
+
+      const isCurrentlySaved = getters.isEventSaved(eventId);
+
+      try {
+        if (isCurrentlySaved) {
+          // Unsave the event
+          await deleteSaved(eventId, userId);
+          dispatch('showToast', { message: 'Event unsaved', type: 'success' });
+        } else {
+          // Save the event
+          await createSaved({ event_id: eventId, user_id: userId });
+          dispatch('showToast', { message: 'Event saved', type: 'success' });
+        }
+
+        // Refresh the saved events list
+        await dispatch('loadSavedEvents');
+      } catch (error) {
+        console.error('Error toggling save event:', error);
+        const action = isCurrentlySaved ? 'unsaving' : 'saving';
+        dispatch('showToast', { message: `Error ${action} event`, type: 'error' });
       }
     },
 
