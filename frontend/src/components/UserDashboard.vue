@@ -9,6 +9,7 @@ import UserCalendar from './UserCalendar.vue';
 import UserProfileModal from './UserProfileModal.vue';
 import UserPreferencesModal from './UserPreferencesModal.vue';
 import { shareEventLink } from '../utils/shareEvent';
+import { getUserPreferences } from '../services/preferenceService';
 
 const store = useStore();
 const router = useRouter();
@@ -55,6 +56,10 @@ const showPreferencesModal = ref(false);
 // Tags popup modal state
 const showTagsModal = ref(false);
 const tagsModalEvent = ref(null);
+
+// Preference editor modal state
+const showPreferenceModal = ref(false);
+const userPreferences = ref({ categories: [], tags: [] });
 
 // Reactive window width for responsive carousel
 const windowWidth = ref(window.innerWidth);
@@ -125,7 +130,7 @@ const FALLBACK_PLACEHOLDER = 'https://placehold.co/600x400?text=Event';
 // Fetch data on mount
 onMounted(async () => {
   window.addEventListener('resize', updateWindowWidth);
-  
+
   const userId = currentUser.value.id;
 
   // Fetch all data - use unfiltered events for dashboard
@@ -133,6 +138,18 @@ onMounted(async () => {
   await store.dispatch('loadSavedEvents');
   await store.dispatch('fetchUserStats', userId);
   await store.dispatch('fetchUserRSVPs', userId);
+
+  // Load user preferences
+  try {
+    const response = await getUserPreferences(userId);
+    userPreferences.value = {
+      categories: response.data.preferred_categories || [],
+      tags: response.data.preferred_tags || []
+    };
+  } catch (error) {
+    console.error('Failed to load user preferences:', error);
+    userPreferences.value = { categories: [], tags: [] };
+  }
   
   // Enhanced Debug logging
   console.log('=== DASHBOARD MOUNT DEBUG ===');
@@ -311,6 +328,22 @@ const handleClubsFollowingClick = async () => {
   await store.dispatch('clubs/updateClubCategoryFilter', 'all');
   await store.dispatch('clubs/setFollowStatus', 'followed');
   router.push({ name: 'BrowseClubs', query: { filter: 'followed' } });
+};
+
+const openPreferenceModal = () => {
+  showPreferenceModal.value = true;
+};
+
+const closePreferenceModal = () => {
+  showPreferenceModal.value = false;
+};
+
+const handlePreferencesSaved = async (preferences) => {
+  userPreferences.value = preferences;
+  store.dispatch('showToast', {
+    message: 'Your preferences have been updated!',
+    type: 'success'
+  });
 };
 
 // Carousel computed properties
@@ -1285,6 +1318,39 @@ watch(savedEvents, () => {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* Preference button styles */
+.btn-preferences {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-preferences:hover {
+  background: #2563eb;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.btn-preferences .icon {
+  font-size: 1.1rem;
+}
+
+@media (max-width: 768px) {
+  .btn-preferences {
+    padding: 0.625rem 1.25rem;
+    font-size: 0.875rem;
   }
 }
 

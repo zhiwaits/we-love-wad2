@@ -85,103 +85,98 @@ exports.createUserProfile = async (req, res) => {
       password,
       category_preferences = [],
       club_category_preferences = [],
-      tag_preferences = []
-    } = req.body || {};
+      tag_preferences = [],
+      // Also accept alternate naming for compatibility
+      preferred_categories,
+      preferred_tags
+    } = req.body;
 
-    if (!username || !email || !password || !name) {
+    if (!username || !email || !password) {
       return res.status(400).json({ error: 'name, username, email, and password are required' });
     }
 
-    // Limit size and enforce uniqueness for string-based preferences
-    const sanitizeStringArray = (values, limit) => {
-      if (!Array.isArray(values) || values.length === 0) return [];
-      const seen = new Set();
-      const output = [];
-      for (const raw of values) {
-        if (output.length >= limit) break;
-        if (typeof raw !== 'string') continue;
-        const trimmed = raw.trim();
-        if (!trimmed) continue;
-        const dedupeKey = trimmed.toLowerCase();
-        if (seen.has(dedupeKey)) continue;
-        seen.add(dedupeKey);
-        output.push(trimmed);
-      }
-      return output;
-    };
-
-    // Limit size and enforce uniqueness for numeric-based preferences
-    const sanitizeNumericArray = (values, limit) => {
-      if (!Array.isArray(values) || values.length === 0) return [];
-      const seen = new Set();
-      const output = [];
-      for (const raw of values) {
-        if (output.length >= limit) break;
-        const numeric = Number(raw);
-        if (!Number.isFinite(numeric)) continue;
-        if (seen.has(numeric)) continue;
-        seen.add(numeric);
-        output.push(numeric);
-      }
-      return output;
-    };
-
-    const categoryPrefs = sanitizeStringArray(category_preferences, 3);
-    const clubCategoryPrefs = sanitizeNumericArray(club_category_preferences, 3);
-    const tagPrefs = sanitizeNumericArray(tag_preferences, 10);
+    // Use category_preferences if provided, otherwise use preferred_categories
+    const categoryPrefs = category_preferences.length > 0 ? category_preferences : (preferred_categories || []);
+    const tagPrefs = tag_preferences.length > 0 ? tag_preferences : (preferred_tags || []);
+    const clubCategoryPrefs = club_category_preferences;
 
     const passwordHash = crypto.createHash('sha256').update(String(password)).digest('hex');
 
     await client.query('BEGIN');
 
+    // Insert user profile without preference arrays
     const result = await client.query(
       `INSERT INTO ${table} (name, username, email, password, account_type)
        VALUES ($1, $2, $3, $4, 'user') RETURNING *`,
       [name, username, email, passwordHash]
     );
 
-    const user = result.rows[0];
-    const userId = user?.id;
+    const userId = result.rows[0].id;
 
-    if (userId != null) {
-      if (categoryPrefs.length > 0) {
+    // Insert category preferences if provided
+    if (Array.isArray(categoryPrefs) && categoryPrefs.length > 0) {
+      for (const category of categoryPrefs) {
         await client.query(
-          `INSERT INTO category_preference (userid, category)
-           SELECT $1, UNNEST($2::text[])
-           ON CONFLICT DO NOTHING`,
-          [userId, categoryPrefs]
+          'INSERT INTO category_preference (userid, category) VALUES ($1, $2)',
+          [userId, category]
         );
       }
+    }
 
-      if (clubCategoryPrefs.length > 0) {
+    // Insert club category preferences if provided
+    if (Array.isArray(clubCategoryPrefs) && clubCategoryPrefs.length > 0) {
+      for (const clubCategory of clubCategoryPrefs) {
+        const numericCategory = Number(clubCategory);
+        if (!Number.isFinite(numericCategory)) continue;
         await client.query(
-          `INSERT INTO club_category_preference (userid, club_category)
-           SELECT $1, UNNEST($2::bigint[])
-           ON CONFLICT DO NOTHING`,
-          [userId, clubCategoryPrefs]
+          'INSERT INTO club_category_preference (userid, club_category) VALUES ($1, $2)',
+          [userId, numericCategory]
         );
       }
+    }
 
-      if (tagPrefs.length > 0) {
+    // Insert tag preferences if provided
+    if (Array.isArray(tagPrefs) && tagPrefs.length > 0) {
+      for (const tagPref of tagPrefs) {
+        const numericTagId = Number(tagPref);
+        if (Number.isFinite(numericTagId)) {
+          await client.query(
+            'INSERT INTO tag_preference (userid, tagid) VALUES ($1, $2)',
+            [userId, numericTagId]
+          );
+          continue;
+        }
+
+        if (typeof tagPref !== 'string' || !tagPref.trim()) continue;
+
+        const tagResult = await client.query(
+          'SELECT id FROM event_tags WHERE LOWER(tag_name) = LOWER($1)',
+          [tagPref.trim()]
+        );
+
+        let tagId;
+        if (tagResult.rows.length > 0) {
+          tagId = tagResult.rows[0].id;
+        } else {
+          // Create new tag if it doesn't exist
+          const newTag = await client.query(
+            'INSERT INTO event_tags (tag_name) VALUES ($1) RETURNING id',
+            [tagPref.trim().toLowerCase()]
+          );
+          tagId = newTag.rows[0].id;
+        }
+
         await client.query(
-          `INSERT INTO tag_preference (userid, tagid)
-           SELECT $1, UNNEST($2::int[])
-           ON CONFLICT DO NOTHING`,
-          [userId, tagPrefs]
+          'INSERT INTO tag_preference (userid, tagid) VALUES ($1, $2)',
+          [userId, tagId]
         );
       }
     }
 
     await client.query('COMMIT');
-
-    const sanitizedUser = { ...user };
-    if (sanitizedUser) delete sanitizedUser.password;
-
-    res.status(201).json(sanitizedUser);
+    res.status(201).json(result.rows[0]);
   } catch (err) {
-    try {
-      await client.query('ROLLBACK');
-    } catch {}
+    await client.query('ROLLBACK');
     res.status(500).json({ error: err.message });
   } finally {
     client.release();
@@ -389,137 +384,154 @@ exports.deleteProfile = async (req, res) => {
   }
 };
 
-// Get user preferences
+
 exports.getUserPreferences = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Get category preferences
-    const categoryPrefs = await pool.query(
+    // Check if user exists and is a user account
+    const userCheck = await pool.query(
+      `SELECT id FROM ${table} WHERE id = $1 AND account_type = 'user'`,
+      [id]
+    );
+
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'User profile not found' });
+    }
+
+    // Get event categories from category_preference table
+    const categoriesResult = await pool.query(
       `SELECT category FROM category_preference WHERE userid = $1`,
       [id]
     );
 
-    // Get club category preferences
-    const clubCategoryPrefs = await pool.query(
+    // Get club categories from club_category_preference table
+    const clubCategoriesResult = await pool.query(
       `SELECT club_category FROM club_category_preference WHERE userid = $1`,
       [id]
     );
 
-    // Get tag preferences
-    const tagPrefs = await pool.query(
-      `SELECT tagid FROM tag_preference WHERE userid = $1`,
+    // Get tags from tag_preference table (need to join with event_tags to get tag names)
+    const tagsResult = await pool.query(
+      `SELECT et.id, et.tag_name
+       FROM tag_preference tp
+       JOIN event_tags et ON tp.tagid = et.id
+       WHERE tp.userid = $1`,
       [id]
     );
 
-    res.json({
-      categoryPreferences: categoryPrefs.rows.map(row => row.category),
-      clubCategoryPreferences: clubCategoryPrefs.rows.map(row => Number(row.club_category)),
-      tagPreferences: tagPrefs.rows.map(row => Number(row.tagid))
-    });
+    const preferences = {
+      categoryPreferences: categoriesResult.rows.map(row => row.category),
+  clubCategoryPreferences: clubCategoriesResult.rows.map(row => Number(row.club_category)),
+      tagPreferences: tagsResult.rows.map(row => Number(row.id))
+    };
+
+    res.json(preferences);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
-// Update user preferences
+
 exports.updateUserPreferences = async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
-    const {
-      categoryPreferences = [],
-      clubCategoryPreferences = [],
-      tagPreferences = []
-    } = req.body;
+    const { categoryPreferences, clubCategoryPreferences, tagPreferences } = req.body;
 
-    // Limit size and enforce uniqueness for string-based preferences
-    const sanitizeStringArray = (values, limit) => {
-      if (!Array.isArray(values) || values.length === 0) return [];
-      const seen = new Set();
-      const output = [];
-      for (const raw of values) {
-        if (output.length >= limit) break;
-        if (typeof raw !== 'string') continue;
-        const trimmed = raw.trim();
-        if (!trimmed) continue;
-        const dedupeKey = trimmed.toLowerCase();
-        if (seen.has(dedupeKey)) continue;
-        seen.add(dedupeKey);
-        output.push(trimmed);
-      }
-      return output;
-    };
+    // Validate that arrays are provided
+    if (!Array.isArray(categoryPreferences) || !Array.isArray(clubCategoryPreferences) || !Array.isArray(tagPreferences)) {
+      return res.status(400).json({ error: 'categoryPreferences, clubCategoryPreferences, and tagPreferences must be arrays' });
+    }
 
-    // Limit size and enforce uniqueness for numeric-based preferences
-    const sanitizeNumericArray = (values, limit) => {
-      if (!Array.isArray(values) || values.length === 0) return [];
-      const seen = new Set();
-      const output = [];
-      for (const raw of values) {
-        if (output.length >= limit) break;
-        const numeric = Number(raw);
-        if (!Number.isFinite(numeric)) continue;
-        if (seen.has(numeric)) continue;
-        seen.add(numeric);
-        output.push(numeric);
-      }
-      return output;
-    };
+    // Validate minimum and maximum limits (3-10 total preferences)
+    const totalPreferences = categoryPreferences.length + clubCategoryPreferences.length + tagPreferences.length;
+    if (totalPreferences < 3) {
+      return res.status(400).json({ error: 'Please select at least 3 preferences (categories, club categories, or tags combined)' });
+    }
+    if (totalPreferences > 10) {
+      return res.status(400).json({ error: 'Please select no more than 10 preferences (categories, club categories, or tags combined)' });
+    }
 
-    const categoryPrefs = sanitizeStringArray(categoryPreferences, 3);
-    const clubCategoryPrefs = sanitizeNumericArray(clubCategoryPreferences, 3);
-    const tagPrefs = sanitizeNumericArray(tagPreferences, 10);
+    // Check if user exists
+    const userCheck = await client.query(
+      `SELECT id FROM ${table} WHERE id = $1 AND account_type = 'user'`,
+      [id]
+    );
+
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'User profile not found' });
+    }
 
     await client.query('BEGIN');
 
     // Delete existing preferences
-    await client.query(`DELETE FROM category_preference WHERE userid = $1`, [id]);
-    await client.query(`DELETE FROM club_category_preference WHERE userid = $1`, [id]);
-    await client.query(`DELETE FROM tag_preference WHERE userid = $1`, [id]);
+    await client.query('DELETE FROM category_preference WHERE userid = $1', [id]);
+    await client.query('DELETE FROM club_category_preference WHERE userid = $1', [id]);
+    await client.query('DELETE FROM tag_preference WHERE userid = $1', [id]);
 
-    // Insert new preferences
-    if (categoryPrefs.length > 0) {
+    // Insert new category preferences
+    for (const category of categoryPreferences) {
       await client.query(
-        `INSERT INTO category_preference (userid, category)
-         SELECT $1, UNNEST($2::text[])
-         ON CONFLICT DO NOTHING`,
-        [id, categoryPrefs]
+        'INSERT INTO category_preference (userid, category) VALUES ($1, $2)',
+        [id, category]
       );
     }
 
-    if (clubCategoryPrefs.length > 0) {
+    // Insert new club category preferences
+    for (const clubCategory of clubCategoryPreferences) {
+      const numericCategory = Number(clubCategory);
+      if (!Number.isFinite(numericCategory)) continue;
       await client.query(
-        `INSERT INTO club_category_preference (userid, club_category)
-         SELECT $1, UNNEST($2::bigint[])
-         ON CONFLICT DO NOTHING`,
-        [id, clubCategoryPrefs]
+        'INSERT INTO club_category_preference (userid, club_category) VALUES ($1, $2)',
+        [id, numericCategory]
       );
     }
 
-    if (tagPrefs.length > 0) {
+    // Insert new tag preferences
+    for (const tagPref of tagPreferences) {
+      const numericTagId = Number(tagPref);
+      if (Number.isFinite(numericTagId)) {
+        await client.query(
+          'INSERT INTO tag_preference (userid, tagid) VALUES ($1, $2)',
+          [id, numericTagId]
+        );
+        continue;
+      }
+
+      if (typeof tagPref !== 'string' || !tagPref.trim()) continue;
+
+      const tagResult = await client.query(
+        'SELECT id FROM event_tags WHERE LOWER(tag_name) = LOWER($1)',
+        [tagPref.trim()]
+      );
+
+      let tagId;
+      if (tagResult.rows.length > 0) {
+        tagId = tagResult.rows[0].id;
+      } else {
+        const newTag = await client.query(
+          'INSERT INTO event_tags (tag_name) VALUES ($1) RETURNING id',
+          [tagPref.trim().toLowerCase()]
+        );
+        tagId = newTag.rows[0].id;
+      }
+
       await client.query(
-        `INSERT INTO tag_preference (userid, tagid)
-         SELECT $1, UNNEST($2::int[])
-         ON CONFLICT DO NOTHING`,
-        [id, tagPrefs]
+        'INSERT INTO tag_preference (userid, tagid) VALUES ($1, $2)',
+        [id, tagId]
       );
     }
 
     await client.query('COMMIT');
 
     res.json({
-      message: 'Preferences updated successfully',
-      preferences: {
-        categoryPreferences: categoryPrefs,
-        clubCategoryPreferences: clubCategoryPrefs,
-        tagPreferences: tagPrefs
-      }
+      categoryPreferences,
+      clubCategoryPreferences,
+      tagPreferences
     });
   } catch (err) {
-    try {
-      await client.query('ROLLBACK');
-    } catch {}
+    await client.query('ROLLBACK');
     res.status(500).json({ error: err.message });
   } finally {
     client.release();

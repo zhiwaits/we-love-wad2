@@ -1,6 +1,6 @@
 import auth from './modules/auth';
 import { createStore } from 'vuex';
-import { getAllEvents } from "../services/eventService.js";
+import { getAllEvents, getRecommendedEvents } from "../services/eventService.js";
 import { getAllEventCategories } from '../services/eventCategoryService.js';
 import { getAllEventVenues } from '../services/eventVenueService.js';
 import { getAllTags } from '../services/tagService.js';
@@ -258,6 +258,12 @@ export default createStore({
     // Browse events (filtered) - used by browse events page
     browseEvents: [],
 
+    // Recommended events - used when viewing recommendations
+    recommendedEvents: [],
+
+    // Show recommended toggle
+    showRecommended: false,
+
     // Pagination state
     pagination: {
       currentPage: 1,
@@ -314,6 +320,11 @@ export default createStore({
     },
     // Get filtered events based on current filters
     filteredEvents: (state) => {
+      // If showing recommended events, use recommended events instead of browse events
+      if (state.showRecommended) {
+        return state.recommendedEvents;
+      }
+
       // Most filtering is now done on the backend
       // Only apply client-side filters for:
       // 1. Tags (not sent to backend)
@@ -699,6 +710,14 @@ export default createStore({
 
     setBrowseEvents(state, events) {
       state.browseEvents = events;
+    },
+
+    setRecommendedEvents(state, events) {
+      state.recommendedEvents = events;
+    },
+
+    setShowRecommended(state, value) {
+      state.showRecommended = value;
     },
 
     setClubOwnedEvents(state, events) {
@@ -1157,6 +1176,80 @@ export default createStore({
         commit('setAllEvents', normalizedEvents);
       } catch (error) {
         console.error('fetchAllEventsUnfiltered - error:', error);
+      }
+    },
+
+    // Fetch recommended events for a user
+    async fetchRecommendedEvents({ commit, rootGetters }, userId) {
+      try {
+        const effectiveUserId = userId || rootGetters['auth/currentUser']?.id;
+        if (!effectiveUserId) {
+          console.warn('Cannot fetch recommended events: no user ID');
+          commit('setRecommendedEvents', []);
+          return;
+        }
+
+        const [eventsResponse, eventTagsResponse, tagsResponse] = await Promise.all([
+          getRecommendedEvents(effectiveUserId),
+          getAllEventTags(),
+          getAllTags()
+        ]);
+
+        const events = Array.isArray(eventsResponse.data?.events) ? eventsResponse.data.events : [];
+        const eventTags = Array.isArray(eventTagsResponse.data) ? eventTagsResponse.data : [];
+        const tags = Array.isArray(tagsResponse.data) ? tagsResponse.data : [];
+
+        const eventTagMap = buildEventTagMap(eventTags, tags);
+        const normalizedEvents = normalizeEventsWithMetadata(events, eventTagMap);
+
+        // Create a map of event_id to array of tag_names
+        const tagMap = {};
+        tags.forEach(tag => {
+          tagMap[tag.id] = tag.tag_name || tag.name || '';
+        });
+
+        const eventTagsMap = {};
+        eventTags.forEach(et => {
+          if (!eventTagsMap[et.event_id]) {
+            eventTagsMap[et.event_id] = [];
+          }
+          const tagName = tagMap[et.tag_id];
+          if (tagName) {
+            eventTagsMap[et.event_id].push(tagName);
+          }
+        });
+
+        // Assign tags to events
+        normalizedEvents.forEach(event => {
+          event.tags = eventTagsMap[event.id] || [];
+        });
+
+        console.log('fetchRecommendedEvents - recommended events with tags:', normalizedEvents);
+        commit('setRecommendedEvents', normalizedEvents);
+      } catch (error) {
+        console.error('fetchRecommendedEvents - error:', error);
+        commit('setRecommendedEvents', []);
+      }
+    },
+
+    // Toggle showing recommended events
+    async toggleRecommended({ commit, dispatch, state, rootGetters }) {
+      const newValue = !state.showRecommended;
+      commit('setShowRecommended', newValue);
+
+      // If turning on recommended, fetch them
+      if (newValue) {
+        const userId = rootGetters['auth/currentUser']?.id;
+        await dispatch('fetchRecommendedEvents', userId);
+      }
+    },
+
+    // Set recommended view (without toggle)
+    async setRecommendedView({ commit, dispatch, rootGetters }, show) {
+      commit('setShowRecommended', show);
+      if (show) {
+        const userId = rootGetters['auth/currentUser']?.id;
+        await dispatch('fetchRecommendedEvents', userId);
       }
     },
 
