@@ -45,7 +45,15 @@ export const register = async (email, password, name, username, role, options = 
       return { data: { user: response.data, token: `mock-token-${response.data.id}-${Date.now()}` } };
     }
 
-    const payload = { name, username, email, password };
+    const payload = {
+      name,
+      username,
+      email,
+      password,
+      category_preferences: Array.isArray(options.categoryPreferences) ? options.categoryPreferences : [],
+      club_category_preferences: Array.isArray(options.clubCategoryPreferences) ? options.clubCategoryPreferences : [],
+      tag_preferences: Array.isArray(options.tagPreferences) ? options.tagPreferences : []
+    };
     const response = await axios.post(`${BASE_URL}/profiles/user`, payload);
     return { data: { user: response.data, token: `mock-token-${response.data.id}-${Date.now()}` } };
   } catch (error) {

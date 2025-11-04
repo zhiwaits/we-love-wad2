@@ -76,20 +76,115 @@ exports.getProfileById = async (req, res) => {
 
 
 exports.createUserProfile = async (req, res) => {
+  const client = await pool.connect();
   try {
-    const { name, username, email, password } = req.body;
-    if (!username || !email || !password) {
+    const {
+      name,
+      username,
+      email,
+      password,
+      category_preferences = [],
+      club_category_preferences = [],
+      tag_preferences = []
+    } = req.body || {};
+
+    if (!username || !email || !password || !name) {
       return res.status(400).json({ error: 'name, username, email, and password are required' });
     }
+
+    // Limit size and enforce uniqueness for string-based preferences
+    const sanitizeStringArray = (values, limit) => {
+      if (!Array.isArray(values) || values.length === 0) return [];
+      const seen = new Set();
+      const output = [];
+      for (const raw of values) {
+        if (output.length >= limit) break;
+        if (typeof raw !== 'string') continue;
+        const trimmed = raw.trim();
+        if (!trimmed) continue;
+        const dedupeKey = trimmed.toLowerCase();
+        if (seen.has(dedupeKey)) continue;
+        seen.add(dedupeKey);
+        output.push(trimmed);
+      }
+      return output;
+    };
+
+    // Limit size and enforce uniqueness for numeric-based preferences
+    const sanitizeNumericArray = (values, limit) => {
+      if (!Array.isArray(values) || values.length === 0) return [];
+      const seen = new Set();
+      const output = [];
+      for (const raw of values) {
+        if (output.length >= limit) break;
+        const numeric = Number(raw);
+        if (!Number.isFinite(numeric)) continue;
+        if (seen.has(numeric)) continue;
+        seen.add(numeric);
+        output.push(numeric);
+      }
+      return output;
+    };
+
+    const categoryPrefs = sanitizeStringArray(category_preferences, 3);
+    const clubCategoryPrefs = sanitizeNumericArray(club_category_preferences, 3);
+    const tagPrefs = sanitizeNumericArray(tag_preferences, 10);
+
     const passwordHash = crypto.createHash('sha256').update(String(password)).digest('hex');
-    const result = await pool.query(
+
+    await client.query('BEGIN');
+
+    const result = await client.query(
       `INSERT INTO ${table} (name, username, email, password, account_type)
        VALUES ($1, $2, $3, $4, 'user') RETURNING *`,
       [name, username, email, passwordHash]
     );
-    res.status(201).json(result.rows[0]);
+
+    const user = result.rows[0];
+    const userId = user?.id;
+
+    if (userId != null) {
+      if (categoryPrefs.length > 0) {
+        await client.query(
+          `INSERT INTO category_preference (userid, category)
+           SELECT $1, UNNEST($2::text[])
+           ON CONFLICT DO NOTHING`,
+          [userId, categoryPrefs]
+        );
+      }
+
+      if (clubCategoryPrefs.length > 0) {
+        await client.query(
+          `INSERT INTO club_category_preference (userid, club_category)
+           SELECT $1, UNNEST($2::bigint[])
+           ON CONFLICT DO NOTHING`,
+          [userId, clubCategoryPrefs]
+        );
+      }
+
+      if (tagPrefs.length > 0) {
+        await client.query(
+          `INSERT INTO tag_preference (userid, tagid)
+           SELECT $1, UNNEST($2::int[])
+           ON CONFLICT DO NOTHING`,
+          [userId, tagPrefs]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+
+    const sanitizedUser = { ...user };
+    if (sanitizedUser) delete sanitizedUser.password;
+
+    res.status(201).json(sanitizedUser);
   } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {}
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 };
 
