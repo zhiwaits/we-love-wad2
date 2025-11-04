@@ -98,6 +98,7 @@ exports.createUserProfile = async (req, res) => {
     // Use category_preferences if provided, otherwise use preferred_categories
     const categoryPrefs = category_preferences.length > 0 ? category_preferences : (preferred_categories || []);
     const tagPrefs = tag_preferences.length > 0 ? tag_preferences : (preferred_tags || []);
+    const clubCategoryPrefs = club_category_preferences;
 
     const passwordHash = crypto.createHash('sha256').update(String(password)).digest('hex');
 
@@ -122,13 +123,35 @@ exports.createUserProfile = async (req, res) => {
       }
     }
 
+    // Insert club category preferences if provided
+    if (Array.isArray(clubCategoryPrefs) && clubCategoryPrefs.length > 0) {
+      for (const clubCategory of clubCategoryPrefs) {
+        const numericCategory = Number(clubCategory);
+        if (!Number.isFinite(numericCategory)) continue;
+        await client.query(
+          'INSERT INTO club_category_preference (userid, club_category) VALUES ($1, $2)',
+          [userId, numericCategory]
+        );
+      }
+    }
+
     // Insert tag preferences if provided
     if (Array.isArray(tagPrefs) && tagPrefs.length > 0) {
-      for (const tagName of tagPrefs) {
-        // Find or create tag
+      for (const tagPref of tagPrefs) {
+        const numericTagId = Number(tagPref);
+        if (Number.isFinite(numericTagId)) {
+          await client.query(
+            'INSERT INTO tag_preference (userid, tagid) VALUES ($1, $2)',
+            [userId, numericTagId]
+          );
+          continue;
+        }
+
+        if (typeof tagPref !== 'string' || !tagPref.trim()) continue;
+
         const tagResult = await client.query(
           'SELECT id FROM event_tags WHERE LOWER(tag_name) = LOWER($1)',
-          [tagName]
+          [tagPref.trim()]
         );
 
         let tagId;
@@ -138,7 +161,7 @@ exports.createUserProfile = async (req, res) => {
           // Create new tag if it doesn't exist
           const newTag = await client.query(
             'INSERT INTO event_tags (tag_name) VALUES ($1) RETURNING id',
-            [tagName.toLowerCase()]
+            [tagPref.trim().toLowerCase()]
           );
           tagId = newTag.rows[0].id;
         }
@@ -204,13 +227,26 @@ exports.createClubProfile = async (req, res) => {
 exports.updateUserProfile = async (req, res) => {
   const { id } = req.params;
   const {
-    username, email, password
+    name, username, email, password
   } = req.body;
   try {
-    const result = await pool.query(
-      `UPDATE ${table} SET username=$1, email=$2, password=$3 WHERE id=$4 AND account_type='user' RETURNING *`,
-      [username, email, password, id]
-    );
+    // Handle password - only hash if provided
+    let passwordValue = password;
+    if (password) {
+      passwordValue = crypto.createHash('sha256').update(String(password)).digest('hex');
+    }
+
+    // Build dynamic query based on whether password is being updated
+    let query, params;
+    if (passwordValue) {
+      query = `UPDATE ${table} SET name=$1, username=$2, email=$3, password=$4 WHERE id=$5 AND account_type='user' RETURNING *`;
+      params = [name, username, email, passwordValue, id];
+    } else {
+      query = `UPDATE ${table} SET name=$1, username=$2, email=$3 WHERE id=$4 AND account_type='user' RETURNING *`;
+      params = [name, username, email, id];
+    }
+
+    const result = await pool.query(query, params);
     if (result.rows.length === 0) return res.status(404).json({ error: 'User profile not found' });
     res.json(result.rows[0]);
   } catch (err) {
@@ -348,7 +384,7 @@ exports.deleteProfile = async (req, res) => {
   }
 };
 
-// Get user preferences (categories and tags)
+
 exports.getUserPreferences = async (req, res) => {
   try {
     const { id } = req.params;
@@ -369,9 +405,15 @@ exports.getUserPreferences = async (req, res) => {
       [id]
     );
 
+    // Get club categories from club_category_preference table
+    const clubCategoriesResult = await pool.query(
+      `SELECT club_category FROM club_category_preference WHERE userid = $1`,
+      [id]
+    );
+
     // Get tags from tag_preference table (need to join with event_tags to get tag names)
     const tagsResult = await pool.query(
-      `SELECT et.tag_name
+      `SELECT et.id, et.tag_name
        FROM tag_preference tp
        JOIN event_tags et ON tp.tagid = et.id
        WHERE tp.userid = $1`,
@@ -379,8 +421,9 @@ exports.getUserPreferences = async (req, res) => {
     );
 
     const preferences = {
-      preferred_categories: categoriesResult.rows.map(row => row.category),
-      preferred_tags: tagsResult.rows.map(row => row.tag_name)
+      categoryPreferences: categoriesResult.rows.map(row => row.category),
+  clubCategoryPreferences: clubCategoriesResult.rows.map(row => Number(row.club_category)),
+      tagPreferences: tagsResult.rows.map(row => Number(row.id))
     };
 
     res.json(preferences);
@@ -389,25 +432,25 @@ exports.getUserPreferences = async (req, res) => {
   }
 };
 
-// Update user preferences (categories and tags)
+
 exports.updateUserPreferences = async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
-    const { preferred_categories, preferred_tags } = req.body;
+    const { categoryPreferences, clubCategoryPreferences, tagPreferences } = req.body;
 
     // Validate that arrays are provided
-    if (!Array.isArray(preferred_categories) || !Array.isArray(preferred_tags)) {
-      return res.status(400).json({ error: 'preferred_categories and preferred_tags must be arrays' });
+    if (!Array.isArray(categoryPreferences) || !Array.isArray(clubCategoryPreferences) || !Array.isArray(tagPreferences)) {
+      return res.status(400).json({ error: 'categoryPreferences, clubCategoryPreferences, and tagPreferences must be arrays' });
     }
 
     // Validate minimum and maximum limits (3-10 total preferences)
-    const totalPreferences = preferred_categories.length + preferred_tags.length;
+    const totalPreferences = categoryPreferences.length + clubCategoryPreferences.length + tagPreferences.length;
     if (totalPreferences < 3) {
-      return res.status(400).json({ error: 'Please select at least 3 preferences (categories or tags combined)' });
+      return res.status(400).json({ error: 'Please select at least 3 preferences (categories, club categories, or tags combined)' });
     }
     if (totalPreferences > 10) {
-      return res.status(400).json({ error: 'Please select no more than 10 preferences (categories or tags combined)' });
+      return res.status(400).json({ error: 'Please select no more than 10 preferences (categories, club categories, or tags combined)' });
     }
 
     // Check if user exists
@@ -424,32 +467,52 @@ exports.updateUserPreferences = async (req, res) => {
 
     // Delete existing preferences
     await client.query('DELETE FROM category_preference WHERE userid = $1', [id]);
+    await client.query('DELETE FROM club_category_preference WHERE userid = $1', [id]);
     await client.query('DELETE FROM tag_preference WHERE userid = $1', [id]);
 
     // Insert new category preferences
-    for (const category of preferred_categories) {
+    for (const category of categoryPreferences) {
       await client.query(
         'INSERT INTO category_preference (userid, category) VALUES ($1, $2)',
         [id, category]
       );
     }
 
+    // Insert new club category preferences
+    for (const clubCategory of clubCategoryPreferences) {
+      const numericCategory = Number(clubCategory);
+      if (!Number.isFinite(numericCategory)) continue;
+      await client.query(
+        'INSERT INTO club_category_preference (userid, club_category) VALUES ($1, $2)',
+        [id, numericCategory]
+      );
+    }
+
     // Insert new tag preferences
-    for (const tagName of preferred_tags) {
-      // Find or create tag
+    for (const tagPref of tagPreferences) {
+      const numericTagId = Number(tagPref);
+      if (Number.isFinite(numericTagId)) {
+        await client.query(
+          'INSERT INTO tag_preference (userid, tagid) VALUES ($1, $2)',
+          [id, numericTagId]
+        );
+        continue;
+      }
+
+      if (typeof tagPref !== 'string' || !tagPref.trim()) continue;
+
       const tagResult = await client.query(
         'SELECT id FROM event_tags WHERE LOWER(tag_name) = LOWER($1)',
-        [tagName]
+        [tagPref.trim()]
       );
 
       let tagId;
       if (tagResult.rows.length > 0) {
         tagId = tagResult.rows[0].id;
       } else {
-        // Create new tag if it doesn't exist
         const newTag = await client.query(
           'INSERT INTO event_tags (tag_name) VALUES ($1) RETURNING id',
-          [tagName.toLowerCase()]
+          [tagPref.trim().toLowerCase()]
         );
         tagId = newTag.rows[0].id;
       }
@@ -463,8 +526,9 @@ exports.updateUserPreferences = async (req, res) => {
     await client.query('COMMIT');
 
     res.json({
-      preferred_categories,
-      preferred_tags
+      categoryPreferences,
+      clubCategoryPreferences,
+      tagPreferences
     });
   } catch (err) {
     await client.query('ROLLBACK');

@@ -206,6 +206,17 @@ export default {
         closeTagsModal() {
             this.showTagsModal = false;
             this.tagsModalEvent = null;
+        },
+
+        handleRsvpCreated(rsvpData) {
+            // Refresh events data to update attendee counts
+            this.$store.dispatch('fetchAllEvents');
+            
+            // Show success message
+            this.$store.dispatch('showToast', {
+                message: 'RSVP successful!',
+                type: 'success'
+            });
         }
     },
 

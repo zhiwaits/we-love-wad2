@@ -12,3 +12,5 @@ export const updateClubProfile = (id, data) => axios.put(`${BASE_URL}/profiles/c
 export const deleteProfile = (id) => axios.delete(`${BASE_URL}/profiles/${id}`);
 export const getClubProfiles = () => axios.get(`${BASE_URL}/profiles/club`);
 export const getClubStats = (id) => axios.get(`${BASE_URL}/profiles/club/${id}/stats`);
+export const getUserPreferences = (id) => axios.get(`${BASE_URL}/profiles/${id}/preferences`);
+export const updateUserPreferences = (id, data) => axios.put(`${BASE_URL}/profiles/user/${id}/preferences`, data);

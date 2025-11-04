@@ -12,8 +12,8 @@ router.get('/:id', profilesController.getProfileById);
 router.post('/user', profilesController.createUserProfile);
 router.post('/club', profilesController.createClubProfile);
 router.put('/user/:id', profilesController.updateUserProfile);
+router.put('/user/:id/preferences', profilesController.updateUserPreferences);
 router.put('/club/:id', profilesController.updateClubProfile);
-router.put('/:id/preferences', profilesController.updateUserPreferences);
 router.delete('/:id', profilesController.deleteProfile);
 
 module.exports = router;

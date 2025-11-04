@@ -6,7 +6,8 @@ import StatCard from './StatCard.vue';
 import EventDetailModal from './EventDetailModal.vue';
 import FullImageModal from './FullImageModal.vue';
 import UserCalendar from './UserCalendar.vue';
-import PreferenceEditorModal from './PreferenceEditorModal.vue';
+import UserProfileModal from './UserProfileModal.vue';
+import UserPreferencesModal from './UserPreferencesModal.vue';
 import { shareEventLink } from '../utils/shareEvent';
 import { getUserPreferences } from '../services/preferenceService';
 
@@ -45,6 +46,12 @@ const savedCarouselIndex = ref(0);
 const showImageModal = ref(false);
 const selectedImage = ref('');
 const selectedImageAlt = ref('');
+
+// Profile modal state
+const showProfileModal = ref(false);
+
+// Preferences modal state
+const showPreferencesModal = ref(false);
 
 // Tags popup modal state
 const showTagsModal = ref(false);
@@ -247,6 +254,22 @@ const closeEventModal = () => {
   selectedEvent.value = null;
 };
 
+const openProfileModal = () => {
+  showProfileModal.value = true;
+};
+
+const closeProfileModal = () => {
+  showProfileModal.value = false;
+};
+
+const openPreferencesModal = () => {
+  showPreferencesModal.value = true;
+};
+
+const closePreferencesModal = () => {
+  showPreferencesModal.value = false;
+};
+
 const handleShare = async () => {
   if (!selectedEvent.value) return;
   try {
@@ -419,9 +442,11 @@ watch(savedEvents, () => {
             <p class="dashboard-subtitle">Here's your personalized event overview</p>
         </div>
         <div class="header-actions">
-          <button class="btn-preferences" @click="openPreferenceModal">
-            <span class="icon">⚙️</span>
-            Edit Preferences
+          <button class="btn btn-outline" @click="openPreferencesModal">
+            Update Preferences
+          </button>
+          <button class="btn btn-outline" @click="openProfileModal">
+            Edit Profile
           </button>
         </div>
         </div>
@@ -713,14 +738,18 @@ watch(savedEvents, () => {
       </div>
     </div>
 
-    <!-- Preference Editor Modal -->
-    <PreferenceEditorModal
-      :is-visible="showPreferenceModal"
-      :user-id="currentUser.id"
-      :initial-categories="userPreferences.categories"
-      :initial-tags="userPreferences.tags"
-      @close="closePreferenceModal"
-      @saved="handlePreferencesSaved"
+    <UserProfileModal
+      :visible="showProfileModal"
+      :currentUser="currentUser"
+      @close="closeProfileModal"
+      @profile-updated="closeProfileModal"
+    />
+
+    <UserPreferencesModal
+      :visible="showPreferencesModal"
+      :currentUser="currentUser"
+      @close="closePreferencesModal"
+      @preferences-updated="closePreferencesModal"
     />
   </div>
 </template>

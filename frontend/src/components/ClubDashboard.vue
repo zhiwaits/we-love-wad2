@@ -3,15 +3,12 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useStore } from 'vuex';
 import StatCard from './StatCard.vue';
-import EventDetailModal from './EventDetailModal.vue';
 import FullImageModal from './FullImageModal.vue';
-import ClubDetailModal from './ClubDetailModal.vue';
+import ClubProfileModal from './ClubProfileModal.vue';
 import ClubCalendar from './ClubCalendar.vue';
 import ClubRSVPsModal from './ClubRSVPsModal.vue';
 import ClubFollowersModal from './ClubFollowersModal.vue';
-import { shareEventLink } from '../utils/shareEvent';
-import { updateClubProfile, getClubStats } from '../services/profileService';
-import { getAllClubCategories } from '../services/clubCategoryService';
+import ClubDetailModal from './ClubDetailModal.vue';
 import { deleteRsvp } from '../services/rsvpService';
 
 const store = useStore();
@@ -40,10 +37,10 @@ const upcomingEvents = computed(() => isMounted.value ? store.getters.upcomingUs
 const recommendedEvents = computed(() => isMounted.value ? store.getters.recommendedEvents : []);
 const savedEvents = computed(() => isMounted.value ? store.getters.userSavedEvents : []);
 
-const selectedEvent = ref(null);
-const showEventModal = ref(false);
 const showRsvpsModal = ref(false);
 const showFollowersModal = ref(false);
+const showProfileModal = ref(false);
+const showPreviewModal = ref(false);
 const rsvpActionKey = ref(null);
 
 // Image modal state
@@ -147,28 +144,14 @@ const clubStats = computed(() => {
   };
 });
 
-// Profile edit form data
-const profileForm = ref({
-  name: '',
-  username: '',
-  email: '',
-  password: '',
-  confirmPassword: '',
-  club_description: '',
-  club_category_id: '',
-  imageBase64: null,
-  imageOriginalName: null
+const currentClubCategory = computed(() => {
+  const categoryId = currentUser.value?.club_category_id;
+  if (!categoryId) return '';
+  
+  const categories = store.state.categories || [];
+  const category = categories.find(cat => cat.id == categoryId);
+  return category ? (category.name || '') : '';
 });
-const clubCategories = ref([]);
-const profileLoading = ref(false);
-
-// Preview modal
-const showPreviewModal = ref(false);
-const previewUpcomingEvents = ref(0);
-const previewTotalEvents = ref(0);
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-const FALLBACK_PLACEHOLDER = 'https://placehold.co/600x400?text=Event';
 
 const refreshClubRsvps = async () => {
   const ownerId = currentUser.value?.id;
@@ -274,192 +257,17 @@ onMounted(async () => {
   await store.dispatch('fetchClubStats', userId);
   await refreshClubRsvps();
   await refreshClubFollowers();
-  
-  // Load club categories for the form
-  await loadClubCategories();
-  
-  // Load current profile data
-  await loadProfileData();
 });
 
-// Profile management methods
-const loadClubCategories = async () => {
-  try {
-    const response = await getAllClubCategories();
-    clubCategories.value = response.data || [];
-  } catch (error) {
-    console.error('Failed to load club categories:', error);
-  }
-};
-
-const loadProfileData = async () => {
-  try {
-    // Profile data should already be in currentUser, but we can refresh if needed
-    const user = currentUser.value;
-    profileForm.value = {
-      name: user.name || '',
-      username: user.username || '',
-      email: user.email || '',
-      password: '',
-      confirmPassword: '',
-      club_description: user.club_description || '',
-      club_category_id: user.club_category_id || '',
-      imageBase64: null,
-      imageOriginalName: null
-    };
-  } catch (error) {
-    console.error('Failed to load profile data:', error);
-  }
-};
-
-const handleImageUpload = (event) => {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    profileForm.value.imageBase64 = e.target.result;
-    profileForm.value.imageOriginalName = file.name;
-  };
-  reader.readAsDataURL(file);
-};
-
-const validateForm = () => {
-  if (profileForm.value.password && profileForm.value.password !== profileForm.value.confirmPassword) {
-    store.dispatch('showToast', { message: 'Passwords do not match', type: 'error' });
-    return false;
-  }
-  if (!profileForm.value.name || !profileForm.value.username || !profileForm.value.email) {
-    store.dispatch('showToast', { message: 'Name, username and email are required', type: 'error' });
-    return false;
-  }
-  return true;
-};
-
-const submitProfileUpdate = async () => {
-  if (!validateForm()) return;
-
-  profileLoading.value = true;
-  try {
-    const updateData = {
-      name: profileForm.value.name,
-      username: profileForm.value.username,
-      email: profileForm.value.email,
-      club_description: profileForm.value.club_description,
-      club_category: profileForm.value.club_category_id
-    };
-
-    // Only include password if it's provided
-    if (profileForm.value.password) {
-      updateData.password = profileForm.value.password;
-    }
-
-    // Include image data if uploaded
-    if (profileForm.value.imageBase64) {
-      updateData.imageBase64 = profileForm.value.imageBase64;
-      updateData.imageOriginalName = profileForm.value.imageOriginalName;
-    }
-
-    await updateClubProfile(currentUser.value.id, updateData);
-    
-    // Update the store with new data
-    await store.dispatch('auth/checkAuth');
-    
-    store.dispatch('showToast', { message: 'Profile updated successfully!', type: 'success' });
-  } catch (error) {
-    console.error('Failed to update profile:', error);
-    store.dispatch('showToast', { message: 'Failed to update profile', type: 'error' });
-  } finally {
-    profileLoading.value = false;
-  }
-};
-
-const eventImageSrc = (event) => {
-  if (!event) return FALLBACK_PLACEHOLDER;
-  const raw = event.image || event.image_url || event.imageUrl || event.cover;
-  if (!raw) return FALLBACK_PLACEHOLDER;
-  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
-  const normalized = raw.replace('/uploads/event/event_', '/uploads/event/');
-  return `${API_BASE_URL}${normalized.startsWith('/') ? '' : '/'}${normalized}`;
-};
-
-const handleEventImageError = (ev) => {
-  if (ev?.target) ev.target.src = FALLBACK_PLACEHOLDER;
-};
-
-const openImageModal = (event) => {
-  selectedImage.value = eventImageSrc(event);
-  selectedImageAlt.value = event.title || 'Event image';
-  showImageModal.value = true;
+const handleProfileUpdated = () => {
+  // Profile was updated successfully, modal will close automatically
+  // We could refresh any dependent data here if needed
 };
 
 const closeImageModal = () => {
   showImageModal.value = false;
   selectedImage.value = '';
   selectedImageAlt.value = '';
-};
-
-const openEventModal = (event) => {
-  selectedEvent.value = event;
-  showEventModal.value = true;
-};
-
-const closeEventModal = () => {
-  showEventModal.value = false;
-  selectedEvent.value = null;
-};
-
-// Preview modal methods
-const openPreviewModal = async () => {
-  try {
-    const statsResponse = await getClubStats(currentUser.value.id);
-    previewUpcomingEvents.value = statsResponse.data.upcomingEvents;
-    previewTotalEvents.value = statsResponse.data.totalEvents;
-  } catch (error) {
-    console.error('Failed to fetch club stats for preview:', error);
-    previewUpcomingEvents.value = 0;
-    previewTotalEvents.value = 0;
-  }
-  showPreviewModal.value = true;
-};
-
-const closePreviewModal = () => {
-  showPreviewModal.value = false;
-};
-
-// Create preview club object from form data
-const previewClub = computed(() => {
-  const selectedCategory = clubCategories.value.find(cat => cat.id == profileForm.value.club_category_id);
-  return {
-    id: currentUser.value.id,
-    name: profileForm.value.name || currentUser.value.name,
-    username: profileForm.value.username,
-    email: profileForm.value.email,
-    club_description: profileForm.value.club_description,
-    club_image: profileForm.value.imageBase64 ? profileForm.value.imageBase64 : currentUser.value.club_image,
-    club_category_id: profileForm.value.club_category_id
-  };
-});
-
-const previewClubCategory = computed(() => {
-  const selectedCategory = clubCategories.value.find(cat => cat.id == profileForm.value.club_category_id);
-  return selectedCategory ? selectedCategory.name : '';
-});
-
-// Tag handling
-const handleTagClick = (tag) => {
-  // Navigate to events page with tag filter
-  router.push({ name: 'BrowseEvents', query: { tags: tag } });
-};
-
-const handleTagFromModal = (tag) => {
-  handleTagClick(tag);
-  closeEventModal();
-};
-
-// Share event
-const handleShare = (event) => {
-  shareEventLink(event);
 };
 </script>
 
@@ -474,6 +282,20 @@ const handleShare = (event) => {
             <p class="dashboard-subtitle">Here's your club overview</p>
         </div>
         <div class="header-actions">
+          <button 
+            type="button" 
+            class="btn btn-outline" 
+            @click="showPreviewModal = true"
+          >
+            Preview Profile
+          </button>
+          <button 
+            type="button" 
+            class="btn btn-outline" 
+            @click="showProfileModal = true"
+          >
+            Edit Profile
+          </button>
         </div>
         </div>
     </div>
@@ -522,172 +344,7 @@ const handleShare = (event) => {
       <section class="calendar-section">
         <ClubCalendar />
       </section>
-
-      <!-- Profile Edit Section -->
-      <section class="dashboard-section">
-        <div class="section-header">
-          <h2 class="section-title">Club Profile</h2>
-          <button 
-            type="button" 
-            class="btn btn-outline" 
-            @click="openPreviewModal"
-          >
-            Preview
-          </button>
-        </div>
-
-        <div class="profile-edit-form">
-          <form @submit.prevent="submitProfileUpdate">
-            <!-- Basic Information Section -->
-            <div class="form-section">
-              <h3 class="form-section-title">Basic Information</h3>
-              <div class="form-grid">
-                <div class="form-group">
-                  <label for="name" class="form-label">Club Name</label>
-                  <input
-                    id="name"
-                    v-model="profileForm.name"
-                    type="text"
-                    class="form-input"
-                    required
-                  />
-                </div>
-
-                <div class="form-group">
-                  <label for="username" class="form-label">Username</label>
-                  <input
-                    id="username"
-                    v-model="profileForm.username"
-                    type="text"
-                    class="form-input"
-                    required
-                  />
-                </div>
-
-                <div class="form-group form-group--full">
-                  <label for="email" class="form-label">Email Address</label>
-                  <input
-                    id="email"
-                    v-model="profileForm.email"
-                    type="email"
-                    class="form-input"
-                    required
-                  />
-                </div>
-              </div>
-            </div>
-
-            <!-- Security Section -->
-            <div class="form-section">
-              <h3 class="form-section-title">Change Password</h3>
-              <p class="form-section-desc">Leave blank to keep your current password</p>
-              <div class="form-grid">
-                <div class="form-group">
-                  <label for="password" class="form-label">New Password</label>
-                  <input
-                    id="password"
-                    v-model="profileForm.password"
-                    type="password"
-                    class="form-input"
-                  />
-                </div>
-
-                <div class="form-group">
-                  <label for="confirmPassword" class="form-label">Confirm New Password</label>
-                  <input
-                    id="confirmPassword"
-                    v-model="profileForm.confirmPassword"
-                    type="password"
-                    class="form-input"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <!-- Club Details Section -->
-            <div class="form-section">
-              <h3 class="form-section-title">Club Details</h3>
-              <div class="form-grid">
-                <div class="form-group form-group--full">
-                  <label for="club_description" class="form-label">Club Description</label>
-                  <textarea
-                    id="club_description"
-                    v-model="profileForm.club_description"
-                    class="form-textarea"
-                    rows="4"
-                    placeholder="Tell people about your club..."
-                    required
-                  ></textarea>
-                </div>
-
-                <div class="form-group">
-                  <label for="club_category_id" class="form-label">Club Category</label>
-                  <select
-                    id="club_category_id"
-                    v-model="profileForm.club_category_id"
-                    class="form-select"
-                    required
-                  >
-                    <option value="">Select a category</option>
-                    <option
-                      v-for="category in clubCategories"
-                      :key="category.id"
-                      :value="category.id"
-                    >
-                      {{ category.name }}
-                    </option>
-                  </select>
-                </div>
-
-                <div class="form-group">
-                  <label for="image" class="form-label">Club Image</label>
-                  <input
-                    id="image"
-                    type="file"
-                    accept="image/*"
-                    class="form-input"
-                    @change="handleImageUpload"
-                  />
-                  <small class="form-help">Leave blank to keep current image. Recommended: 1200x400px</small>
-                </div>
-              </div>
-            </div>
-
-            <!-- Form Actions -->
-            <div class="form-actions">
-              <button
-                type="submit"
-                class="btn btn-primary"
-                :disabled="profileLoading"
-              >
-                {{ profileLoading ? 'Updating...' : 'Update Profile' }}
-              </button>
-            </div>
-          </form>
-        </div>
-      </section>
     </div>
-
-    <EventDetailModal
-      :visible="showEventModal"
-      :event="selectedEvent"
-      @close="closeEventModal"
-      @share="handleShare"
-      @tag-click="handleTagFromModal"
-    />
-
-    <ClubDetailModal
-      :visible="showPreviewModal"
-      :club="previewClub"
-      :followersCount="clubStats.followers"
-      :isFollowing="false"
-      :clubCategory="previewClubCategory"
-      :upcoming-events="previewUpcomingEvents"
-      :total-events="previewTotalEvents"
-      @close="closePreviewModal"
-      @view-events="$emit('view-events', previewClub)"
-      @share="$emit('share-club', previewClub)"
-    />
 
     <ClubRSVPsModal
       :visible="showRsvpsModal"
@@ -711,6 +368,27 @@ const handleShare = (event) => {
       :imageSrc="selectedImage"
       :altText="selectedImageAlt"
       @close="closeImageModal"
+    />
+
+    <ClubProfileModal
+      :visible="showProfileModal"
+      :currentUser="currentUser"
+      @close="showProfileModal = false"
+      @profile-updated="handleProfileUpdated"
+    />
+
+    <ClubDetailModal
+      :visible="showPreviewModal"
+      :club="currentUser"
+      :followersCount="clubStats.followers"
+      :upcomingEvents="clubStats.upcomingEvents"
+      :totalEvents="clubStats.totalEvents"
+      :clubCategory="currentClubCategory"
+      :previewMode="true"
+      @close="showPreviewModal = false"
+      @view-events="() => {}"
+      @toggle-follow="() => {}"
+      @share="() => {}"
     />
   </div>
 </template>
