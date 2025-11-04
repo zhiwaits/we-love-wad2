@@ -573,37 +573,13 @@ export default createStore({
       };
 
       const user = rootState.auth?.user || null;
-      const explicitPreferences = state.userPreferences || null;
 
       const buildPreferenceScorer = () => {
-        const categoryPrefsSource = Array.isArray(explicitPreferences?.categoryPreferences) && explicitPreferences.categoryPreferences.length > 0
-          ? explicitPreferences.categoryPreferences
-          : Array.isArray(user?.categoryPreferences)
-            ? user.categoryPreferences
-            : [];
+        if (!user) return null;
 
-        const clubCategoryPrefsSource = Array.isArray(explicitPreferences?.clubCategoryPreferences) && explicitPreferences.clubCategoryPreferences.length > 0
-          ? explicitPreferences.clubCategoryPreferences
-          : Array.isArray(user?.clubCategoryPreferences)
-            ? user.clubCategoryPreferences
-            : [];
-
-        const tagPreferencesSource = Array.isArray(explicitPreferences?.tagPreferences) && explicitPreferences.tagPreferences.length > 0
-          ? explicitPreferences.tagPreferences
-          : Array.isArray(user?.tagPreferences)
-            ? user.tagPreferences
-            : [];
-
-        const hasAnyPrefs =
-          categoryPrefsSource.length > 0 ||
-          clubCategoryPrefsSource.length > 0 ||
-          tagPreferencesSource.length > 0;
-
-        if (!hasAnyPrefs) return null;
-
-        const categoryPrefs = categoryPrefsSource;
-        const clubCategoryPrefs = clubCategoryPrefsSource;
-        const tagPreferences = tagPreferencesSource;
+        const categoryPrefs = Array.isArray(user.categoryPreferences) ? user.categoryPreferences : [];
+        const clubCategoryPrefs = Array.isArray(user.clubCategoryPreferences) ? user.clubCategoryPreferences : [];
+        const tagPreferences = Array.isArray(user.tagPreferences) ? user.tagPreferences : [];
 
         const preferredCategories = new Set();
         const availableCategories = Array.isArray(state.categories) ? state.categories : [];

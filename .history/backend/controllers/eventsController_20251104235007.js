@@ -218,10 +218,10 @@ exports.getAllEvents = async (req, res) => {
         e.owner_id,
         e.price,
         e.venue,
-  e.latitude,
-  e.altitude,
-  e.created_at,
-  NULL::timestamp AS updated_at,
+        e.latitude,
+        e.altitude,
+        e.created_at,
+        e.updated_at,
         p.name AS organiser_name,
         p.club_category_id AS club_category_id,
         cc.name AS club_category_name,
@@ -231,7 +231,7 @@ exports.getAllEvents = async (req, res) => {
       LEFT JOIN club_categories cc ON cc.id = p.club_category_id
       LEFT JOIN rsvps r ON r.event_id = e.id AND r.status = 'confirmed'
       ${whereClause}
-  GROUP BY e.id, e.title, e.description, e.datetime, e.enddatetime, e.location, e.category, e.capacity, e.image_url, e.owner_id, e.price, e.venue, e.latitude, e.altitude, e.created_at, p.name, p.club_category_id, cc.name
+      GROUP BY e.id, e.title, e.description, e.datetime, e.enddatetime, e.location, e.category, e.capacity, e.image_url, e.owner_id, e.price, e.venue, e.latitude, e.altitude, e.created_at, e.updated_at, p.name, p.club_category_id, cc.name
       ORDER BY e.datetime ASC
     `;
 
@@ -323,17 +323,15 @@ exports.getEventById = async (req, res) => {
         e.owner_id,
         e.price,
         e.venue,
-  e.latitude,
-  e.altitude,
-  e.created_at,
-  NULL::timestamp AS updated_at,
+        e.latitude,
+        e.altitude,
         p.name AS organiser_name,
         COUNT(CASE WHEN r.status = 'confirmed' THEN 1 END) as confirmed_attendees
       FROM ${table} e
       LEFT JOIN profiles p ON p.id = e.owner_id
       LEFT JOIN rsvps r ON r.event_id = e.id AND r.status = 'confirmed'
       WHERE e.id = $1
-  GROUP BY e.id, e.title, e.description, e.datetime, e.enddatetime, e.location, e.category, e.capacity, e.image_url, e.owner_id, e.price, e.venue, e.latitude, e.altitude, e.created_at, p.name
+      GROUP BY e.id, e.title, e.description, e.datetime, e.enddatetime, e.location, e.category, e.capacity, e.image_url, e.owner_id, e.price, e.venue, e.latitude, e.altitude, p.name
       LIMIT 1
     `;
     const result = await pool.query(query, [req.params.id]);
@@ -357,9 +355,7 @@ exports.getEventById = async (req, res) => {
       image: row.image_url || '',
       latitude: row.latitude,
       altitude: row.altitude,
-        ownerId: row.owner_id,
-        created_at: row.created_at,
-        updated_at: row.updated_at
+      ownerId: row.owner_id
     };
     res.json(shaped);
   } catch (err) {

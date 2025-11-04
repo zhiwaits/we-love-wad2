@@ -69,8 +69,6 @@ export default {
         handleSortChange(event) {
             const next = event?.target?.value || 'preference';
             this.updateSortOption(next);
-            this.changeEventsPage(1);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
         },
 
         eventImageSrc(event) {
@@ -252,19 +250,6 @@ export default {
     <section class="events-grid">
         <div class="container">
             <div class="events-toolbar">
-                <div v-if="isUserLoggedIn" class="recommended-toggle-container">
-                    <button
-                        class="recommended-toggle"
-                        :class="{ 'active': showRecommended }"
-                        @click="handleToggleRecommended"
-                    >
-                        <span class="toggle-icon">{{ showRecommended ? '⭐' : '☆' }}</span>
-                        <span class="toggle-text">
-                            {{ showRecommended ? 'Viewing Recommended' : 'View Recommended' }}
-                        </span>
-                    </button>
-                </div>
-
                 <div class="sort-container">
                     <label class="sort-label" for="events-sort-select">Sort By</label>
                     <select
@@ -281,6 +266,19 @@ export default {
                         <option value="lowest-price">Lowest Price</option>
                         <option value="random">Random</option>
                     </select>
+                </div>
+
+                <div v-if="isUserLoggedIn" class="recommended-toggle-container">
+                    <button
+                        class="recommended-toggle"
+                        :class="{ 'active': showRecommended }"
+                        @click="handleToggleRecommended"
+                    >
+                        <span class="toggle-icon">{{ showRecommended ? '⭐' : '☆' }}</span>
+                        <span class="toggle-text">
+                            {{ showRecommended ? 'Viewing Recommended' : 'View Recommended' }}
+                        </span>
+                    </button>
                 </div>
             </div>
 
@@ -746,7 +744,7 @@ export default {
 .events-toolbar {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: space-between;
     flex-wrap: wrap;
     gap: var(--space-16, 16px);
     margin-bottom: var(--space-16, 16px);
@@ -832,11 +830,11 @@ export default {
 
     .events-toolbar {
         flex-direction: column;
-        align-items: center;
+        align-items: stretch;
     }
 
     .sort-container {
-        justify-content: center;
+        justify-content: space-between;
     }
 
     .sort-select {

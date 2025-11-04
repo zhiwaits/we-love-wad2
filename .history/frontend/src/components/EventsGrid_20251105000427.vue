@@ -836,7 +836,7 @@ export default {
     }
 
     .sort-container {
-        justify-content: center;
+        justify-content: flex-start;
     }
 
     .sort-select {

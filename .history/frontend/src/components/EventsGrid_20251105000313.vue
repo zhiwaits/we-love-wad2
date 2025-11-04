@@ -746,7 +746,7 @@ export default {
 .events-toolbar {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: space-between;
     flex-wrap: wrap;
     gap: var(--space-16, 16px);
     margin-bottom: var(--space-16, 16px);
@@ -832,11 +832,11 @@ export default {
 
     .events-toolbar {
         flex-direction: column;
-        align-items: center;
+        align-items: stretch;
     }
 
     .sort-container {
-        justify-content: center;
+        justify-content: space-between;
     }
 
     .sort-select {

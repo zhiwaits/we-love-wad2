@@ -69,8 +69,6 @@ export default {
         handleSortChange(event) {
             const next = event?.target?.value || 'preference';
             this.updateSortOption(next);
-            this.changeEventsPage(1);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
         },
 
         eventImageSrc(event) {
@@ -252,19 +250,6 @@ export default {
     <section class="events-grid">
         <div class="container">
             <div class="events-toolbar">
-                <div v-if="isUserLoggedIn" class="recommended-toggle-container">
-                    <button
-                        class="recommended-toggle"
-                        :class="{ 'active': showRecommended }"
-                        @click="handleToggleRecommended"
-                    >
-                        <span class="toggle-icon">{{ showRecommended ? '⭐' : '☆' }}</span>
-                        <span class="toggle-text">
-                            {{ showRecommended ? 'Viewing Recommended' : 'View Recommended' }}
-                        </span>
-                    </button>
-                </div>
-
                 <div class="sort-container">
                     <label class="sort-label" for="events-sort-select">Sort By</label>
                     <select
@@ -281,6 +266,19 @@ export default {
                         <option value="lowest-price">Lowest Price</option>
                         <option value="random">Random</option>
                     </select>
+                </div>
+
+                <div v-if="isUserLoggedIn" class="recommended-toggle-container">
+                    <button
+                        class="recommended-toggle"
+                        :class="{ 'active': showRecommended }"
+                        @click="handleToggleRecommended"
+                    >
+                        <span class="toggle-icon">{{ showRecommended ? '⭐' : '☆' }}</span>
+                        <span class="toggle-text">
+                            {{ showRecommended ? 'Viewing Recommended' : 'View Recommended' }}
+                        </span>
+                    </button>
                 </div>
             </div>
 
@@ -742,49 +740,11 @@ export default {
     to { opacity: 1; transform: translateY(0); }
 }
 
-/* Toolbar */
-.events-toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: var(--space-16, 16px);
-    margin-bottom: var(--space-16, 16px);
-}
-
-.sort-container {
-    display: flex;
-    align-items: center;
-    gap: var(--space-8, 8px);
-}
-
-.sort-label {
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: var(--color-text-secondary, #6b7280);
-}
-
-.sort-select {
-    min-width: 180px;
-    padding: 0.5rem 0.75rem;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
-    background-color: #ffffff;
-    color: #1f2937;
-    font-size: 0.95rem;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.sort-select:focus {
-    outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
-}
-
 /* Recommended toggle styles */
 .recommended-toggle-container {
     display: flex;
     justify-content: flex-end;
+    margin-bottom: var(--space-16, 16px);
 }
 
 .recommended-toggle {
@@ -828,19 +788,6 @@ export default {
 @media (max-width: 768px) {
     .events-container {
         grid-template-columns: 1fr;
-    }
-
-    .events-toolbar {
-        flex-direction: column;
-        align-items: center;
-    }
-
-    .sort-container {
-        justify-content: center;
-    }
-
-    .sort-select {
-        width: 100%;
     }
 
     .recommended-toggle-container {

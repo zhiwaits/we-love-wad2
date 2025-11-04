@@ -323,17 +323,17 @@ exports.getEventById = async (req, res) => {
         e.owner_id,
         e.price,
         e.venue,
-  e.latitude,
-  e.altitude,
-  e.created_at,
-  NULL::timestamp AS updated_at,
+        e.latitude,
+        e.altitude,
+        e.created_at,
+        e.updated_at,
         p.name AS organiser_name,
         COUNT(CASE WHEN r.status = 'confirmed' THEN 1 END) as confirmed_attendees
       FROM ${table} e
       LEFT JOIN profiles p ON p.id = e.owner_id
       LEFT JOIN rsvps r ON r.event_id = e.id AND r.status = 'confirmed'
       WHERE e.id = $1
-  GROUP BY e.id, e.title, e.description, e.datetime, e.enddatetime, e.location, e.category, e.capacity, e.image_url, e.owner_id, e.price, e.venue, e.latitude, e.altitude, e.created_at, p.name
+  GROUP BY e.id, e.title, e.description, e.datetime, e.enddatetime, e.location, e.category, e.capacity, e.image_url, e.owner_id, e.price, e.venue, e.latitude, e.altitude, e.created_at, e.updated_at, p.name
       LIMIT 1
     `;
     const result = await pool.query(query, [req.params.id]);

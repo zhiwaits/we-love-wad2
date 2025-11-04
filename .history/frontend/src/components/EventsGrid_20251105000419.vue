@@ -832,11 +832,11 @@ export default {
 
     .events-toolbar {
         flex-direction: column;
-        align-items: center;
+        align-items: stretch;
     }
 
     .sort-container {
-        justify-content: center;
+        justify-content: flex-start;
     }
 
     .sort-select {

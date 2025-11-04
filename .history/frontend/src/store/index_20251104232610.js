@@ -6,7 +6,6 @@ import { getAllEventVenues } from '../services/eventVenueService.js';
 import { getAllTags } from '../services/tagService.js';
 import { getAllEventTags } from '../services/eventTagService.js';
 import { getAllSaved, getSavedByUserId, getSavedByEventId, createSaved, deleteSaved } from '../services/savedEventsService.js';
-import { getUserPreferences } from '../services/profileService.js';
 import clubs from './modules/clubs';
 
 let toastTimer = null;
@@ -180,51 +179,6 @@ const pruneRandomSortMap = (map = {}, events = []) => {
   return next;
 };
 
-const parseDateValue = (value) => {
-  if (!value && value !== 0) return null;
-
-  if (value instanceof Date) {
-    const time = value.getTime();
-    return Number.isNaN(time) ? null : time;
-  }
-
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : null;
-  }
-
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-
-    const attempts = new Set();
-    const baseCandidates = [trimmed];
-
-    if (trimmed.includes(' ')) {
-      baseCandidates.push(trimmed.replace(' ', 'T'));
-    }
-
-    baseCandidates.forEach((candidate) => {
-      let working = candidate;
-      if (/\.\d{4,}$/.test(working)) {
-        working = working.replace(/(\.\d{3})\d+$/, '$1');
-      }
-      attempts.add(working);
-      if (!/[zZ]$/.test(working) && !/[+\-]\d{2}:?\d{2}$/.test(working)) {
-        attempts.add(`${working}Z`);
-      }
-    });
-
-    for (const attempt of attempts) {
-      const parsed = Date.parse(attempt);
-      if (!Number.isNaN(parsed)) {
-        return parsed;
-      }
-    }
-  }
-
-  return null;
-};
-
 const createDefaultFilters = () => ({
   searchQuery: '',
   selectedCategories: [],
@@ -314,7 +268,6 @@ const getDefaultRootState = () => ({
   categories: [],
   venues: [],
   availableTags: [],
-  userPreferences: null,
   toast: createDefaultToast()
 });
 
@@ -382,8 +335,6 @@ export default createStore({
 
     availableTags: [],
 
-    userPreferences: null,
-
     toast: {
       message: '',
       type: 'info',
@@ -405,18 +356,18 @@ export default createStore({
 
       const filters = state.filters || createDefaultFilters();
 
-      const nowMs = Date.now();
+      const now = new Date();
       if (filters.eventStatus === 'upcoming') {
         filtered = filtered.filter((event) => {
           const dateValue = event?.date || event?.datetime || event?.start_time;
-          const eventTimestamp = parseDateValue(dateValue);
-          return eventTimestamp != null ? eventTimestamp > nowMs : true;
+          const eventDate = dateValue ? new Date(dateValue) : null;
+          return eventDate ? eventDate > now : true;
         });
       } else if (filters.eventStatus === 'past') {
         filtered = filtered.filter((event) => {
           const dateValue = event?.date || event?.datetime || event?.start_time;
-          const eventTimestamp = parseDateValue(dateValue);
-          return eventTimestamp != null ? eventTimestamp <= nowMs : false;
+          const eventDate = dateValue ? new Date(dateValue) : null;
+          return eventDate ? eventDate <= now : false;
         });
       }
 
@@ -483,64 +434,34 @@ export default createStore({
         });
       }
 
-      const getCreatedAtTime = (event) => {
+      const buildTimestamp = (event) => {
         if (!event) return 0;
         const candidateFields = [
           event.created_at,
           event.createdAt,
           event.date_created,
           event.dateCreated,
-          event.created_on,
-          event.createdOn
+          event.datetime,
+          event.date
         ];
         for (const field of candidateFields) {
-          const parsed = parseDateValue(field);
-          if (parsed != null) {
-            return parsed;
-          }
-        }
-        const fallbackFields = [event.datetime, event.date];
-        for (const field of fallbackFields) {
-          const parsed = parseDateValue(field);
-          if (parsed != null) {
-            return parsed;
+          if (!field) continue;
+          const parsed = new Date(field);
+          if (!Number.isNaN(parsed.getTime())) {
+            return parsed.getTime();
           }
         }
         return 0;
       };
 
-      const tieBreaker = (a, b, precomputedCreatedDiff) => {
-        const createdDiff = precomputedCreatedDiff ?? (getCreatedAtTime(b) - getCreatedAtTime(a));
-        if (createdDiff !== 0) {
-          return createdDiff;
-        }
-        const idA = Number(a?.id ?? a?.event_id);
-        const idB = Number(b?.id ?? b?.event_id);
-        if (Number.isFinite(idA) && Number.isFinite(idB) && idA !== idB) {
-          return idB - idA;
-        }
-        return 0;
-      };
+      const tieBreaker = (a, b) => buildTimestamp(b) - buildTimestamp(a);
 
       const getEventDate = (event) => {
         if (!event) return null;
-        const dateFields = [
-          event.datetime,
-          event.start_time,
-          event.startTime,
-          event.startDateTime,
-          event.date,
-          event.startDate,
-          event.enddatetime,
-          event.endDatetime
-        ];
-        for (const field of dateFields) {
-          const parsed = parseDateValue(field);
-          if (parsed != null) {
-            return parsed;
-          }
-        }
-        return null;
+        const dateValue = event.datetime || event.date || event.start_time || event.startDate;
+        if (!dateValue) return null;
+        const parsed = new Date(dateValue);
+        return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
       };
 
       const getEventPrice = (event) => {
@@ -573,37 +494,13 @@ export default createStore({
       };
 
       const user = rootState.auth?.user || null;
-      const explicitPreferences = state.userPreferences || null;
 
       const buildPreferenceScorer = () => {
-        const categoryPrefsSource = Array.isArray(explicitPreferences?.categoryPreferences) && explicitPreferences.categoryPreferences.length > 0
-          ? explicitPreferences.categoryPreferences
-          : Array.isArray(user?.categoryPreferences)
-            ? user.categoryPreferences
-            : [];
+        if (!user) return null;
 
-        const clubCategoryPrefsSource = Array.isArray(explicitPreferences?.clubCategoryPreferences) && explicitPreferences.clubCategoryPreferences.length > 0
-          ? explicitPreferences.clubCategoryPreferences
-          : Array.isArray(user?.clubCategoryPreferences)
-            ? user.clubCategoryPreferences
-            : [];
-
-        const tagPreferencesSource = Array.isArray(explicitPreferences?.tagPreferences) && explicitPreferences.tagPreferences.length > 0
-          ? explicitPreferences.tagPreferences
-          : Array.isArray(user?.tagPreferences)
-            ? user.tagPreferences
-            : [];
-
-        const hasAnyPrefs =
-          categoryPrefsSource.length > 0 ||
-          clubCategoryPrefsSource.length > 0 ||
-          tagPreferencesSource.length > 0;
-
-        if (!hasAnyPrefs) return null;
-
-        const categoryPrefs = categoryPrefsSource;
-        const clubCategoryPrefs = clubCategoryPrefsSource;
-        const tagPreferences = tagPreferencesSource;
+        const categoryPrefs = Array.isArray(user.categoryPreferences) ? user.categoryPreferences : [];
+        const clubCategoryPrefs = Array.isArray(user.clubCategoryPreferences) ? user.clubCategoryPreferences : [];
+        const tagPreferences = Array.isArray(user.tagPreferences) ? user.tagPreferences : [];
 
         const preferredCategories = new Set();
         const availableCategories = Array.isArray(state.categories) ? state.categories : [];
@@ -618,7 +515,6 @@ export default createStore({
         });
 
         categoryPrefs.forEach((value) => {
-          if (!value && value !== 0) return;
           if (typeof value === 'string') {
             const normalized = value.trim().toLowerCase();
             if (normalized) {
@@ -633,48 +529,20 @@ export default createStore({
             if (categoryIdToName.has(numeric)) {
               preferredCategories.add(categoryIdToName.get(numeric));
             }
-          } else if (typeof value === 'object') {
-            const numeric = Number(value.category_id ?? value.id);
-            if (Number.isFinite(numeric) && categoryIdToName.has(numeric)) {
-              preferredCategories.add(categoryIdToName.get(numeric));
-            }
-            const name = (value.name || value.category_name || '').toString().trim().toLowerCase();
-            if (name) {
-              preferredCategories.add(name);
-            }
           }
         });
 
-        const preferredClubCategoryIds = new Set();
-        const preferredClubCategoryNames = new Set();
+        const preferredClubCategoryIds = new Set(
+          clubCategoryPrefs
+            .map((value) => Number(value))
+            .filter((value) => Number.isFinite(value))
+        );
 
-        clubCategoryPrefs.forEach((value) => {
-          if (!value && value !== 0) return;
-          if (typeof value === 'string') {
-            const normalized = value.trim().toLowerCase();
-            if (normalized) {
-              preferredClubCategoryNames.add(normalized);
-            }
-            const numeric = Number(value);
-            if (Number.isFinite(numeric)) {
-              preferredClubCategoryIds.add(numeric);
-            }
-          } else if (Number.isFinite(Number(value))) {
-            preferredClubCategoryIds.add(Number(value));
-          } else if (typeof value === 'object') {
-            const numeric = Number(value.club_category_id ?? value.id);
-            if (Number.isFinite(numeric)) {
-              preferredClubCategoryIds.add(numeric);
-            }
-            const name = (value.name || value.category_name || value.club_category_name || '')
-              .toString()
-              .trim()
-              .toLowerCase();
-            if (name) {
-              preferredClubCategoryNames.add(name);
-            }
-          }
-        });
+        const preferredClubCategoryNames = new Set(
+          clubCategoryPrefs
+            .map((value) => (typeof value === 'string' ? value.trim().toLowerCase() : null))
+            .filter(Boolean)
+        );
 
         const availableTags = Array.isArray(state.availableTags) ? state.availableTags : [];
         const tagIdToName = new Map();
@@ -691,30 +559,11 @@ export default createStore({
 
         const preferredTagNames = new Set();
         tagPreferences.forEach((value) => {
-          if (!value && value !== 0) return;
-          if (typeof value === 'string') {
-            const normalized = value.trim().toLowerCase();
-            if (normalized) {
-              preferredTagNames.add(normalized);
-            }
-            const numeric = Number(value);
-            if (Number.isFinite(numeric) && tagIdToName.has(numeric)) {
-              preferredTagNames.add(tagIdToName.get(numeric));
-            }
-          } else if (Number.isFinite(Number(value))) {
-            const numeric = Number(value);
-            if (tagIdToName.has(numeric)) {
-              preferredTagNames.add(tagIdToName.get(numeric));
-            }
-          } else if (typeof value === 'object') {
-            const numeric = Number(value.tag_id ?? value.id);
-            if (Number.isFinite(numeric) && tagIdToName.has(numeric)) {
-              preferredTagNames.add(tagIdToName.get(numeric));
-            }
-            const name = (value.name || value.tag_name || '').toString().trim().toLowerCase();
-            if (name) {
-              preferredTagNames.add(name);
-            }
+          const numeric = Number(value);
+          if (Number.isFinite(numeric) && tagIdToName.has(numeric)) {
+            preferredTagNames.add(tagIdToName.get(numeric));
+          } else if (typeof value === 'string') {
+            preferredTagNames.add(value.trim().toLowerCase());
           }
         });
 
@@ -770,27 +619,13 @@ export default createStore({
 
       const preferenceScorer = buildPreferenceScorer();
 
-      if (preferenceScorer) {
-        filtered.forEach((event) => {
-          if (event && typeof event === 'object') {
-            event.preferenceScore = preferenceScorer(event);
-          }
-        });
-      } else {
-        filtered.forEach((event) => {
-          if (event && typeof event === 'object') {
-            event.preferenceScore = 0;
-          }
-        });
-      }
-
       const sortByPreference = () => {
         if (!preferenceScorer) {
           return sortByNewest();
         }
         const scored = filtered.map((event) => ({
           event,
-          score: event?.preferenceScore ?? 0
+          score: preferenceScorer(event)
         }));
         scored.sort((a, b) => {
           if (b.score !== a.score) {
@@ -803,13 +638,7 @@ export default createStore({
 
       const sortByNewest = () => {
         const sorted = [...filtered];
-        sorted.sort((a, b) => {
-          const createdDiff = getCreatedAtTime(b) - getCreatedAtTime(a);
-          if (createdDiff !== 0) {
-            return createdDiff;
-          }
-          return tieBreaker(a, b, createdDiff);
-        });
+        sorted.sort((a, b) => tieBreaker(a, b));
         return sorted;
       };
 
@@ -1299,24 +1128,6 @@ export default createStore({
       state.availableTags = Array.isArray(tags) ? tags : [];
     },
 
-    SET_USER_PREFERENCES(state, preferences) {
-      if (preferences && typeof preferences === 'object') {
-        state.userPreferences = {
-          categoryPreferences: Array.isArray(preferences.categoryPreferences)
-            ? [...preferences.categoryPreferences]
-            : [],
-          clubCategoryPreferences: Array.isArray(preferences.clubCategoryPreferences)
-            ? [...preferences.clubCategoryPreferences]
-            : [],
-          tagPreferences: Array.isArray(preferences.tagPreferences)
-            ? [...preferences.tagPreferences]
-            : []
-        };
-      } else {
-        state.userPreferences = null;
-      }
-    },
-
     // Update search query
     SET_SEARCH_QUERY(state, query) {
       state.filters.searchQuery = query;
@@ -1545,14 +1356,12 @@ export default createStore({
       commit('SET_SORT_OPTION', sortOption);
     },
 
-    async initializeAppData({ dispatch, rootState }, { force = false } = {}) {
+    async initializeAppData({ dispatch }, { force = false } = {}) {
       try {
-        const currentUser = rootState?.auth?.user || null;
         await Promise.all([
           dispatch('fetchEventCategories', { force }),
           dispatch('fetchEventVenues', { force }),
           dispatch('fetchAvailableTags', { force }),
-          dispatch('fetchUserPreferences', { userId: currentUser?.id, force }),
           dispatch('fetchAllEvents', { force })
         ]);
       } catch (error) {
@@ -1626,37 +1435,6 @@ export default createStore({
       } catch (error) {
         console.warn('Failed to load event tags, continuing without them:', error.message);
         commit('SET_AVAILABLE_TAGS', []);
-      }
-    },
-
-    async fetchUserPreferences({ state, rootState, commit }, { userId, force = false } = {}) {
-      const currentUser = rootState?.auth?.user || null;
-      const effectiveUserId = userId ?? currentUser?.id ?? null;
-      const role = (currentUser?.role || currentUser?.account_type || '').toLowerCase();
-
-      if (!effectiveUserId || role === 'club' || role === 'admin' || role === 'staff') {
-        if (state.userPreferences !== null) {
-          commit('SET_USER_PREFERENCES', null);
-        }
-        return;
-      }
-
-      if (!force && state.userPreferences) {
-        return;
-      }
-
-      try {
-        const response = await getUserPreferences(effectiveUserId);
-        const payload = response && response.data && typeof response.data === 'object' ? response.data : {};
-        const normalized = {
-          categoryPreferences: Array.isArray(payload.categoryPreferences) ? payload.categoryPreferences : [],
-          clubCategoryPreferences: Array.isArray(payload.clubCategoryPreferences) ? payload.clubCategoryPreferences : [],
-          tagPreferences: Array.isArray(payload.tagPreferences) ? payload.tagPreferences : []
-        };
-        commit('SET_USER_PREFERENCES', normalized);
-      } catch (error) {
-        console.warn('fetchUserPreferences - failed:', error?.message || error);
-        commit('SET_USER_PREFERENCES', null);
       }
     },
     
