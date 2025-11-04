@@ -142,7 +142,7 @@ export default {
         return this.filters.clubFilter?.categoryId ?? 'all';
       },
       set(value) {
-        this.updateClubCategoryFilter(value);
+        this.updateClubCategoryFilter({ categoryId: value });
       }
     },
 
