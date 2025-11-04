@@ -48,6 +48,10 @@ export const getAllEvents = (page = 1, limit = 'all', filters = {}) => {
 
 export const getEventById = (eventId) => axios.get(`${BASE_URL}/events/${eventId}`);
 
+export const getRecommendedEvents = (userId) => {
+	return axios.get(`${BASE_URL}/events/recommended/${userId}`);
+};
+
 export const createEvent = (eventData) => {
 	return axios.post(`${BASE_URL}/events`, eventData);
 };

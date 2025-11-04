@@ -36,10 +36,15 @@ export default {
     computed: {
         ...mapGetters(['filteredEvents']),
         ...mapGetters(['categoryColorMap']),
-        ...mapState(['filters', 'pagination']),
+        ...mapGetters('auth', { currentUser: 'currentUser' }),
+        ...mapState(['filters', 'pagination', 'showRecommended']),
 
         events() {
             return this.filteredEvents;
+        },
+
+        isUserLoggedIn() {
+            return !!this.currentUser?.id;
         },
 
         paginatedEvents() {
@@ -55,7 +60,11 @@ export default {
     },
 
     methods: {
-        ...mapActions(['toggleTag', 'changeEventsPage']),
+        ...mapActions(['toggleTag', 'changeEventsPage', 'toggleRecommended']),
+
+        handleToggleRecommended() {
+            this.$store.dispatch('toggleRecommended');
+        },
 
         eventImageSrc(event) {
             if (!event) return FALLBACK_PLACEHOLDER;
@@ -224,10 +233,24 @@ export default {
 <template>
     <section class="events-grid">
         <div class="container">
+            <!-- Recommended Toggle (only for logged-in users) -->
+            <div v-if="isUserLoggedIn" class="recommended-toggle-container">
+                <button
+                    class="recommended-toggle"
+                    :class="{ 'active': showRecommended }"
+                    @click="handleToggleRecommended"
+                >
+                    <span class="toggle-icon">{{ showRecommended ? '⭐' : '☆' }}</span>
+                    <span class="toggle-text">
+                        {{ showRecommended ? 'Viewing Recommended' : 'View Recommended' }}
+                    </span>
+                </button>
+            </div>
+
             <!-- No Results Message -->
             <div v-if="totalEventCount === 0" class="no-results">
                 <h3>No events found</h3>
-                <p>Try adjusting your search or filters to find what you're looking for.</p>
+                <p>{{ showRecommended ? 'No recommended events found. Try setting your preferences in your dashboard!' : 'Try adjusting your search or filters to find what you\'re looking for.' }}</p>
             </div>
 
             <!-- Events Grid -->
@@ -682,10 +705,63 @@ export default {
     to { opacity: 1; transform: translateY(0); }
 }
 
+/* Recommended toggle styles */
+.recommended-toggle-container {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: var(--space-16, 16px);
+}
+
+.recommended-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    background: white;
+    color: #374151;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.recommended-toggle:hover {
+    border-color: #3b82f6;
+    background: #eff6ff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+}
+
+.recommended-toggle.active {
+    background: #3b82f6;
+    color: white;
+    border-color: #3b82f6;
+}
+
+.recommended-toggle.active:hover {
+    background: #2563eb;
+    border-color: #2563eb;
+}
+
+.toggle-icon {
+    font-size: 1.2rem;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .events-container {
         grid-template-columns: 1fr;
+    }
+
+    .recommended-toggle-container {
+        justify-content: center;
+    }
+
+    .recommended-toggle {
+        width: 100%;
+        justify-content: center;
     }
 }
 </style>

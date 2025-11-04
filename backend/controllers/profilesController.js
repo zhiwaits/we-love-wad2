@@ -78,110 +78,65 @@ exports.getProfileById = async (req, res) => {
 exports.createUserProfile = async (req, res) => {
   const client = await pool.connect();
   try {
-    const {
-      name,
-      username,
-      email,
-      password,
-      category_preferences = [],
-      club_category_preferences = [],
-      tag_preferences = []
-    } = req.body || {};
-
-    if (!username || !email || !password || !name) {
+    const { name, username, email, password, preferred_categories, preferred_tags } = req.body;
+    if (!username || !email || !password) {
       return res.status(400).json({ error: 'name, username, email, and password are required' });
     }
-
-    // Limit size and enforce uniqueness for string-based preferences
-    const sanitizeStringArray = (values, limit) => {
-      if (!Array.isArray(values) || values.length === 0) return [];
-      const seen = new Set();
-      const output = [];
-      for (const raw of values) {
-        if (output.length >= limit) break;
-        if (typeof raw !== 'string') continue;
-        const trimmed = raw.trim();
-        if (!trimmed) continue;
-        const dedupeKey = trimmed.toLowerCase();
-        if (seen.has(dedupeKey)) continue;
-        seen.add(dedupeKey);
-        output.push(trimmed);
-      }
-      return output;
-    };
-
-    // Limit size and enforce uniqueness for numeric-based preferences
-    const sanitizeNumericArray = (values, limit) => {
-      if (!Array.isArray(values) || values.length === 0) return [];
-      const seen = new Set();
-      const output = [];
-      for (const raw of values) {
-        if (output.length >= limit) break;
-        const numeric = Number(raw);
-        if (!Number.isFinite(numeric)) continue;
-        if (seen.has(numeric)) continue;
-        seen.add(numeric);
-        output.push(numeric);
-      }
-      return output;
-    };
-
-    const categoryPrefs = sanitizeStringArray(category_preferences, 3);
-    const clubCategoryPrefs = sanitizeNumericArray(club_category_preferences, 3);
-    const tagPrefs = sanitizeNumericArray(tag_preferences, 10);
-
     const passwordHash = crypto.createHash('sha256').update(String(password)).digest('hex');
 
     await client.query('BEGIN');
 
+    // Insert user profile without preference arrays
     const result = await client.query(
       `INSERT INTO ${table} (name, username, email, password, account_type)
        VALUES ($1, $2, $3, $4, 'user') RETURNING *`,
       [name, username, email, passwordHash]
     );
 
-    const user = result.rows[0];
-    const userId = user?.id;
+    const userId = result.rows[0].id;
 
-    if (userId != null) {
-      if (categoryPrefs.length > 0) {
+    // Insert category preferences if provided
+    if (Array.isArray(preferred_categories) && preferred_categories.length > 0) {
+      for (const category of preferred_categories) {
         await client.query(
-          `INSERT INTO category_preference (userid, category)
-           SELECT $1, UNNEST($2::text[])
-           ON CONFLICT DO NOTHING`,
-          [userId, categoryPrefs]
+          'INSERT INTO category_preference (userid, category) VALUES ($1, $2)',
+          [userId, category.toLowerCase()]
         );
       }
+    }
 
-      if (clubCategoryPrefs.length > 0) {
-        await client.query(
-          `INSERT INTO club_category_preference (userid, club_category)
-           SELECT $1, UNNEST($2::bigint[])
-           ON CONFLICT DO NOTHING`,
-          [userId, clubCategoryPrefs]
+    // Insert tag preferences if provided
+    if (Array.isArray(preferred_tags) && preferred_tags.length > 0) {
+      for (const tagName of preferred_tags) {
+        // Find or create tag
+        const tagResult = await client.query(
+          'SELECT id FROM event_tags WHERE LOWER(tag_name) = LOWER($1)',
+          [tagName]
         );
-      }
 
-      if (tagPrefs.length > 0) {
+        let tagId;
+        if (tagResult.rows.length > 0) {
+          tagId = tagResult.rows[0].id;
+        } else {
+          // Create new tag if it doesn't exist
+          const newTag = await client.query(
+            'INSERT INTO event_tags (tag_name) VALUES ($1) RETURNING id',
+            [tagName.toLowerCase()]
+          );
+          tagId = newTag.rows[0].id;
+        }
+
         await client.query(
-          `INSERT INTO tag_preference (userid, tagid)
-           SELECT $1, UNNEST($2::int[])
-           ON CONFLICT DO NOTHING`,
-          [userId, tagPrefs]
+          'INSERT INTO tag_preference (userid, tagid) VALUES ($1, $2)',
+          [userId, tagId]
         );
       }
     }
 
     await client.query('COMMIT');
-
-    const sanitizedUser = { ...user };
-    if (sanitizedUser) delete sanitizedUser.password;
-
-    res.status(201).json(sanitizedUser);
+    res.status(201).json(result.rows[0]);
   } catch (err) {
-    try {
-      await client.query('ROLLBACK');
-    } catch {}
+    await client.query('ROLLBACK');
     res.status(500).json({ error: err.message });
   } finally {
     client.release();
@@ -373,5 +328,131 @@ exports.deleteProfile = async (req, res) => {
     res.json({ message: 'Profile deleted', profile: result.rows[0] });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+};
+
+// Get user preferences (categories and tags)
+exports.getUserPreferences = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if user exists and is a user account
+    const userCheck = await pool.query(
+      `SELECT id FROM ${table} WHERE id = $1 AND account_type = 'user'`,
+      [id]
+    );
+
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'User profile not found' });
+    }
+
+    // Get event categories from category_preference table
+    const categoriesResult = await pool.query(
+      `SELECT category FROM category_preference WHERE userid = $1`,
+      [id]
+    );
+
+    // Get tags from tag_preference table (need to join with event_tags to get tag names)
+    const tagsResult = await pool.query(
+      `SELECT et.tag_name
+       FROM tag_preference tp
+       JOIN event_tags et ON tp.tagid = et.id
+       WHERE tp.userid = $1`,
+      [id]
+    );
+
+    const preferences = {
+      preferred_categories: categoriesResult.rows.map(row => row.category),
+      preferred_tags: tagsResult.rows.map(row => row.tag_name)
+    };
+
+    res.json(preferences);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Update user preferences (categories and tags)
+exports.updateUserPreferences = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    const { preferred_categories, preferred_tags } = req.body;
+
+    // Validate that arrays are provided
+    if (!Array.isArray(preferred_categories) || !Array.isArray(preferred_tags)) {
+      return res.status(400).json({ error: 'preferred_categories and preferred_tags must be arrays' });
+    }
+
+    // Validate minimum and maximum limits (3-10 total preferences)
+    const totalPreferences = preferred_categories.length + preferred_tags.length;
+    if (totalPreferences < 3) {
+      return res.status(400).json({ error: 'Please select at least 3 preferences (categories or tags combined)' });
+    }
+    if (totalPreferences > 10) {
+      return res.status(400).json({ error: 'Please select no more than 10 preferences (categories or tags combined)' });
+    }
+
+    // Check if user exists
+    const userCheck = await client.query(
+      `SELECT id FROM ${table} WHERE id = $1 AND account_type = 'user'`,
+      [id]
+    );
+
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'User profile not found' });
+    }
+
+    await client.query('BEGIN');
+
+    // Delete existing preferences
+    await client.query('DELETE FROM category_preference WHERE userid = $1', [id]);
+    await client.query('DELETE FROM tag_preference WHERE userid = $1', [id]);
+
+    // Insert new category preferences
+    for (const category of preferred_categories) {
+      await client.query(
+        'INSERT INTO category_preference (userid, category) VALUES ($1, $2)',
+        [id, category.toLowerCase()]
+      );
+    }
+
+    // Insert new tag preferences
+    for (const tagName of preferred_tags) {
+      // Find or create tag
+      const tagResult = await client.query(
+        'SELECT id FROM event_tags WHERE LOWER(tag_name) = LOWER($1)',
+        [tagName]
+      );
+
+      let tagId;
+      if (tagResult.rows.length > 0) {
+        tagId = tagResult.rows[0].id;
+      } else {
+        // Create new tag if it doesn't exist
+        const newTag = await client.query(
+          'INSERT INTO event_tags (tag_name) VALUES ($1) RETURNING id',
+          [tagName.toLowerCase()]
+        );
+        tagId = newTag.rows[0].id;
+      }
+
+      await client.query(
+        'INSERT INTO tag_preference (userid, tagid) VALUES ($1, $2)',
+        [id, tagId]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    res.json({
+      preferred_categories,
+      preferred_tags
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 };

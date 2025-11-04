@@ -656,3 +656,147 @@ exports.deleteEvent = async (req, res) => {
     client.release();
   }
 };
+
+// Get recommended events for a user based on their preferences
+exports.getRecommendedEvents = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Check if user exists
+    const userCheck = await pool.query(
+      `SELECT id FROM profiles WHERE id = $1 AND account_type = 'user'`,
+      [userId]
+    );
+
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Get user's preferred categories from category_preference table
+    const categoriesResult = await pool.query(
+      `SELECT category FROM category_preference WHERE userid = $1`,
+      [userId]
+    );
+    const preferredCategories = categoriesResult.rows.map(row => row.category.toLowerCase());
+
+    // Get user's preferred tags from tag_preference table (join with event_tags to get tag names)
+    const tagsResult = await pool.query(
+      `SELECT LOWER(et.tag_name) as tag_name
+       FROM tag_preference tp
+       JOIN event_tags et ON tp.tagid = et.id
+       WHERE tp.userid = $1`,
+      [userId]
+    );
+    const preferredTags = tagsResult.rows.map(row => row.tag_name);
+
+    // If user has no preferences, return empty array
+    if (preferredCategories.length === 0 && preferredTags.length === 0) {
+      return res.json({
+        events: [],
+        pagination: {
+          currentPage: 1,
+          totalPages: 0,
+          totalEvents: 0,
+          eventsPerPage: 0,
+          hasNextPage: false,
+          hasPreviousPage: false
+        }
+      });
+    }
+
+    // Build query to get events matching user preferences
+    // Events match if:
+    // 1. Category matches any preferred category (case-insensitive)
+    // 2. OR event has tags that match any preferred tag (case-insensitive)
+    const query = `
+      SELECT DISTINCT
+        e.id,
+        e.title,
+        e.description,
+        e.datetime,
+        e.enddatetime,
+        e.location,
+        e.category,
+        e.capacity,
+        e.image_url,
+        e.owner_id,
+        e.price,
+        e.venue,
+        e.latitude,
+        e.altitude,
+        p.name AS organiser_name,
+        p.club_category_id AS club_category_id,
+        cc.name AS club_category_name,
+        COUNT(CASE WHEN r.status = 'confirmed' THEN 1 END) as confirmed_attendees,
+        -- Calculate match score for sorting
+        (
+          CASE WHEN LOWER(e.category) = ANY($1::text[]) THEN 2 ELSE 0 END +
+          (SELECT COUNT(*) FROM event_tag_map etm
+           JOIN event_tags et ON et.id = etm.tag_id
+           WHERE etm.event_id = e.id AND LOWER(et.tag_name) = ANY($2::text[]))
+        ) as match_score
+      FROM ${table} e
+      LEFT JOIN profiles p ON p.id = e.owner_id
+      LEFT JOIN club_categories cc ON cc.id = p.club_category_id
+      LEFT JOIN rsvps r ON r.event_id = e.id AND r.status = 'confirmed'
+      LEFT JOIN event_tag_map etm ON etm.event_id = e.id
+      LEFT JOIN event_tags et ON et.id = etm.tag_id
+      WHERE (
+        LOWER(e.category) = ANY($1::text[])
+        OR LOWER(et.tag_name) = ANY($2::text[])
+      )
+      AND e.datetime > NOW()  -- Only show upcoming events
+      GROUP BY e.id, e.title, e.description, e.datetime, e.enddatetime, e.location, e.category,
+               e.capacity, e.image_url, e.owner_id, e.price, e.venue, e.latitude, e.altitude,
+               p.name, p.club_category_id, cc.name
+      ORDER BY match_score DESC, e.datetime ASC
+    `;
+
+    const result = await pool.query(query, [preferredCategories, preferredTags]);
+
+    const shaped = result.rows.map((row) => {
+      const numericPrice = row.price != null && !Number.isNaN(Number(row.price))
+        ? Number(row.price)
+        : null;
+
+      return {
+        id: row.id,
+        title: row.title,
+        organiser: row.organiser_name || 'Unknown',
+        category: row.category || '',
+        tags: [],
+        price: formatPriceTag(row.price),
+        priceValue: numericPrice,
+        date: formatDateISO(row.datetime),
+        datetime: row.datetime,
+        time: formatTimeRange(row.datetime, row.enddatetime),
+        location: row.location || '',
+        venue: row.venue || '',
+        attendees: Number(row.confirmed_attendees) || 0,
+        maxAttendees: row.capacity != null ? Number(row.capacity) : null,
+        description: row.description || '',
+        image: row.image_url || '',
+        latitude: row.latitude,
+        altitude: row.altitude,
+        ownerId: row.owner_id,
+        clubCategoryId: row.club_category_id != null ? Number(row.club_category_id) : null,
+        clubCategoryName: row.club_category_name || '',
+        matchScore: row.match_score || 0
+      };
+    });
+
+    res.json({
+      events: shaped,
+      pagination: {
+        currentPage: 1,
+        totalPages: 1,
+        totalEvents: shaped.length,
+        eventsPerPage: shaped.length,
+        hasNextPage: false,
+        hasPreviousPage: false
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
