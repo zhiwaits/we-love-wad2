@@ -36,13 +36,11 @@ export const getAllEvents = (page = 1, limit = 'all', filters = {}) => {
 	if (filters.clubFilter && filters.clubFilter.categoryId && filters.clubFilter.categoryId !== 'all') {
 		params.append('clubCategoryId', filters.clubFilter.categoryId);
 	}
-	if (filters.dateFilter && filters.dateFilter !== 'all') {
-		if (filters.dateFilter === 'specific' && filters.specificDate) {
-			params.append('specificDate', filters.specificDate);
-		} else if (filters.dateFilter === 'range' && filters.dateRange) {
-			if (filters.dateRange.start) params.append('dateRangeStart', filters.dateRange.start);
-			if (filters.dateRange.end) params.append('dateRangeEnd', filters.dateRange.end);
-		}
+	if (filters.specificDate) {
+		params.append('specificDate', filters.specificDate);
+	} else if (filters.dateRange && filters.dateRange.start && filters.dateRange.end) {
+		params.append('dateRangeStart', filters.dateRange.start);
+		params.append('dateRangeEnd', filters.dateRange.end);
 	}
 
 	return axios.get(`${BASE_URL}/events?${params.toString()}`);
