@@ -22,7 +22,9 @@ export default {
             showEventModal: false,
             showImageModal: false,
             selectedImage: '',
-            selectedImageAlt: ''
+            selectedImageAlt: '',
+            showTagsModal: false,
+            tagsModalEvent: null
         };
     },
 
@@ -123,20 +125,6 @@ export default {
         isTagSelected(tag) {
             return this.filters.selectedTags.includes(tag);
         },
-        async handleRsvpCreated(rsvpData) {
-            console.log('RSVP Created:', rsvpData);
-
-            // Refresh the events data to get updated attendee counts
-            await this.$store.dispatch('fetchAllEvents');
-
-            // Update the selected event with the new attendee count
-            if (this.selectedEvent) {
-                const updatedEvent = this.events.find(e => e.id === this.selectedEvent.id);
-                if (updatedEvent) {
-                    this.selectedEvent = { ...updatedEvent };
-                }
-            }
-        },
 
         handlePageChange(page) {
             this.changeEventsPage(page);
@@ -153,6 +141,62 @@ export default {
             this.showImageModal = false;
             this.selectedImage = '';
             this.selectedImageAlt = '';
+        },
+
+        // Tag truncation logic
+        getVisibleTagsCount(tags) {
+            if (!tags || tags.length === 0) return 0;
+
+            // Container constraints - more lenient estimate
+            const containerWidth = 320; // More generous estimate for event card content area
+
+            let currentRowWidth = 0;
+            let rowCount = 1;
+            let visibleCount = 0;
+
+            for (let i = 0; i < tags.length; i++) {
+                // More accurate tag width: padding (16px) + text + gap (8px)
+                const tagWidth = 16 + (tags[i].length * 6.5) + 8; // Slightly more lenient character width
+
+                // Check if this tag fits in current row
+                if (currentRowWidth + tagWidth <= containerWidth) {
+                    currentRowWidth += tagWidth;
+                    visibleCount++;
+                } else {
+                    // Tag doesn't fit in current row
+                    if (rowCount >= 2) {
+                        // We've already used 2 rows, stop here
+                        break;
+                    } else {
+                        // Start new row
+                        rowCount++;
+                        currentRowWidth = tagWidth;
+                        visibleCount++;
+                    }
+                }
+            }
+
+            return visibleCount;
+        },
+
+        getVisibleTags(tags) {
+            if (!Array.isArray(tags)) return [];
+            const maxVisible = this.getVisibleTagsCount(tags);
+            return tags.slice(0, maxVisible);
+        },
+
+        hasMoreTags(tags) {
+            return Array.isArray(tags) && tags.length > this.getVisibleTagsCount(tags);
+        },
+
+        openTagsModal(event) {
+            this.tagsModalEvent = event;
+            this.showTagsModal = true;
+        },
+
+        closeTagsModal() {
+            this.showTagsModal = false;
+            this.tagsModalEvent = null;
         }
     },
 
@@ -238,9 +282,16 @@ export default {
                         <!-- Tags Display -->
                         <!-- Tags Display - Now Clickable! -->
                         <div class="event-tags">
-                            <span v-for="tag in event.tags" :key="tag" class="tag-badge"
+                            <span v-for="tag in getVisibleTags(event.tags)" :key="tag" class="tag-badge"
                                 @click.stop="handleTagClick(tag)" :class="{ 'tag-selected': isTagSelected(tag) }">
                                 #{{ tag }}
+                            </span>
+                            <span
+                                v-if="hasMoreTags(event.tags)"
+                                class="tag-badge tag-more"
+                                @click.stop="openTagsModal(event)"
+                            >
+                                ...
                             </span>
                         </div>
                     </div>
@@ -271,6 +322,28 @@ export default {
             :altText="selectedImageAlt"
             @close="closeImageModal"
         />
+
+        <!-- Tags Modal -->
+        <div v-if="showTagsModal" class="modal-overlay" @click="closeTagsModal">
+            <div class="modal-content tags-modal" @click.stop>
+                <div class="modal-header">
+                    <h3>All Tags</h3>
+                    <button class="modal-close" @click="closeTagsModal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="tags-list">
+                        <span
+                            v-for="tag in tagsModalEvent.tags"
+                            :key="tag"
+                            class="tag-badge"
+                            @click="handleTagClick(tag)"
+                        >
+                            #{{ tag }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
     </section>
 </template>
 
@@ -507,6 +580,92 @@ export default {
     background-color: var(--color-primary, #007bff);
     color: white;
     border-color: var(--color-primary, #007bff);
+}
+
+/* Modal Styles */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background-color: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    max-width: 500px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-20);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text);
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--color-text-secondary);
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    transition: all 0.2s ease;
+}
+
+.modal-close:hover {
+    background-color: var(--color-bg-1);
+    color: var(--color-text);
+}
+
+.modal-body {
+    padding: var(--space-20);
+}
+
+.tags-modal .tags-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-8);
+}
+
+.tags-modal .tag-badge {
+    margin: 0;
+}
+
+.tag-badge.tag-more {
+    background-color: var(--color-bg-2, #e0e0e0);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    font-weight: var(--font-weight-bold);
+}
+
+.tag-badge.tag-more:hover {
+    background-color: var(--color-bg-1, #d0d0d0);
+    transform: translateY(-1px);
 }
 
 /* Category badge color fallbacks (ensure consistent palette) */
