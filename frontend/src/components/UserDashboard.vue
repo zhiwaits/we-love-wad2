@@ -115,9 +115,9 @@ onMounted(async () => {
   window.addEventListener('resize', updateWindowWidth);
   
   const userId = currentUser.value.id;
-  
-  // Fetch all data
-  await store.dispatch('fetchAllEvents');
+
+  // Fetch all data - use unfiltered events for dashboard
+  await store.dispatch('fetchAllEventsUnfiltered');
   await store.dispatch('loadSavedEvents');
   await store.dispatch('fetchUserStats', userId);
   await store.dispatch('fetchUserRSVPs', userId);

@@ -95,13 +95,107 @@ exports.getAllEvents = async (req, res) => {
     const limit = parseInt(req.query.limit) || 1000; // Default to large number for backwards compatibility
     const offset = (page - 1) * limit;
 
-    // Get total count for pagination metadata
-    const countQuery = `SELECT COUNT(*) FROM ${table}`;
-    const countResult = await pool.query(countQuery);
+    // Filter parameters
+    const searchQuery = req.query.search || '';
+    const categories = req.query.categories ? req.query.categories.split(',') : [];
+    const eventStatus = req.query.eventStatus || 'both'; // 'upcoming', 'past', or 'both'
+    const priceFilter = req.query.priceFilter || 'all';
+    const minPrice = req.query.minPrice ? parseFloat(req.query.minPrice) : null;
+    const maxPrice = req.query.maxPrice ? parseFloat(req.query.maxPrice) : null;
+    const venueFilter = req.query.venueFilter || 'all';
+    const locationQuery = req.query.locationQuery || '';
+    const clubCategoryId = req.query.clubCategoryId || 'all';
+    const specificDate = req.query.specificDate || null;
+    const dateRangeStart = req.query.dateRangeStart || null;
+    const dateRangeEnd = req.query.dateRangeEnd || null;
+
+    // Build WHERE clause conditions
+    const conditions = [];
+    const params = [];
+    let paramIndex = 1;
+
+    // Search query filter (title, description, organiser name)
+    if (searchQuery) {
+      params.push(`%${searchQuery}%`);
+      conditions.push(`(
+        LOWER(e.title) LIKE LOWER($${paramIndex}) OR
+        LOWER(e.description) LIKE LOWER($${paramIndex}) OR
+        LOWER(p.name) LIKE LOWER($${paramIndex})
+      )`);
+      paramIndex++;
+    }
+
+    // Category filter
+    if (categories.length > 0) {
+      params.push(categories);
+      conditions.push(`e.category = ANY($${paramIndex}::text[])`);
+      paramIndex++;
+    }
+
+    // Event status filter (upcoming/past)
+    if (eventStatus === 'upcoming') {
+      conditions.push(`e.datetime > NOW()`);
+    } else if (eventStatus === 'past') {
+      conditions.push(`e.datetime <= NOW()`);
+    }
+
+    // Price filter
+    if (priceFilter === 'free') {
+      conditions.push(`(e.price IS NULL OR e.price = 0)`);
+    } else if (priceFilter === 'paid') {
+      conditions.push(`(e.price IS NOT NULL AND e.price > 0)`);
+    } else if (priceFilter === 'custom' && minPrice !== null && maxPrice !== null) {
+      params.push(minPrice, maxPrice);
+      conditions.push(`e.price BETWEEN $${paramIndex} AND $${paramIndex + 1}`);
+      paramIndex += 2;
+    }
+
+    // Venue filter
+    if (venueFilter !== 'all') {
+      params.push(venueFilter);
+      conditions.push(`e.venue = $${paramIndex}`);
+      paramIndex++;
+    }
+
+    // Location query filter
+    if (locationQuery) {
+      params.push(`%${locationQuery}%`);
+      conditions.push(`LOWER(e.location) LIKE LOWER($${paramIndex})`);
+      paramIndex++;
+    }
+
+    // Club category filter
+    if (clubCategoryId !== 'all') {
+      params.push(parseInt(clubCategoryId));
+      conditions.push(`p.club_category_id = $${paramIndex}`);
+      paramIndex++;
+    }
+
+    // Date filter
+    if (specificDate) {
+      params.push(specificDate);
+      conditions.push(`DATE(e.datetime) = $${paramIndex}`);
+      paramIndex++;
+    } else if (dateRangeStart && dateRangeEnd) {
+      params.push(dateRangeStart, dateRangeEnd);
+      conditions.push(`DATE(e.datetime) BETWEEN $${paramIndex} AND $${paramIndex + 1}`);
+      paramIndex += 2;
+    }
+
+    // Build WHERE clause
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    // Get total count for pagination metadata with filters
+    const countQuery = `
+      SELECT COUNT(*) FROM ${table} e
+      LEFT JOIN profiles p ON p.id = e.owner_id
+      ${whereClause}
+    `;
+    const countResult = await pool.query(countQuery, params);
     const totalEvents = parseInt(countResult.rows[0].count);
     const totalPages = Math.ceil(totalEvents / limit);
 
-    // Get paginated events
+    // Get paginated events with filters
     const query = `
       SELECT
         e.id,
@@ -126,11 +220,13 @@ exports.getAllEvents = async (req, res) => {
       LEFT JOIN profiles p ON p.id = e.owner_id
       LEFT JOIN club_categories cc ON cc.id = p.club_category_id
       LEFT JOIN rsvps r ON r.event_id = e.id AND r.status = 'confirmed'
+      ${whereClause}
       GROUP BY e.id, e.title, e.description, e.datetime, e.enddatetime, e.location, e.category, e.capacity, e.image_url, e.owner_id, e.price, e.venue, e.latitude, e.altitude, p.name, p.club_category_id, cc.name
       ORDER BY e.datetime ASC
-      LIMIT $1 OFFSET $2
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
-    const result = await pool.query(query, [limit, offset]);
+    params.push(limit, offset);
+    const result = await pool.query(query, params);
 
     const shaped = result.rows.map((row) => {
       const numericPrice = row.price != null && !Number.isNaN(Number(row.price))
