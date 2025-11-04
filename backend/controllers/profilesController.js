@@ -78,10 +78,27 @@ exports.getProfileById = async (req, res) => {
 exports.createUserProfile = async (req, res) => {
   const client = await pool.connect();
   try {
-    const { name, username, email, password, preferred_categories, preferred_tags } = req.body;
+    const {
+      name,
+      username,
+      email,
+      password,
+      category_preferences = [],
+      club_category_preferences = [],
+      tag_preferences = [],
+      // Also accept alternate naming for compatibility
+      preferred_categories,
+      preferred_tags
+    } = req.body;
+
     if (!username || !email || !password) {
       return res.status(400).json({ error: 'name, username, email, and password are required' });
     }
+
+    // Use category_preferences if provided, otherwise use preferred_categories
+    const categoryPrefs = category_preferences.length > 0 ? category_preferences : (preferred_categories || []);
+    const tagPrefs = tag_preferences.length > 0 ? tag_preferences : (preferred_tags || []);
+
     const passwordHash = crypto.createHash('sha256').update(String(password)).digest('hex');
 
     await client.query('BEGIN');
@@ -96,18 +113,18 @@ exports.createUserProfile = async (req, res) => {
     const userId = result.rows[0].id;
 
     // Insert category preferences if provided
-    if (Array.isArray(preferred_categories) && preferred_categories.length > 0) {
-      for (const category of preferred_categories) {
+    if (Array.isArray(categoryPrefs) && categoryPrefs.length > 0) {
+      for (const category of categoryPrefs) {
         await client.query(
           'INSERT INTO category_preference (userid, category) VALUES ($1, $2)',
-          [userId, category.toLowerCase()]
+          [userId, category]
         );
       }
     }
 
     // Insert tag preferences if provided
-    if (Array.isArray(preferred_tags) && preferred_tags.length > 0) {
-      for (const tagName of preferred_tags) {
+    if (Array.isArray(tagPrefs) && tagPrefs.length > 0) {
+      for (const tagName of tagPrefs) {
         // Find or create tag
         const tagResult = await client.query(
           'SELECT id FROM event_tags WHERE LOWER(tag_name) = LOWER($1)',

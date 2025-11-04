@@ -61,7 +61,7 @@ export default {
       default: false
     },
     userId: {
-      type: String,
+      type: [String, Number],
       required: true
     },
     initialCategories: {
