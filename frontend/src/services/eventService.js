@@ -2,10 +2,44 @@ import axios from 'axios';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
-export const getAllEvents = (page = 1, limit = 6) => {
+export const getAllEvents = (page = 1, limit = 6, filters = {}) => {
 	const params = new URLSearchParams();
 	if (page) params.append('page', page);
 	if (limit) params.append('limit', limit);
+
+	// Add filter parameters
+	if (filters.searchQuery) params.append('search', filters.searchQuery);
+	if (filters.selectedCategories && filters.selectedCategories.length > 0) {
+		params.append('categories', filters.selectedCategories.join(','));
+	}
+	if (filters.eventStatus && filters.eventStatus !== 'both') {
+		params.append('eventStatus', filters.eventStatus);
+	}
+	if (filters.priceFilter && filters.priceFilter !== 'all') {
+		params.append('priceFilter', filters.priceFilter);
+		if (filters.priceFilter === 'custom' && filters.priceRange) {
+			if (filters.priceRange.min !== null) params.append('minPrice', filters.priceRange.min);
+			if (filters.priceRange.max !== null) params.append('maxPrice', filters.priceRange.max);
+		}
+	}
+	if (filters.venueFilter && filters.venueFilter !== 'all') {
+		params.append('venueFilter', filters.venueFilter);
+	}
+	if (filters.locationQuery) {
+		params.append('locationQuery', filters.locationQuery);
+	}
+	if (filters.clubFilter && filters.clubFilter.categoryId && filters.clubFilter.categoryId !== 'all') {
+		params.append('clubCategoryId', filters.clubFilter.categoryId);
+	}
+	if (filters.dateFilter && filters.dateFilter !== 'all') {
+		if (filters.dateFilter === 'specific' && filters.specificDate) {
+			params.append('specificDate', filters.specificDate);
+		} else if (filters.dateFilter === 'range' && filters.dateRange) {
+			if (filters.dateRange.start) params.append('dateRangeStart', filters.dateRange.start);
+			if (filters.dateRange.end) params.append('dateRangeEnd', filters.dateRange.end);
+		}
+	}
+
 	return axios.get(`${BASE_URL}/events?${params.toString()}`);
 };
 

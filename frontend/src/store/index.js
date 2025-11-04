@@ -252,8 +252,11 @@ const clearToastTimer = () => {
 export default createStore({
 
   state: {
-    // All events from your EventsGrid
+    // All events (unfiltered) - used by dashboard
     allEvents: [],
+
+    // Browse events (filtered) - used by browse events page
+    browseEvents: [],
 
     // Pagination state
     pagination: {
@@ -311,135 +314,51 @@ export default createStore({
     },
     // Get filtered events based on current filters
     filteredEvents: (state) => {
-      const priceRangeActive =
-        state.filters.priceFilter === 'range' &&
-        ((state.filters.priceRange?.min ?? null) !== null || (state.filters.priceRange?.max ?? null) !== null);
-      const specificDateActive = state.filters.dateFilter === 'specific' && !!state.filters.specificDate;
-      const dateRangeActive = state.filters.dateFilter === 'range' &&
-        !!state.filters.dateRange?.start && !!state.filters.dateRange?.end;
-      const clubFilter = state.filters.clubFilter || { categoryId: 'all', followedOnly: false };
-      const clubFilterActive = clubFilter.categoryId !== 'all' || clubFilter.followedOnly;
+      // Most filtering is now done on the backend
+      // Only apply client-side filters for:
+      // 1. Tags (not sent to backend)
+      // 2. Status filters (RSVP status, saved status)
+      // 3. Followed clubs (requires user data)
 
-      const noFiltersActive =
-        !state.filters.searchQuery &&
-        state.filters.selectedCategories.length === 0 &&
-        state.filters.selectedTags.length === 0 &&
-        state.filters.priceFilter === 'all' &&
-        !priceRangeActive &&
-        state.filters.dateFilter === 'all' &&
-        !specificDateActive &&
-        !dateRangeActive &&
-        state.filters.venueFilter === 'all' &&
-        !state.filters.locationQuery &&
-        state.filters.eventStatus === 'both' &&
-        !clubFilterActive;
+      let filtered = [...state.browseEvents];
 
-      if (noFiltersActive) {
-        return state.allEvents;
-      }
-
-      let filtered = [...state.allEvents];
-
-      // Search filter (searches in title, organiser, description)
-      if (state.filters.searchQuery) {
-        const query = state.filters.searchQuery.toLowerCase();
-        filtered = filtered.filter(event =>
-          event.title.toLowerCase().includes(query) ||
-          event.organiser.toLowerCase().includes(query) ||
-          event.description.toLowerCase().includes(query)
-        );
-      }
-
-      // Category filter
-      if (state.filters.selectedCategories.length > 0) {
-        filtered = filtered.filter(event =>
-          state.filters.selectedCategories.includes(event.category)
-        );
-      }
-
-      // Tag filter
+      // Tag filter (client-side only)
       if (state.filters.selectedTags.length > 0) {
         filtered = filtered.filter(event =>
           state.filters.selectedTags.some(tag => event.tags.includes(tag))
         );
       }
 
-      // Price filter
-      if (state.filters.priceFilter === 'free') {
-        filtered = filtered.filter(event => event.price === 'FREE');
-      } else if (state.filters.priceFilter === 'paid') {
-        filtered = filtered.filter(event => event.price !== 'FREE');
+      // Status filters (RSVP/Saved) - client-side only
+      const statusFilter = state.filters.statusFilter || {};
+      if (statusFilter.rsvped || statusFilter.notRsvped || statusFilter.saved || statusFilter.notSaved) {
+        // Compute rsvped and saved event IDs from state
+        const rsvpedEventIds = state.userRSVPs.map(rsvp => rsvp.event_id);
+        const savedEventIds = state.savedEvents || [];
+
+        filtered = filtered.filter(event => {
+          const isRsvped = rsvpedEventIds.includes(event.id);
+          const isSaved = savedEventIds.includes(event.id);
+
+          // RSVP filter
+          if (statusFilter.rsvped && !isRsvped) return false;
+          if (statusFilter.notRsvped && isRsvped) return false;
+
+          // Saved filter
+          if (statusFilter.saved && !isSaved) return false;
+          if (statusFilter.notSaved && isSaved) return false;
+
+          return true;
+        });
       }
 
-      // Date filter
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      if (state.filters.dateFilter === 'today') {
-        filtered = filtered.filter(event => {
-          const eventDate = new Date(event.date);
-          eventDate.setHours(0, 0, 0, 0);
-          return eventDate.getTime() === today.getTime();
-        });
-      } else if (state.filters.dateFilter === 'this-week') {
-        const weekFromNow = new Date(today);
-        weekFromNow.setDate(weekFromNow.getDate() + 7);
-        filtered = filtered.filter(event => {
-          const eventDate = new Date(event.date);
-          return eventDate >= today && eventDate <= weekFromNow;
-        });
-      } else if (state.filters.dateFilter === 'this-month') {
-        filtered = filtered.filter(event => {
-          const eventDate = new Date(event.date);
-          return eventDate.getMonth() === today.getMonth() &&
-            eventDate.getFullYear() === today.getFullYear();
-        });
-      } else if (state.filters.dateFilter === 'specific' && state.filters.specificDate) {
-        const target = new Date(state.filters.specificDate);
-        target.setHours(0, 0, 0, 0);
-        filtered = filtered.filter(event => {
-          const eventDate = new Date(event.date);
-          eventDate.setHours(0, 0, 0, 0);
-          return eventDate.getTime() === target.getTime();
-        });
-      } else if (state.filters.dateFilter === 'range') {
-        const startRaw = state.filters.dateRange?.start;
-        const endRaw = state.filters.dateRange?.end;
-        if (startRaw && endRaw) {
-          const startDate = new Date(startRaw);
-          startDate.setHours(0, 0, 0, 0);
-          const endDate = new Date(endRaw);
-          endDate.setHours(0, 0, 0, 0);
-          filtered = filtered.filter(event => {
-            const eventDate = new Date(event.date);
-            eventDate.setHours(0, 0, 0, 0);
-            return eventDate >= startDate && eventDate <= endDate;
-          });
-        }
-      }
-
-      // Venue filter
-      if (state.filters.venueFilter !== 'all') {
+      // Followed clubs filter (client-side only)
+      const clubFilter = state.filters.clubFilter || { categoryId: 'all', followedOnly: false };
+      if (clubFilter.followedOnly && state.clubFollowers) {
+        const followedClubIds = state.clubFollowers.map(cf => cf.club_id);
         filtered = filtered.filter(event =>
-          event.venue === state.filters.venueFilter
+          followedClubIds.includes(event.ownerId)
         );
-      }
-
-      // Location search
-      if (state.filters.locationQuery) {
-        const locQuery = state.filters.locationQuery.toLowerCase();
-        filtered = filtered.filter(event =>
-          event.location.toLowerCase().includes(locQuery) ||
-          event.venue.toLowerCase().includes(locQuery)
-        );
-      }
-
-      // Event status filter
-      const now = new Date();
-      if (state.filters.eventStatus === 'upcoming') {
-        filtered = filtered.filter(event => new Date(event.date) > now);
-      } else if (state.filters.eventStatus === 'past') {
-        filtered = filtered.filter(event => new Date(event.date) <= now);
       }
 
       return filtered;
@@ -677,14 +596,20 @@ export default createStore({
 
     // Dashboard-specific getters
     upcomingUserEvents: (state) => {
-      // Get the event IDs of confirmed RSVPs (show ALL confirmed, not just future)
+      // Get the event IDs of confirmed RSVPs
       const confirmedRsvpEventIds = state.userRSVPs
         .filter(rsvp => rsvp.status === 'confirmed')
         .map(rsvp => rsvp.event_id);
-      
-      // Filter events where user has confirmed RSVP and sort by date
+
+      const now = new Date();
+
+      // Filter events where user has confirmed RSVP AND event is in the future
       return state.allEvents
-        .filter(event => confirmedRsvpEventIds.includes(event.id))
+        .filter(event => {
+          if (!confirmedRsvpEventIds.includes(event.id)) return false;
+          const eventDate = new Date(event.datetime || event.date);
+          return eventDate > now; // Only upcoming events
+        })
         .sort((a, b) => {
           // Sort by datetime or date field, whichever is available
           const dateA = new Date(a.datetime || a.date);
@@ -760,6 +685,10 @@ export default createStore({
 
     setAllEvents(state, events) {
       state.allEvents = events;
+    },
+
+    setBrowseEvents(state, events) {
+      state.browseEvents = events;
     },
 
     setClubOwnedEvents(state, events) {
@@ -908,6 +837,26 @@ export default createStore({
     // Set event status
     SET_EVENT_STATUS(state, status) {
       state.filters.eventStatus = status;
+    },
+
+    // Toggle status filter (for RSVP/Saved filters)
+    TOGGLE_STATUS_FILTER(state, option) {
+      if (state.filters.statusFilter && state.filters.statusFilter[option] !== undefined) {
+        state.filters.statusFilter[option] = !state.filters.statusFilter[option];
+      }
+    },
+
+    // Update club category filter
+    UPDATE_CLUB_CATEGORY_FILTER(state, { categoryId, followedOnly }) {
+      if (!state.filters.clubFilter) {
+        state.filters.clubFilter = { categoryId: 'all', followedOnly: false };
+      }
+      if (categoryId !== undefined) {
+        state.filters.clubFilter.categoryId = categoryId;
+      }
+      if (followedOnly !== undefined) {
+        state.filters.clubFilter.followedOnly = followedOnly;
+      }
     },
 
     // Reset all filters
@@ -1086,7 +1035,7 @@ export default createStore({
       const page = requestedPage != null ? requestedPage : state.pagination.currentPage || 1;
       try {
         const [eventsResponse, eventTagsResponse, tagsResponse] = await Promise.all([
-          getAllEvents(page, state.pagination.eventsPerPage),
+          getAllEvents(page, state.pagination.eventsPerPage, state.filters),
           getAllEventTags(),
           getAllTags()
         ]);
@@ -1124,9 +1073,57 @@ export default createStore({
         });
 
         console.log('fetchAllEvents - events with tags:', events);
-        commit('setAllEvents', events);
+        // Store filtered events for browse page
+        commit('setBrowseEvents', events);
       } catch (error) {
         console.error('fetchAllEvents - error:', error);
+      }
+    },
+
+    // Fetch ALL events without filters - for dashboard use
+    async fetchAllEventsUnfiltered({ commit, state }) {
+      try {
+        // Fetch with no filters - use high limit to get all events
+        const [eventsResponse, eventTagsResponse, tagsResponse] = await Promise.all([
+          getAllEvents(1, 10000, {}), // No filters, high limit
+          getAllEventTags(),
+          getAllTags()
+        ]);
+
+        const { events } = eventsResponse.data;
+        const eventTags = Array.isArray(eventTagsResponse.data) ? eventTagsResponse.data : [];
+        const tags = Array.isArray(tagsResponse.data) ? tagsResponse.data : [];
+
+        const eventTagMap = buildEventTagMap(eventTags, tags);
+        const normalizedEvents = normalizeEventsWithMetadata(events, eventTagMap);
+
+        // Create a map of event_id to array of tag_names
+        const tagMap = {};
+        tags.forEach(tag => {
+          tagMap[tag.id] = tag.tag_name || tag.name || '';
+        });
+
+        const eventTagsMap = {};
+        eventTags.forEach(et => {
+          if (!eventTagsMap[et.event_id]) {
+            eventTagsMap[et.event_id] = [];
+          }
+          const tagName = tagMap[et.tag_id];
+          if (tagName) {
+            eventTagsMap[et.event_id].push(tagName);
+          }
+        });
+
+        // Assign tags to events
+        events.forEach(event => {
+          event.tags = eventTagsMap[event.id] || [];
+        });
+
+        console.log('fetchAllEventsUnfiltered - events with tags:', events);
+        // Store ALL unfiltered events for dashboard
+        commit('setAllEvents', events);
+      } catch (error) {
+        console.error('fetchAllEventsUnfiltered - error:', error);
       }
     },
 
@@ -1358,38 +1355,42 @@ export default createStore({
     },
 
     // Action to update search
-    updateSearch({ commit }, query) {
+    async updateSearch({ commit, dispatch }, query) {
       commit('SET_SEARCH_QUERY', query);
+      await dispatch('fetchAllEvents', 1);
     },
 
     // Action to toggle category
-    toggleCategory({ commit }, category) {
+    async toggleCategory({ commit, dispatch }, category) {
       commit('TOGGLE_CATEGORY', category);
+      await dispatch('fetchAllEvents', 1);
     },
 
-    // Action to toggle tag
+    // Action to toggle tag (client-side only, no refetch needed)
     toggleTag({ commit }, tag) {
       commit('TOGGLE_TAG', tag);
     },
 
     // Action to update price filter
-    updatePriceFilter({ commit }, filter) {
+    async updatePriceFilter({ commit, dispatch }, filter) {
       commit('SET_PRICE_FILTER', filter);
       if (filter !== 'range') {
         commit('SET_PRICE_RANGE', { min: null, max: null });
       }
+      await dispatch('fetchAllEvents', 1);
     },
 
-    updatePriceRange({ commit, state }, range = {}) {
+    async updatePriceRange({ commit, state, dispatch }, range = {}) {
       const startRange = {
         min: range?.min ?? state.filters.priceRange?.min ?? null,
         max: range?.max ?? state.filters.priceRange?.max ?? null
       };
       commit('SET_PRICE_RANGE', startRange);
+      await dispatch('fetchAllEvents', 1);
     },
 
     // Action to update date filter
-    updateDateFilter({ commit }, filter) {
+    async updateDateFilter({ commit, dispatch }, filter) {
       commit('SET_DATE_FILTER', filter);
       if (filter !== 'specific') {
         commit('SET_SPECIFIC_DATE', null);
@@ -1401,39 +1402,57 @@ export default createStore({
       } else {
         commit('SET_DATE_RANGE', { start: null, end: null });
       }
+      await dispatch('fetchAllEvents', 1);
     },
 
-    setSpecificDate({ commit }, date) {
+    async setSpecificDate({ commit, dispatch }, date) {
       commit('SET_SPECIFIC_DATE', date);
+      await dispatch('fetchAllEvents', 1);
     },
 
-    setDateRange({ commit, state }, range = {}) {
+    async setDateRange({ commit, state, dispatch }, range = {}) {
       let start = range?.start ?? state.filters.dateRange?.start ?? null;
       let end = range?.end ?? state.filters.dateRange?.end ?? null;
       if (start && end && start > end) {
         end = start;
       }
       commit('SET_DATE_RANGE', { start, end });
+      await dispatch('fetchAllEvents', 1);
     },
 
     // Action to update venue filter
-    updateVenueFilter({ commit }, venue) {
+    async updateVenueFilter({ commit, dispatch }, venue) {
       commit('SET_VENUE_FILTER', venue);
+      await dispatch('fetchAllEvents', 1);
     },
 
     // Action to update location query
-    updateLocationQuery({ commit }, query) {
+    async updateLocationQuery({ commit, dispatch }, query) {
       commit('SET_LOCATION_QUERY', query);
+      await dispatch('fetchAllEvents', 1);
     },
 
     // Action to update event status
-    updateEventStatus({ commit }, status) {
+    async updateEventStatus({ commit, dispatch }, status) {
       commit('SET_EVENT_STATUS', status);
+      await dispatch('fetchAllEvents', 1);
+    },
+
+    // Action to toggle status filter (RSVP/Saved filters - client-side only, no refetch)
+    toggleStatusFilter({ commit }, option) {
+      commit('TOGGLE_STATUS_FILTER', option);
+    },
+
+    // Action to update club category filter
+    async updateClubCategoryFilter({ commit, dispatch }, payload) {
+      commit('UPDATE_CLUB_CATEGORY_FILTER', payload);
+      await dispatch('fetchAllEvents', 1);
     },
 
     // Action to reset filters
-    resetFilters({ commit }) {
+    async resetFilters({ commit, dispatch }) {
       commit('RESET_FILTERS');
+      await dispatch('fetchAllEvents', 1);
     },
 
     // Club Event Filter Actions
