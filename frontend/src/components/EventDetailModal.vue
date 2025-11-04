@@ -83,11 +83,52 @@
                                 from your location
                             </span>
                         </div>
-                        <div v-else-if="travelInfo.loading" class="travel-info loading">
-                            Calculating travel time...
+                        <div v-if="!travelInfo.error && !travelInfo.duration" class="travel-info">
+                            <span class="travel-icon">📍</span>
+                            <span class="travel-text">
+                                Want to see travel time from your location?
+                            </span>
+                            <button 
+                                type="button" 
+                                class="btn btn-outline btn-sm" 
+                                @click="requestUserLocation"
+                                :disabled="travelInfo.loading"
+                            >
+                                {{ travelInfo.loading ? 'Getting location...' : 'Calculate Travel Time' }}
+                            </button>
                         </div>
                         <div v-else-if="travelInfo.error" class="travel-info error">
-                            {{ travelInfo.error }}
+                            <div class="error-content">
+                                <span class="travel-icon">⚠️</span>
+                                <div class="error-text">
+                                    <div class="error-title">{{ travelInfo.error.split('\n')[0] }}</div>
+                                    <div v-if="travelInfo.error.includes('\n')" class="error-instructions">
+                                        {{ travelInfo.error.split('\n').slice(1).join('\n') }}
+                                    </div>
+                                    <button 
+                                        type="button" 
+                                        class="btn btn-outline btn-sm retry-btn" 
+                                        @click="requestUserLocation"
+                                        :disabled="travelInfo.loading"
+                                    >
+                                        Try Again
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div v-else class="travel-info">
+                            <span class="travel-icon">�</span>
+                            <span class="travel-text">
+                                {{ travelInfo.duration }} ({{ travelInfo.distance }})
+                            </span>
+                            <button 
+                                type="button" 
+                                class="btn btn-outline btn-sm" 
+                                @click="requestUserLocation"
+                                :disabled="travelInfo.loading"
+                            >
+                                {{ travelInfo.loading ? 'Recalculating...' : 'Recalculate' }}
+                            </button>
                         </div>
 
                         <!-- Map Container -->
@@ -415,7 +456,6 @@ export default {
             }
         }
         window.addEventListener('keyup', this.handleEsc, { passive: true });
-        this.loadGoogleMapsScript();
         this.ensureAttendeesLoaded();
     },
 
@@ -674,46 +714,6 @@ export default {
             }
         },
 
-        // Load Google Maps Script
-        // Load Google Maps Script with better error handling
-loadGoogleMapsScript() {
-    if (window.google && window.google.maps) {
-        console.log('✅ Google Maps already loaded');
-        return Promise.resolve();
-    }
-
-    console.log('🔄 Loading Google Maps script...');
-    
-    return new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        
-        // Replace with your actual API key
-        const apiKey = 'AIzaSyD9_8oOwKCEvgntkep-QfxBBxFMCBAqrzM';  // TODO: Replace this!
-        
-        if (!apiKey || apiKey === 'YOUR_GOOGLE_MAPS_API_KEY') {
-            console.error('❌ Google Maps API key not configured!');
-            reject(new Error('Google Maps API key not configured'));
-            return;
-        }
-        
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
-        script.async = true;
-        script.defer = true;
-        
-        script.onload = () => {
-            console.log('✅ Google Maps script loaded successfully');
-            resolve();
-        };
-        
-        script.onerror = (error) => {
-            console.error('❌ Failed to load Google Maps script:', error);
-            reject(error);
-        };
-        
-        document.head.appendChild(script);
-    });
-},
-
 // Initialize Google Map with better debugging
 async initMap() {
     console.log('🗺️ initMap called');
@@ -722,25 +722,35 @@ async initMap() {
     console.log('Latitude:', this.event?.latitude);
     console.log('Altitude:', this.event?.altitude);
     console.log('Venue:', this.event?.venue);
-    
+
     if (!this.hasValidCoordinates) {
         console.warn('⚠️ Invalid coordinates or Virtual event, skipping map');
         return;
     }
-    
+
     if (!this.$refs.mapContainer) {
         console.warn('⚠️ Map container ref not found');
         return;
     }
 
-    try {
-        await this.loadGoogleMapsScript();
+    // Wait for Google Maps to be loaded (loaded globally in index.html)
+    if (!window.google?.maps) {
+        console.log('⏳ Waiting for Google Maps to load...');
+        await this.waitForGoogleMaps();
+    }
 
+    if (!window.google?.maps) {
+        console.error('❌ Google Maps not loaded after waiting');
+        this.travelInfo.error = 'Google Maps not available';
+        return;
+    }
+
+    try {
         const eventLocation = {
             lat: parseFloat(this.event.latitude),
             lng: parseFloat(this.event.altitude)
         };
-        
+
         console.log('📍 Event location:', eventLocation);
 
         this.map = new window.google.maps.Map(this.$refs.mapContainer, {
@@ -750,7 +760,7 @@ async initMap() {
             streetViewControl: false,
             fullscreenControl: false
         });
-        
+
         console.log('✅ Map created:', this.map);
 
         this.marker = new window.google.maps.Marker({
@@ -759,11 +769,11 @@ async initMap() {
             title: this.event.title,
             animation: window.google.maps.Animation.DROP
         });
-        
+
         console.log('✅ Marker added:', this.marker);
 
-        // Get user location and calculate travel time
-        this.getUserLocationAndCalculateTravel(eventLocation);
+        // Don't automatically get user location - let user request it manually
+        // this.getUserLocationAndCalculateTravel(eventLocation);
 
     } catch (error) {
         console.error('❌ Error initializing map:', error);
@@ -771,16 +781,53 @@ async initMap() {
     }
 },
 
+// Wait for Google Maps to be loaded globally
+async waitForGoogleMaps() {
+    const maxAttempts = 50; // 5 seconds max wait (50 * 100ms)
+    let attempts = 0;
+
+    return new Promise((resolve) => {
+        const checkGoogleMaps = () => {
+            attempts++;
+            console.log(`🔄 Checking Google Maps availability (attempt ${attempts}/${maxAttempts})`);
+
+            if (window.google?.maps) {
+                console.log('✅ Google Maps loaded successfully');
+                resolve();
+                return;
+            }
+
+            if (attempts >= maxAttempts) {
+                console.error('❌ Google Maps failed to load within timeout');
+                resolve(); // Resolve anyway to continue execution
+                return;
+            }
+
+            setTimeout(checkGoogleMaps, 100);
+        };
+
+        checkGoogleMaps();
+    });
+},
+
 // Get User Location with better error handling
 getUserLocationAndCalculateTravel(destination) {
     console.log('📍 Getting user location...');
-    
+
+    // Check if geolocation is supported
     if (!navigator.geolocation) {
         console.error('❌ Geolocation not supported');
-        this.travelInfo.error = 'Geolocation not supported';
+        this.travelInfo.error = 'Geolocation is not supported by your browser.';
         return;
     }
 
+    // Try geolocation directly - the permission check API can be unreliable
+    this.requestGeolocation(destination);
+},
+
+// Separate method for the actual geolocation request
+requestGeolocation(destination) {
+    console.log('📡 Requesting geolocation...');
     this.travelInfo.loading = true;
 
     navigator.geolocation.getCurrentPosition(
@@ -798,21 +845,46 @@ getUserLocationAndCalculateTravel(destination) {
             
             // More specific error messages
             if (error.code === 1) {
-                this.travelInfo.error = 'Location access denied. Please enable location permissions.';
+                console.log('🔍 Detailed permission check...');
+                console.log('Error message:', error.message);
+                console.log('This appears to be a Windows location permission issue');
+
+                this.travelInfo.error = 'Location access denied. Please check both:\n\nBrowser permissions:\n1. Click the location icon in your browser address bar\n2. Select "Allow" for location access\n\nWindows location permissions:\n1. Go to Windows Settings > Privacy & security > Location\n2. Turn on location access for this device\n3. Allow apps to access your location\n4. Allow your browser to access location\n5. Restart your browser after making changes\n\nThen refresh the page and try again';
             } else if (error.code === 2) {
-                this.travelInfo.error = 'Location unavailable';
+                this.travelInfo.error = 'Location unavailable. Please check your GPS or network connection.';
             } else if (error.code === 3) {
-                this.travelInfo.error = 'Location request timeout';
+                this.travelInfo.error = 'Location request timeout. Please try again.';
             } else {
-                this.travelInfo.error = 'Unable to get your location';
+                this.travelInfo.error = `Unable to get your location (Error ${error.code}). Please try again.`;
             }
         },
         {
             enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0
+            timeout: 20000, // Increased to 20 seconds
+            maximumAge: 300000 // 5 minutes cache
         }
     );
+},
+
+// Request user location manually (called by button click)
+requestUserLocation() {
+    if (!this.hasValidCoordinates) {
+        this.travelInfo.error = 'Event location not available';
+        return;
+    }
+
+    // Reset any previous errors
+    this.travelInfo.error = null;
+    this.travelInfo.duration = null;
+    this.travelInfo.distance = null;
+
+    const eventLocation = {
+        lat: parseFloat(this.event.latitude),
+        lng: parseFloat(this.event.altitude)
+    };
+
+    console.log('📍 Requesting user location for event:', eventLocation);
+    this.getUserLocationAndCalculateTravel(eventLocation);
 },
 
 // Calculate Travel Time with debugging
@@ -965,6 +1037,34 @@ async handleCancelRsvp() {
 .travel-info.error {
     background: rgba(var(--color-error-rgb, 192, 21, 47), 0.08);
     color: var(--color-error);
+}
+
+.error-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+}
+
+.error-text {
+    flex: 1;
+}
+
+.error-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.error-instructions {
+    font-size: 12px;
+    line-height: 1.4;
+    opacity: 0.9;
+    margin-bottom: 8px;
+}
+
+.retry-btn {
+    margin-top: 8px;
+    align-self: flex-start;
 }
 
 .travel-icon {
@@ -1301,6 +1401,12 @@ async handleCancelRsvp() {
 .btn-outline-danger:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+}
+
+.btn-sm {
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
 }
 
 .secondary-actions {

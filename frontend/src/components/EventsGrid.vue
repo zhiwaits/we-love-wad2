@@ -38,11 +38,22 @@ export default {
 
         events() {
             return this.filteredEvents;
+        },
+
+        paginatedEvents() {
+            const perPage = this.pagination?.eventsPerPage || 6;
+            const currentPage = this.pagination?.currentPage || 1;
+            const startIndex = (Math.max(currentPage, 1) - 1) * perPage;
+            return this.events.slice(startIndex, startIndex + perPage);
+        },
+
+        totalEventCount() {
+            return this.events.length;
         }
     },
 
     methods: {
-        ...mapActions(['toggleTag']),
+        ...mapActions(['toggleTag', 'changeEventsPage']),
 
         eventImageSrc(event) {
             if (!event) return FALLBACK_PLACEHOLDER;
@@ -116,7 +127,7 @@ export default {
             console.log('RSVP Created:', rsvpData);
 
             // Refresh the events data to get updated attendee counts
-            await this.$store.dispatch('fetchAllEvents', this.pagination.currentPage);
+            await this.$store.dispatch('fetchAllEvents');
 
             // Update the selected event with the new attendee count
             if (this.selectedEvent) {
@@ -128,7 +139,7 @@ export default {
         },
 
         handlePageChange(page) {
-            this.$store.dispatch('fetchAllEvents', page);
+            this.changeEventsPage(page);
             window.scrollTo({ top: 0, behavior: 'smooth' });
         },
 
@@ -143,6 +154,23 @@ export default {
             this.selectedImage = '';
             this.selectedImageAlt = '';
         }
+    },
+
+    watch: {
+        filteredEvents(newEvents) {
+            const perPage = this.pagination?.eventsPerPage || 6;
+            const totalEvents = Array.isArray(newEvents) ? newEvents.length : 0;
+            const totalPages = Math.max(1, Math.ceil(totalEvents / perPage));
+
+            this.$store.commit('SET_PAGINATION', {
+                totalPages,
+                totalEvents,
+                eventsPerPage: perPage
+            });
+
+            const desiredPage = Math.min(this.pagination?.currentPage || 1, totalPages);
+            this.changeEventsPage(desiredPage);
+        }
     }
 
     }
@@ -153,7 +181,7 @@ export default {
     <section class="events-grid">
         <div class="container">
             <!-- No Results Message -->
-            <div v-if="events.length === 0" class="no-results">
+            <div v-if="totalEventCount === 0" class="no-results">
                 <h3>No events found</h3>
                 <p>Try adjusting your search or filters to find what you're looking for.</p>
             </div>
@@ -161,7 +189,7 @@ export default {
             <!-- Events Grid -->
             <div v-else class="events-container">
                 <div
-                    v-for="event in events"
+                    v-for="event in paginatedEvents"
                     :key="event.id"
                     class="event-card"
                     role="button"
@@ -221,11 +249,11 @@ export default {
 
             <!-- Pagination -->
             <Pagination
-                v-if="events.length > 0"
+                v-if="totalEventCount > 0"
                 :currentPage="pagination.currentPage"
                 :totalPages="pagination.totalPages"
-                :totalEvents="pagination.totalEvents"
-                :eventsPerPage="pagination.eventsPerPage"
+                :totalEvents="totalEventCount"
+                :eventsPerPage="pagination.eventsPerPage || 6"
                 @page-change="handlePageChange"
             />
         </div>

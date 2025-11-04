@@ -2,10 +2,15 @@ import axios from 'axios';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
-export const getAllEvents = (page = 1, limit = 6, filters = {}) => {
+export const getAllEvents = (page = 1, limit = 'all', filters = {}) => {
 	const params = new URLSearchParams();
-	if (page) params.append('page', page);
-	if (limit) params.append('limit', limit);
+
+	if (limit === 'all' || limit == null) {
+		params.append('limit', 'all');
+	} else {
+		params.append('limit', limit);
+		params.append('page', page || 1);
+	}
 
 	// Add filter parameters
 	if (filters.searchQuery) params.append('search', filters.searchQuery);
@@ -17,7 +22,7 @@ export const getAllEvents = (page = 1, limit = 6, filters = {}) => {
 	}
 	if (filters.priceFilter && filters.priceFilter !== 'all') {
 		params.append('priceFilter', filters.priceFilter);
-		if (filters.priceFilter === 'custom' && filters.priceRange) {
+		if ((filters.priceFilter === 'custom' || filters.priceFilter === 'range') && filters.priceRange) {
 			if (filters.priceRange.min !== null) params.append('minPrice', filters.priceRange.min);
 			if (filters.priceRange.max !== null) params.append('maxPrice', filters.priceRange.max);
 		}

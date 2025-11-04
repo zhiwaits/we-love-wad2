@@ -834,16 +834,11 @@ export default {
                 // Update store with the actual updated event data from backend
                 this.updateEventInStore(eventId, updatedEventData);
 
-                // Instead of fetching all events, fetch the specific updated event to ensure we have the latest data
-                try {
-                    const freshEventResponse = await getEventById(eventId);
-                    const freshEventData = freshEventResponse.data;
-                    
-                    // Update the store again with the fresh data from getEventById
-                    this.updateEventInStore(eventId, freshEventData);
-                } catch (error) {
-                    console.warn('Failed to fetch fresh event data:', error);
-                }
+                // Refresh event collections to ensure all consumers receive the latest data
+                await Promise.allSettled([
+                    this.$store.dispatch('fetchAllEvents', { force: true }),
+                    this.$store.dispatch('fetchClubOwnedEvents', { force: true })
+                ]);
 
                 this.success = 'Event updated successfully!';
                 setTimeout(() => {

@@ -5,7 +5,7 @@ import { getAllEventCategories } from '../services/eventCategoryService.js';
 import { getAllEventVenues } from '../services/eventVenueService.js';
 import { getAllTags } from '../services/tagService.js';
 import { getAllEventTags } from '../services/eventTagService.js';
-import { getSavedByUserId } from '../services/savedEventsService.js';
+import { getAllSaved, getSavedByUserId, getSavedByEventId, createSaved, deleteSaved } from '../services/savedEventsService.js';
 import clubs from './modules/clubs';
 
 let toastTimer = null;
@@ -263,7 +263,7 @@ export default createStore({
       currentPage: 1,
       totalPages: 1,
       totalEvents: 0,
-      eventsPerPage: 1000,
+      eventsPerPage: EVENTS_PER_PAGE,
       hasNextPage: false,
       hasPreviousPage: false
     },
@@ -319,8 +319,17 @@ export default createStore({
       // 1. Tags (not sent to backend)
       // 2. Status filters (RSVP status, saved status)
       // 3. Followed clubs (requires user data)
+      // 4. Event status (upcoming/past/both) - client-side fallback
 
       let filtered = [...state.browseEvents];
+
+      // Event status filter (upcoming/past/both) - client-side
+      const now = new Date();
+      if (state.filters.eventStatus === 'upcoming') {
+        filtered = filtered.filter(event => new Date(event.date) > now);
+      } else if (state.filters.eventStatus === 'past') {
+        filtered = filtered.filter(event => new Date(event.date) <= now);
+      }
 
       // Tag filter (client-side only)
       if (state.filters.selectedTags.length > 0) {
@@ -1029,28 +1038,23 @@ export default createStore({
     },
     
     async fetchAllEvents({ commit, state }, options = {}) {
-      const { page: requestedPage, force = false } = typeof options === 'number'
-        ? { page: options, force: false }
-        : (options || {});
-      const page = requestedPage != null ? requestedPage : state.pagination.currentPage || 1;
+      const normalizedOptions = typeof options === 'number' ? { page: options } : (options || {});
+      const requestedPage = typeof normalizedOptions.page === 'number' ? normalizedOptions.page : null;
+
       try {
         const [eventsResponse, eventTagsResponse, tagsResponse] = await Promise.all([
-          getAllEvents(page, state.pagination.eventsPerPage, state.filters),
+          getAllEvents(1, 'all', state.filters),
           getAllEventTags(),
           getAllTags()
         ]);
 
-        const { events, pagination } = eventsResponse.data;
+        const events = Array.isArray(eventsResponse.data?.events) ? eventsResponse.data.events : [];
         const eventTags = Array.isArray(eventTagsResponse.data) ? eventTagsResponse.data : [];
         const tags = Array.isArray(tagsResponse.data) ? tagsResponse.data : [];
-
-        // Update pagination metadata
-        commit('SET_PAGINATION', pagination);
 
         const eventTagMap = buildEventTagMap(eventTags, tags);
         const normalizedEvents = normalizeEventsWithMetadata(events, eventTagMap);
 
-        // Create a map of event_id to array of tag_names
         const tagMap = {};
         tags.forEach(tag => {
           tagMap[tag.id] = tag.tag_name || tag.name || '';
@@ -1067,30 +1071,58 @@ export default createStore({
           }
         });
 
-        // Assign tags to events
-        events.forEach(event => {
+        normalizedEvents.forEach(event => {
           event.tags = eventTagsMap[event.id] || [];
         });
 
-        console.log('fetchAllEvents - events with tags:', events);
-        // Store filtered events for browse page
-        commit('setBrowseEvents', events);
+        const totalEventsCount = normalizedEvents.length;
+        const totalPages = Math.max(1, Math.ceil(totalEventsCount / EVENTS_PER_PAGE));
+        let currentPage = state.pagination.currentPage || 1;
+        if (requestedPage != null) {
+          currentPage = requestedPage;
+        }
+        currentPage = Math.min(Math.max(currentPage, 1), totalPages);
+
+        commit('SET_PAGINATION', {
+          currentPage,
+          totalPages,
+          totalEvents: totalEventsCount,
+          eventsPerPage: EVENTS_PER_PAGE,
+          hasNextPage: currentPage < totalPages,
+          hasPreviousPage: currentPage > 1
+        });
+
+        console.log('fetchAllEvents - events with tags:', normalizedEvents);
+        commit('setBrowseEvents', normalizedEvents);
       } catch (error) {
         console.error('fetchAllEvents - error:', error);
       }
     },
 
+    changeEventsPage({ commit, state }, page) {
+      const totalPages = state.pagination.totalPages || 1;
+      const numericPage = Number(page);
+      const candidate = Number.isFinite(numericPage) ? Math.floor(numericPage) : 1;
+      const safePage = Math.min(Math.max(candidate > 0 ? candidate : 1, 1), totalPages);
+
+      commit('SET_CURRENT_PAGE', safePage);
+      commit('SET_PAGINATION', {
+        currentPage: safePage,
+        hasNextPage: safePage < totalPages,
+        hasPreviousPage: safePage > 1
+      });
+    },
+
     // Fetch ALL events without filters - for dashboard use
     async fetchAllEventsUnfiltered({ commit, state }) {
       try {
-        // Fetch with no filters - use high limit to get all events
         const [eventsResponse, eventTagsResponse, tagsResponse] = await Promise.all([
-          getAllEvents(1, 10000, {}), // No filters, high limit
+          getAllEvents(1, 'all', {}),
           getAllEventTags(),
           getAllTags()
         ]);
 
-        const { events } = eventsResponse.data;
+        const events = Array.isArray(eventsResponse.data?.events) ? eventsResponse.data.events : [];
         const eventTags = Array.isArray(eventTagsResponse.data) ? eventTagsResponse.data : [];
         const tags = Array.isArray(tagsResponse.data) ? tagsResponse.data : [];
 
@@ -1115,13 +1147,13 @@ export default createStore({
         });
 
         // Assign tags to events
-        events.forEach(event => {
+        normalizedEvents.forEach(event => {
           event.tags = eventTagsMap[event.id] || [];
         });
 
-        console.log('fetchAllEventsUnfiltered - events with tags:', events);
+        console.log('fetchAllEventsUnfiltered - events with tags:', normalizedEvents);
         // Store ALL unfiltered events for dashboard
-        commit('setAllEvents', events);
+        commit('setAllEvents', normalizedEvents);
       } catch (error) {
         console.error('fetchAllEventsUnfiltered - error:', error);
       }
@@ -1147,34 +1179,18 @@ export default createStore({
       }
 
       try {
-        const [eventTagsResponse, tagsResponse] = await Promise.all([
+        const [eventsResponse, eventTagsResponse, tagsResponse] = await Promise.all([
+          getAllEvents(1, 'all'),
           getAllEventTags(),
           getAllTags()
         ]);
+
+        const aggregatedEvents = Array.isArray(eventsResponse.data?.events) ? eventsResponse.data.events : [];
 
         const eventTagMap = buildEventTagMap(
           Array.isArray(eventTagsResponse.data) ? eventTagsResponse.data : [],
           Array.isArray(tagsResponse.data) ? tagsResponse.data : []
         );
-
-        const PAGE_LIMIT = 50;
-        const MAX_PAGES = 50;
-
-        let aggregatedEvents = [];
-        let currentPage = 1;
-        let totalPages = 1;
-
-        do {
-          const { data } = await getAllEvents(currentPage, PAGE_LIMIT);
-          const { events = [], pagination = {} } = data || {};
-          aggregatedEvents = aggregatedEvents.concat(events);
-          totalPages = pagination.totalPages || 1;
-          const hasNext = Boolean(pagination.hasNextPage);
-          currentPage += 1;
-          if (!hasNext) {
-            break;
-          }
-        } while (currentPage <= totalPages && currentPage <= MAX_PAGES);
 
         const normalizedEvents = normalizeEventsWithMetadata(aggregatedEvents, eventTagMap);
         const ownedEvents = normalizedEvents.filter(event => getNumericOwnerId(event) === numericOwnerId);
@@ -1354,16 +1370,44 @@ export default createStore({
       }
     },
 
+    async toggleSaveEvent({ state, rootGetters, dispatch, getters }, eventId) {
+      const userId = rootGetters['auth/currentUser']?.id;
+      if (!userId || !eventId) return;
+
+      const isCurrentlySaved = getters.isEventSaved(eventId);
+
+      try {
+        if (isCurrentlySaved) {
+          // Unsave the event
+          await deleteSaved(eventId, userId);
+          dispatch('showToast', { message: 'Event unsaved', type: 'success' });
+        } else {
+          // Save the event
+          await createSaved({ event_id: eventId, user_id: userId });
+          dispatch('showToast', { message: 'Event saved', type: 'success' });
+        }
+
+        // Refresh the saved events list
+        await dispatch('loadSavedEvents');
+      } catch (error) {
+        console.error('Error toggling save event:', error);
+        const action = isCurrentlySaved ? 'unsaving' : 'saving';
+        dispatch('showToast', { message: `Error ${action} event`, type: 'error' });
+      }
+    },
+
     // Action to update search
     async updateSearch({ commit, dispatch }, query) {
       commit('SET_SEARCH_QUERY', query);
-      await dispatch('fetchAllEvents', 1);
+      await dispatch('fetchAllEvents');
+      await dispatch('changeEventsPage', 1);
     },
 
     // Action to toggle category
     async toggleCategory({ commit, dispatch }, category) {
       commit('TOGGLE_CATEGORY', category);
-      await dispatch('fetchAllEvents', 1);
+      await dispatch('fetchAllEvents');
+      await dispatch('changeEventsPage', 1);
     },
 
     // Action to toggle tag (client-side only, no refetch needed)
@@ -1377,7 +1421,8 @@ export default createStore({
       if (filter !== 'range') {
         commit('SET_PRICE_RANGE', { min: null, max: null });
       }
-      await dispatch('fetchAllEvents', 1);
+      await dispatch('fetchAllEvents');
+      await dispatch('changeEventsPage', 1);
     },
 
     async updatePriceRange({ commit, state, dispatch }, range = {}) {
@@ -1386,7 +1431,8 @@ export default createStore({
         max: range?.max ?? state.filters.priceRange?.max ?? null
       };
       commit('SET_PRICE_RANGE', startRange);
-      await dispatch('fetchAllEvents', 1);
+      await dispatch('fetchAllEvents');
+      await dispatch('changeEventsPage', 1);
     },
 
     // Action to update date filter
@@ -1402,12 +1448,14 @@ export default createStore({
       } else {
         commit('SET_DATE_RANGE', { start: null, end: null });
       }
-      await dispatch('fetchAllEvents', 1);
+      await dispatch('fetchAllEvents');
+      await dispatch('changeEventsPage', 1);
     },
 
     async setSpecificDate({ commit, dispatch }, date) {
       commit('SET_SPECIFIC_DATE', date);
-      await dispatch('fetchAllEvents', 1);
+      await dispatch('fetchAllEvents');
+      await dispatch('changeEventsPage', 1);
     },
 
     async setDateRange({ commit, state, dispatch }, range = {}) {
@@ -1417,25 +1465,29 @@ export default createStore({
         end = start;
       }
       commit('SET_DATE_RANGE', { start, end });
-      await dispatch('fetchAllEvents', 1);
+      await dispatch('fetchAllEvents');
+      await dispatch('changeEventsPage', 1);
     },
 
     // Action to update venue filter
     async updateVenueFilter({ commit, dispatch }, venue) {
       commit('SET_VENUE_FILTER', venue);
-      await dispatch('fetchAllEvents', 1);
+      await dispatch('fetchAllEvents');
+      await dispatch('changeEventsPage', 1);
     },
 
     // Action to update location query
     async updateLocationQuery({ commit, dispatch }, query) {
       commit('SET_LOCATION_QUERY', query);
-      await dispatch('fetchAllEvents', 1);
+      await dispatch('fetchAllEvents');
+      await dispatch('changeEventsPage', 1);
     },
 
     // Action to update event status
     async updateEventStatus({ commit, dispatch }, status) {
       commit('SET_EVENT_STATUS', status);
-      await dispatch('fetchAllEvents', 1);
+      await dispatch('fetchAllEvents');
+      await dispatch('changeEventsPage', 1);
     },
 
     // Action to toggle status filter (RSVP/Saved filters - client-side only, no refetch)
@@ -1446,13 +1498,15 @@ export default createStore({
     // Action to update club category filter
     async updateClubCategoryFilter({ commit, dispatch }, payload) {
       commit('UPDATE_CLUB_CATEGORY_FILTER', payload);
-      await dispatch('fetchAllEvents', 1);
+      await dispatch('fetchAllEvents');
+      await dispatch('changeEventsPage', 1);
     },
 
     // Action to reset filters
     async resetFilters({ commit, dispatch }) {
       commit('RESET_FILTERS');
-      await dispatch('fetchAllEvents', 1);
+      await dispatch('fetchAllEvents');
+      await dispatch('changeEventsPage', 1);
     },
 
     // Club Event Filter Actions

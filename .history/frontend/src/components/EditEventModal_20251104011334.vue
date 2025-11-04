@@ -395,7 +395,7 @@ export default {
                     title: eventData.title || '',
                     description: eventData.description || '',
                     start: startDateTime,
-                    end: endDateTime, // Now properly parsed from database if available
+                    end: '', // Backend doesn't provide separate end time in the shaped response
                     location: eventData.location || '',
                     venue: eventData.venue || '',
                     capacity: eventData.maxAttendees != null ? String(eventData.maxAttendees) : '',
@@ -668,46 +668,6 @@ export default {
             return `${location.trim()}`;
         },
 
-        updateEventInStore(eventId, updatedEventData) {
-            // The backend now returns properly shaped data, so we can use it directly
-            // Update allEvents in store
-            if (this.$store.state.allEvents) {
-                const eventIndex = this.$store.state.allEvents.findIndex(event => event.id === eventId);
-                if (eventIndex !== -1) {
-                    this.$store.state.allEvents.splice(eventIndex, 1, updatedEventData);
-                }
-            }
-
-            // Update clubOwnedEvents in store
-            if (this.$store.state.clubOwnedEvents) {
-                const eventIndex = this.$store.state.clubOwnedEvents.findIndex(event => event.id === eventId);
-                if (eventIndex !== -1) {
-                    this.$store.state.clubOwnedEvents.splice(eventIndex, 1, updatedEventData);
-                }
-            }
-        },
-
-        formatTimeForDisplay(startDateTime, endDateTime) {
-            const startDate = new Date(startDateTime);
-            const startTimeStr = startDate.toLocaleTimeString('en-US', {
-                hour: 'numeric',
-                minute: '2-digit',
-                hour12: true
-            });
-
-            if (endDateTime) {
-                const endDate = new Date(endDateTime);
-                const endTimeStr = endDate.toLocaleTimeString('en-US', {
-                    hour: 'numeric',
-                    minute: '2-digit',
-                    hour12: true
-                });
-                return `${startTimeStr} - ${endTimeStr}`;
-            }
-
-            return startTimeStr;
-        },
-
         readFileAsDataURL(file) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -812,8 +772,7 @@ export default {
                     altitude: this.showMapPicker ? this.form.altitude : null
                 };
 
-                // Update event and capture response
-                let updatedEventData;
+                // If a new image was selected, include it
                 if (this.imageFile) {
                     const imageBase64 = await this.readFileAsDataURL(this.imageFile);
                     const body = {
@@ -821,31 +780,16 @@ export default {
                         imageBase64: imageBase64,
                         imageOriginalName: this.imageFile.name
                     };
-                    const response = await updateEvent(eventId, body);
-                    updatedEventData = response.data;
-                    
-                    // Add a small delay to ensure the image file is fully written to disk
-                    await new Promise(resolve => setTimeout(resolve, 500));
+                    await updateEvent(eventId, body);
                 } else {
-                    const response = await updateEvent(eventId, payload);
-                    updatedEventData = response.data;
-                }
-
-                // Update store with the actual updated event data from backend
-                this.updateEventInStore(eventId, updatedEventData);
-
-                // Instead of fetching all events, fetch the specific updated event to ensure we have the latest data
-                try {
-                    const freshEventResponse = await getEventById(eventId);
-                    const freshEventData = freshEventResponse.data;
-                    
-                    // Update the store again with the fresh data from getEventById
-                    this.updateEventInStore(eventId, freshEventData);
-                } catch (error) {
-                    console.warn('Failed to fetch fresh event data:', error);
+                    await updateEvent(eventId, payload);
                 }
 
                 this.success = 'Event updated successfully!';
+                await Promise.all([
+                    this.$store.dispatch('fetchAllEvents'),
+                    this.$store.dispatch('fetchClubOwnedEvents', { force: true }).catch(() => {})
+                ]);
                 setTimeout(() => {
                     this.$emit('updated');
                     this.emitClose();

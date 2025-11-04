@@ -669,12 +669,20 @@ export default {
         },
 
         updateEventInStore(eventId, updatedEventData) {
-            // The backend now returns properly shaped data, so we can use it directly
+            // Map the raw database response to the shaped format expected by frontend
+            const shapedEventData = {
+                ...updatedEventData,
+                image: updatedEventData.image_url || '', // Map image_url to image
+                maxAttendees: updatedEventData.capacity, // Map capacity to maxAttendees
+                ownerId: updatedEventData.owner_id, // Map owner_id to ownerId
+                // Keep other fields as they are
+            };
+
             // Update allEvents in store
             if (this.$store.state.allEvents) {
                 const eventIndex = this.$store.state.allEvents.findIndex(event => event.id === eventId);
                 if (eventIndex !== -1) {
-                    this.$store.state.allEvents.splice(eventIndex, 1, updatedEventData);
+                    this.$store.state.allEvents.splice(eventIndex, 1, shapedEventData);
                 }
             }
 
@@ -682,7 +690,7 @@ export default {
             if (this.$store.state.clubOwnedEvents) {
                 const eventIndex = this.$store.state.clubOwnedEvents.findIndex(event => event.id === eventId);
                 if (eventIndex !== -1) {
-                    this.$store.state.clubOwnedEvents.splice(eventIndex, 1, updatedEventData);
+                    this.$store.state.clubOwnedEvents.splice(eventIndex, 1, shapedEventData);
                 }
             }
         },
@@ -823,9 +831,6 @@ export default {
                     };
                     const response = await updateEvent(eventId, body);
                     updatedEventData = response.data;
-                    
-                    // Add a small delay to ensure the image file is fully written to disk
-                    await new Promise(resolve => setTimeout(resolve, 500));
                 } else {
                     const response = await updateEvent(eventId, payload);
                     updatedEventData = response.data;
@@ -833,17 +838,6 @@ export default {
 
                 // Update store with the actual updated event data from backend
                 this.updateEventInStore(eventId, updatedEventData);
-
-                // Instead of fetching all events, fetch the specific updated event to ensure we have the latest data
-                try {
-                    const freshEventResponse = await getEventById(eventId);
-                    const freshEventData = freshEventResponse.data;
-                    
-                    // Update the store again with the fresh data from getEventById
-                    this.updateEventInStore(eventId, freshEventData);
-                } catch (error) {
-                    console.warn('Failed to fetch fresh event data:', error);
-                }
 
                 this.success = 'Event updated successfully!';
                 setTimeout(() => {
