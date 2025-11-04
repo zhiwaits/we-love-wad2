@@ -56,11 +56,11 @@ export default {
 
     dateRangeStart: {
       get() {
-        return this.filters?.dateRange?.start || '';
+        return this.filters.dateRange?.start || '';
       },
       set(value) {
         const normalized = value || null;
-        let end = this.filters?.dateRange?.end || null;
+        let end = this.filters.dateRange?.end || null;
         if (normalized && end && normalized > end) {
           end = normalized;
         }
@@ -70,11 +70,11 @@ export default {
 
     dateRangeEnd: {
       get() {
-        return this.filters?.dateRange?.end || '';
+        return this.filters.dateRange?.end || '';
       },
       set(value) {
         let normalized = value || null;
-        const start = this.filters?.dateRange?.start || null;
+        const start = this.filters.dateRange?.start || null;
         if (start && normalized && normalized < start) {
           normalized = start;
         }
@@ -111,11 +111,11 @@ export default {
 
     minPrice: {
       get() {
-        const min = this.filters?.priceRange?.min;
+        const min = this.filters.priceRange?.min;
         return min != null ? min : '';
       },
       set(value) {
-        const max = this.filters?.priceRange?.max ?? null;
+        const max = this.filters.priceRange?.max ?? null;
         this.updatePriceRange({
           min: value === '' || value == null ? null : value,
           max
@@ -125,11 +125,11 @@ export default {
 
     maxPrice: {
       get() {
-        const max = this.filters?.priceRange?.max;
+        const max = this.filters.priceRange?.max;
         return max != null ? max : '';
       },
       set(value) {
-        const min = this.filters?.priceRange?.min ?? null;
+        const min = this.filters.priceRange?.min ?? null;
         this.updatePriceRange({
           min,
           max: value === '' || value == null ? null : value
@@ -139,7 +139,7 @@ export default {
 
     clubCategory: {
       get() {
-        return this.filters?.clubFilter?.categoryId ?? 'all';
+        return this.filters.clubFilter?.categoryId ?? 'all';
       },
       set(value) {
         this.updateClubCategoryFilter(value);
@@ -151,7 +151,7 @@ export default {
     },
 
     hasActiveFilters() {
-      const filters = this.filters || {};
+      const filters = this.filters;
       const priceActive = filters.priceFilter !== 'all' || (filters.priceFilter === 'range' && (filters.priceRange?.min != null || filters.priceRange?.max != null));
       const clubCategorySelected = filters.clubFilter?.categoryId != null && filters.clubFilter.categoryId !== 'all';
       const dateActive =
@@ -209,46 +209,20 @@ export default {
     },
 
     async initialiseFilters() {
-      try {
-        await this.ensureCategories();
-      } catch (error) {
-        console.warn('Failed to ensure categories:', error);
-      }
+      await this.ensureCategories();
 
       const user = this.$store.getters['auth/currentUser'];
       if (user?.id) {
-        try {
-          await Promise.allSettled([
-            this.loadFollowing(),
-            this.loadSavedEvents(),
-            this.fetchUserRSVPs(user.id)
-          ]);
-        } catch (error) {
-          console.warn('Failed to initialize user data:', error);
-        }
+        await Promise.allSettled([
+          this.loadFollowing(),
+          this.loadSavedEvents(),
+          this.fetchUserRSVPs(user.id)
+        ]);
       }
     },
 
     toggleFilters() {
       this.filtersCollapsed = !this.filtersCollapsed;
-    },
-
-    getVenueKey(venue) {
-      if (!venue) return 'undefined';
-      if (typeof venue === 'string') return venue;
-      return venue.name || venue.id || 'unknown';
-    },
-
-    getVenueValue(venue) {
-      if (!venue) return '';
-      if (typeof venue === 'string') return venue;
-      return venue.name || '';
-    },
-
-    getVenueDisplay(venue) {
-      if (!venue) return 'Unknown Venue';
-      if (typeof venue === 'string') return venue;
-      return venue.name || 'Unknown Venue';
     }
   },
 
@@ -353,8 +327,8 @@ export default {
           <label class="filter-label" for="venue-filter-select">Venue</label>
           <select id="venue-filter-select" class="form-control filter-select" v-model="venueFilter">
             <option value="all">All Venues</option>
-            <option v-for="venue in allVenues" :key="getVenueKey(venue)" :value="getVenueValue(venue)">
-              {{ getVenueDisplay(venue) }}
+            <option v-for="venue in allVenues" :key="venue.name || venue" :value="venue.name || venue">
+              {{ venue.name || venue }}
             </option>
           </select>
         </div>

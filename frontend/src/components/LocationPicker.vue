@@ -75,6 +75,11 @@ onMounted(async () => {
   try {
     // Ensure Google Maps API is loaded
     if (!window.google?.maps) {
+      console.log('⏳ Waiting for Google Maps to load in LocationPicker...');
+      await waitForGoogleMaps();
+    }
+
+    if (!window.google?.maps) {
       error.value = 'Google Maps API is not loaded. Please check your API key configuration.';
       loading.value = false;
       return;
@@ -264,6 +269,35 @@ defineExpose({
     address: address.value
   })
 });
+
+// Wait for Google Maps to be loaded globally
+const waitForGoogleMaps = () => {
+  const maxAttempts = 50; // 5 seconds max wait (50 * 100ms)
+  let attempts = 0;
+
+  return new Promise((resolve) => {
+    const checkGoogleMaps = () => {
+      attempts++;
+      console.log(`🔄 LocationPicker: Checking Google Maps availability (attempt ${attempts}/${maxAttempts})`);
+
+      if (window.google?.maps) {
+        console.log('✅ LocationPicker: Google Maps loaded successfully');
+        resolve();
+        return;
+      }
+
+      if (attempts >= maxAttempts) {
+        console.error('❌ LocationPicker: Google Maps failed to load within timeout');
+        resolve(); // Resolve anyway to continue execution
+        return;
+      }
+
+      setTimeout(checkGoogleMaps, 100);
+    };
+
+    checkGoogleMaps();
+  });
+};
 </script>
 
 <style scoped>

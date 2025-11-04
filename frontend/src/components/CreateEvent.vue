@@ -35,16 +35,7 @@ const success = ref('');
 const tagInput = ref('');
 const tagFeedback = ref('');
 
-const venues = computed(() => {
-  const rawVenues = store.state.venues || [];
-  // Filter out undefined/null/empty values and ensure proper structure
-  return rawVenues.filter(venue => venue != null && venue !== '').map(venue => {
-    // Ensure venue has a name property or is a string
-    if (typeof venue === 'string') return venue;
-    if (venue && typeof venue === 'object' && venue.name) return venue;
-    return null;
-  }).filter(Boolean);
-});
+const venues = computed(() => store.state.venues);
 const categories = computed(() => store.getters['categoryNames'] || []);
 const categoryColorMap = computed(() => store.getters['categoryColorMap'] || {});
 const availableTags = computed(() => (store.state.availableTags || []).map(t => t.tag_name));
@@ -241,16 +232,16 @@ const handleVenueSelected = (selectedVenue) => {
 	const eventVenues = store.state.venues || [];
 	// Handle both string venue names and full venue objects
 	const venue = eventVenues.find(v => {
-		const venueName = typeof v === 'string' ? v : (v?.name || '');
+		const venueName = typeof v === 'string' ? v : v.name;
 		return venueName === selectedVenue;
 	});
 	
 	if (venue) {
 		// If venue is an object with coordinates
-		if (typeof venue === 'object' && venue?.latitude && venue?.altitude) {
+		if (typeof venue === 'object' && venue.latitude && venue.altitude) {
 			// Don't set coordinates since we're using the map picker now
 			if (!form.value.location.trim()) {
-				form.value.location = venue?.name || '';
+				form.value.location = venue.name;
 			}
 		}
 		// If venue is just a name string, just set the location if it's empty
@@ -268,24 +259,6 @@ watch(() => form.value.venue, (newVenue) => {
 		handleVenueSelected(newVenue);
 	}
 });
-
-const getVenueKey = (venue) => {
-  if (!venue) return 'undefined';
-  if (typeof venue === 'string') return venue;
-  return venue.name || venue.id || 'unknown';
-};
-
-const getVenueValue = (venue) => {
-  if (!venue) return '';
-  if (typeof venue === 'string') return venue;
-  return venue.name || '';
-};
-
-const getVenueDisplay = (venue) => {
-  if (!venue) return 'Unknown Venue';
-  if (typeof venue === 'string') return venue;
-  return venue.name || 'Unknown Venue';
-};
 
 const handleSubmit = async () => {
 	if (!isValid.value) return;
@@ -410,7 +383,7 @@ const handleSubmit = async () => {
 							<label for="event-venue">Venue <span>*</span></label>
 							<select id="event-venue" v-model="form.venue">
 								<option disabled value="">Select a venue</option>
-								<option v-for="venue in venues" :key="getVenueKey(venue)" :value="getVenueValue(venue)">{{ getVenueDisplay(venue) }}</option>
+								<option v-for="venue in venues" :key="venue.id || venue.name" :value="venue.name">{{ venue.name }}</option>
 							</select>
 						</div>
 					</div>

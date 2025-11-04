@@ -5,7 +5,7 @@ import { getAllEventCategories } from '../services/eventCategoryService.js';
 import { getAllEventVenues } from '../services/eventVenueService.js';
 import { getAllTags } from '../services/tagService.js';
 import { getAllEventTags } from '../services/eventTagService.js';
-import { getSavedByUserId, createSaved, deleteSaved } from '../services/savedEventsService.js';
+import { getSavedByUserId } from '../services/savedEventsService.js';
 import clubs from './modules/clubs';
 
 let toastTimer = null;
@@ -449,13 +449,7 @@ export default createStore({
     allTags: (state) => {
       const tagSet = new Set();
       state.allEvents.forEach(event => {
-        if (event && Array.isArray(event.tags)) {
-          event.tags.forEach(tag => {
-            if (tag != null && tag !== '') {
-              tagSet.add(tag);
-            }
-          });
-        }
+        event.tags.forEach(tag => tagSet.add(tag));
       });
       return Array.from(tagSet).sort();
     },
@@ -485,30 +479,21 @@ export default createStore({
     // Get unique venues
     allVenues: (state) => {
       if (state.venues && state.venues.length > 0) {
-        // Filter out any undefined/null/empty values
-        return state.venues.filter(venue => venue != null && venue !== '').map(venue => {
-          // Ensure venue has a name property or is a string
-          if (typeof venue === 'string') return venue;
-          if (venue && typeof venue === 'object' && venue.name) return venue;
-          return null;
-        }).filter(Boolean);
+        return state.venues;
       }
       const venueSet = new Set();
       state.allEvents.forEach(event => {
-        if (event && event.venue) {
+        if (event.venue) {
           venueSet.add(event.venue);
         }
       });
-      return Array.from(venueSet).filter(venue => venue != null && venue !== '').sort();
+      return Array.from(venueSet).sort();
     },
 
     // Check if an event is saved by the current user
     isEventSaved: (state) => (eventId) => {
       return state.savedEvents && state.savedEvents.includes(eventId);
     },
-
-    // Get the saved events array
-    savedEvents: (state) => state.savedEvents,
 
     // Get results count
     resultsCount: (state, getters) => {
@@ -692,21 +677,14 @@ export default createStore({
 
     // Dashboard-specific getters
     upcomingUserEvents: (state) => {
-      // Get the event IDs of confirmed RSVPs for UPCOMING events only
+      // Get the event IDs of confirmed RSVPs (show ALL confirmed, not just future)
       const confirmedRsvpEventIds = state.userRSVPs
         .filter(rsvp => rsvp.status === 'confirmed')
         .map(rsvp => rsvp.event_id);
       
-      const now = new Date();
-      
-      // Filter events where user has confirmed RSVP and event hasn't passed yet
+      // Filter events where user has confirmed RSVP and sort by date
       return state.allEvents
-        .filter(event => {
-          if (!confirmedRsvpEventIds.includes(event.id)) return false;
-          // Check if event is upcoming (hasn't passed yet)
-          const eventDateTime = new Date(event.datetime || event.date);
-          return eventDateTime > now;
-        })
+        .filter(event => confirmedRsvpEventIds.includes(event.id))
         .sort((a, b) => {
           // Sort by datetime or date field, whichever is available
           const dateA = new Date(a.datetime || a.date);
@@ -714,40 +692,6 @@ export default createStore({
           return dateA - dateB;
         })
         .slice(0, 6); // Show max 6 events
-    },
-
-    // Count of confirmed RSVPs for upcoming events
-    upcomingRsvpCount: (state) => {
-      const confirmedRsvpEventIds = state.userRSVPs
-        .filter(rsvp => rsvp.status === 'confirmed')
-        .map(rsvp => rsvp.event_id);
-      
-      const now = new Date();
-      
-      return state.allEvents
-        .filter(event => {
-          if (!confirmedRsvpEventIds.includes(event.id)) return false;
-          const eventDateTime = new Date(event.datetime || event.date);
-          return eventDateTime > now;
-        })
-        .length;
-    },
-
-    // Count of confirmed RSVPs for past events (events attended)
-    pastAttendedCount: (state) => {
-      const confirmedRsvpEventIds = state.userRSVPs
-        .filter(rsvp => rsvp.status === 'confirmed')
-        .map(rsvp => rsvp.event_id);
-      
-      const now = new Date();
-      
-      return state.allEvents
-        .filter(event => {
-          if (!confirmedRsvpEventIds.includes(event.id)) return false;
-          const eventDateTime = new Date(event.datetime || event.date);
-          return eventDateTime <= now;
-        })
-        .length;
     },
 
     recommendedEvents: (state) => {
@@ -1410,32 +1354,6 @@ export default createStore({
         commit('SET_SAVED_EVENTS', eventIds);
       } catch (error) {
         console.error('Error loading saved events:', error);
-      }
-    },
-
-    async toggleSaveEvent({ getters, commit, rootGetters, dispatch }, eventId) {
-      const userId = rootGetters['auth/currentUser']?.id;
-      if (!userId || !eventId) return;
-
-      const isCurrentlySaved = getters.isEventSaved(eventId);
-
-      try {
-        if (isCurrentlySaved) {
-          // Unsave the event
-          await deleteSaved(eventId, userId);
-          const updatedSavedEvents = getters.savedEvents.filter(id => id !== eventId);
-          commit('SET_SAVED_EVENTS', updatedSavedEvents);
-          dispatch('showToast', { message: 'Event removed from saved events', type: 'success' });
-        } else {
-          // Save the event
-          await createSaved({ event_id: eventId, user_id: userId });
-          const updatedSavedEvents = [...getters.savedEvents, eventId];
-          commit('SET_SAVED_EVENTS', updatedSavedEvents);
-          dispatch('showToast', { message: 'Event saved successfully', type: 'success' });
-        }
-      } catch (error) {
-        console.error('Error toggling save event:', error);
-        dispatch('showToast', { message: 'Failed to save/unsave event', type: 'error' });
       }
     },
 

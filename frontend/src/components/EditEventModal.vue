@@ -53,7 +53,7 @@
                                 <label for="edit-venue">Venue <span class="required">*</span></label>
                                 <select id="edit-venue" v-model="form.venue" required>
                                     <option disabled value="">Select a venue</option>
-                                    <option v-for="venue in venues" :key="getVenueKey(venue)" :value="getVenueValue(venue)">{{ getVenueDisplay(venue) }}</option>
+                                    <option v-for="venue in venues" :key="venue.id || venue.name" :value="venue.name">{{ venue.name }}</option>
                                 </select>
                             </div>
                         </div>
@@ -236,14 +236,7 @@ export default {
         ...mapGetters('auth', ['currentUser']),
 
         venues() {
-            const rawVenues = this.$store.state.venues || [];
-            // Filter out undefined/null/empty values and ensure proper structure
-            return rawVenues.filter(venue => venue != null && venue !== '').map(venue => {
-                // Ensure venue has a name property or is a string
-                if (typeof venue === 'string') return venue;
-                if (venue && typeof venue === 'object' && venue.name) return venue;
-                return null;
-            }).filter(Boolean);
+            return this.$store.state.venues || [];
         },
         categories() {
             return this.categoryNames || [];
@@ -640,17 +633,17 @@ export default {
             const eventVenues = this.$store.state.venues || [];
             // Handle both string venue names and full venue objects
             const venue = eventVenues.find(v => {
-                const venueName = typeof v === 'string' ? v : (v?.name || '');
+                const venueName = typeof v === 'string' ? v : v.name;
                 return venueName === selectedVenue;
             });
             
             if (venue) {
                 // If venue is an object with coordinates
-                if (typeof venue === 'object' && venue?.latitude && venue?.altitude) {
+                if (typeof venue === 'object' && venue.latitude && venue.altitude) {
                     this.form.latitude = parseFloat(venue.latitude);
                     this.form.altitude = parseFloat(venue.altitude);
                     if (!this.form.location.trim()) {
-                        this.form.location = venue?.name || '';
+                        this.form.location = venue.name;
                     }
                 }
                 // If venue is just a name string, just set the location if it's empty
@@ -660,24 +653,6 @@ export default {
                     }
                 }
             }
-        },
-
-        getVenueKey(venue) {
-            if (!venue) return 'undefined';
-            if (typeof venue === 'string') return venue;
-            return venue.name || venue.id || 'unknown';
-        },
-
-        getVenueValue(venue) {
-            if (!venue) return '';
-            if (typeof venue === 'string') return venue;
-            return venue.name || '';
-        },
-
-        getVenueDisplay(venue) {
-            if (!venue) return 'Unknown Venue';
-            if (typeof venue === 'string') return venue;
-            return venue.name || 'Unknown Venue';
         },
 
         toIsoString(value) {
