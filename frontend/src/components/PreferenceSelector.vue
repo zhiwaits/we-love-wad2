@@ -13,6 +13,7 @@
       <h4 class="section-title">Event Categories</h4>
       <div class="categories-grid">
         <button
+          type="button"
           v-for="category in availableCategories"
           :key="category"
           @click="toggleCategory(category)"
@@ -40,6 +41,7 @@
           @keyup.enter="addCustomTag"
         />
         <button
+          type="button"
           @click="addCustomTag"
           class="add-tag-btn"
           :disabled="!tagSearchQuery.trim()"
@@ -52,6 +54,7 @@
       <div v-if="displayTagSuggestions.length > 0" class="tag-suggestions">
         <p v-if="!tagSearchQuery" class="suggestions-label">Popular tags (click to add):</p>
         <button
+          type="button"
           v-for="tag in displayTagSuggestions"
           :key="tag"
           @click="handleTagClick(tag)"
@@ -69,7 +72,7 @@
           class="tag-chip"
         >
           {{ tag }}
-          <button @click="removeTag(tag)" class="remove-tag-btn">×</button>
+          <button type="button" @click="removeTag(tag)" class="remove-tag-btn">×</button>
         </span>
       </div>
       <p v-else class="no-tags-message">No tags selected. Click on any tag suggestion above to add it, or search for specific tags.</p>

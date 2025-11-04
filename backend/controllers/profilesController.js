@@ -413,7 +413,7 @@ exports.updateUserPreferences = async (req, res) => {
     for (const category of preferred_categories) {
       await client.query(
         'INSERT INTO category_preference (userid, category) VALUES ($1, $2)',
-        [id, category.toLowerCase()]
+        [id, category]
       );
     }
 
