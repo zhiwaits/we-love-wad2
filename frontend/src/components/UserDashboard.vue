@@ -44,6 +44,10 @@ const showImageModal = ref(false);
 const selectedImage = ref('');
 const selectedImageAlt = ref('');
 
+// Tags popup modal state
+const showTagsModal = ref(false);
+const tagsModalEvent = ref(null);
+
 // Reactive window width for responsive carousel
 const windowWidth = ref(window.innerWidth);
 const updateCarouselWidths = () => {
@@ -205,6 +209,16 @@ const closeImageModal = () => {
   selectedImageAlt.value = '';
 };
 
+const openTagsModal = (event) => {
+  tagsModalEvent.value = event;
+  showTagsModal.value = true;
+};
+
+const closeTagsModal = () => {
+  showTagsModal.value = false;
+  tagsModalEvent.value = null;
+};
+
 const openEventModal = (event) => {
   selectedEvent.value = event;
   showEventModal.value = true;
@@ -295,6 +309,54 @@ const savedCarouselTransform = computed(() => {
   return `translateX(-${savedCarouselIndex.value * step}px)`;
 });
 
+// Tags display logic
+
+// Calculate how many tags can fit in approximately 2 rows
+const getVisibleTagsCount = (tags) => {
+  if (!tags || tags.length === 0) return 0;
+
+  // Container constraints - more lenient estimate
+  const containerWidth = 320; // More generous estimate for event card content area
+
+  let currentRowWidth = 0;
+  let rowCount = 1;
+  let visibleCount = 0;
+
+  for (let i = 0; i < tags.length; i++) {
+    // More accurate tag width: padding (16px) + text + gap (8px)
+    const tagWidth = 16 + (tags[i].length * 6.5) + 8; // Slightly more lenient character width
+
+    // Check if this tag fits in current row
+    if (currentRowWidth + tagWidth <= containerWidth) {
+      currentRowWidth += tagWidth;
+      visibleCount++;
+    } else {
+      // Tag doesn't fit in current row
+      if (rowCount >= 2) {
+        // We've already used 2 rows, stop here
+        break;
+      } else {
+        // Start new row
+        rowCount++;
+        currentRowWidth = tagWidth;
+        visibleCount++;
+      }
+    }
+  }
+
+  return visibleCount;
+}; // Show up to 8 tags before truncating
+
+const getVisibleTags = (tags) => {
+  if (!Array.isArray(tags)) return [];
+  const maxVisible = getVisibleTagsCount(tags);
+  return tags.slice(0, maxVisible);
+};
+
+const hasMoreTags = (tags) => {
+  return Array.isArray(tags) && tags.length > getVisibleTagsCount(tags);
+};
+
 watch(itemsPerView, () => {
   upcomingCarouselIndex.value = Math.min(upcomingCarouselIndex.value, upcomingCarouselMaxIndex.value);
   savedCarouselIndex.value = Math.min(savedCarouselIndex.value, savedCarouselMaxIndex.value);
@@ -323,9 +385,6 @@ watch(savedEvents, () => {
             <p class="dashboard-subtitle">Here's your personalized event overview</p>
         </div>
         <div class="header-actions">
-            <router-link to="/" class="btn btn--outline">
-            Browse Events
-            </router-link>
         </div>
         </div>
     </div>
@@ -379,7 +438,7 @@ watch(savedEvents, () => {
   <section class="dashboard-section" ref="upcomingSectionRef">
         <div class="section-header">
           <h2 class="section-title">My Upcoming Events <span class="section-count">({{ upcomingEvents.length }})</span></h2>
-          <router-link to="/" class="section-link">Browse More →</router-link>
+          
         </div>
 
         <!-- Empty State -->
@@ -447,12 +506,19 @@ watch(savedEvents, () => {
 
                   <div class="event-tags">
                     <span
-                      v-for="tag in event.tags"
+                      v-for="tag in getVisibleTags(event.tags)"
                       :key="tag"
                       class="tag-badge"
                       @click.stop="handleTagClick(tag)"
                     >
                       #{{ tag }}
+                    </span>
+                    <span
+                      v-if="hasMoreTags(event.tags)"
+                      class="tag-badge tag-more"
+                      @click.stop="openTagsModal(event)"
+                    >
+                      ...
                     </span>
                   </div>
                 </div>
@@ -475,7 +541,7 @@ watch(savedEvents, () => {
   <section class="dashboard-section" ref="savedSectionRef">
         <div class="section-header">
           <h2 class="section-title">Saved Events <span class="section-count">({{ savedEvents.length }})</span></h2>
-          <router-link to="/" class="section-link">Browse More →</router-link>
+         
         </div>
 
         <!-- Empty State -->
@@ -540,12 +606,19 @@ watch(savedEvents, () => {
 
                   <div class="event-tags">
                     <span
-                      v-for="tag in event.tags"
+                      v-for="tag in getVisibleTags(event.tags)"
                       :key="tag"
                       class="tag-badge"
                       @click.stop="handleTagClick(tag)"
                     >
                       #{{ tag }}
+                    </span>
+                    <span
+                      v-if="hasMoreTags(event.tags)"
+                      class="tag-badge tag-more"
+                      @click.stop="openTagsModal(event)"
+                    >
+                      ...
                     </span>
                   </div>
                 </div>
@@ -579,6 +652,28 @@ watch(savedEvents, () => {
       :altText="selectedImageAlt"
       @close="closeImageModal"
     />
+
+    <!-- Tags Modal -->
+    <div v-if="showTagsModal" class="modal-overlay" @click="closeTagsModal">
+      <div class="modal-content tags-modal" @click.stop>
+        <div class="modal-header">
+          <h3>All Tags</h3>
+          <button class="modal-close" @click="closeTagsModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="tags-list">
+            <span
+              v-for="tag in tagsModalEvent.tags"
+              :key="tag"
+              class="tag-badge"
+              @click="handleTagClick(tag)"
+            >
+              #{{ tag }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -870,7 +965,8 @@ watch(savedEvents, () => {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-8);
-  margin-top: auto;
+  min-height: 56px;
+  align-items: flex-start;
 }
 
 .tag-badge {
@@ -890,10 +986,90 @@ watch(savedEvents, () => {
   transform: translateY(-1px);
 }
 
-.tag-badge.tag-selected {
-  background-color: var(--color-primary, #007bff);
-  color: white;
-  border-color: var(--color-primary, #007bff);
+.tag-badge.tag-more {
+  background-color: var(--color-bg-2, #e0e0e0);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-weight: var(--font-weight-bold);
+}
+
+.tag-badge.tag-more:hover {
+  background-color: var(--color-bg-1, #d0d0d0);
+  transform: translateY(-1px);
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background-color: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-20);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+}
+
+.modal-close:hover {
+  background-color: var(--color-bg-1);
+  color: var(--color-text);
+}
+
+.modal-body {
+  padding: var(--space-20);
+}
+
+.tags-modal .tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+.tags-modal .tag-badge {
+  margin: 0;
 }
 
 /* Category badge color fallbacks (ensure consistent palette) */

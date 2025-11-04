@@ -515,10 +515,11 @@ export default createStore({
           return eventDate >= today && eventDate <= weekFromNow;
         });
       } else if (state.clubEventFilters.dateFilter === 'this-month') {
+        const monthFromNow = new Date(today);
+        monthFromNow.setDate(monthFromNow.getDate() + 30);
         filtered = filtered.filter(event => {
           const eventDate = new Date(event.date);
-          return eventDate.getMonth() === today.getMonth() &&
-            eventDate.getFullYear() === today.getFullYear();
+          return eventDate >= today && eventDate <= monthFromNow;
         });
       } else if (state.clubEventFilters.dateFilter === 'specific' && state.clubEventFilters.specificDate) {
         const target = new Date(state.clubEventFilters.specificDate);
@@ -1438,14 +1439,32 @@ export default createStore({
     // Action to update date filter
     async updateDateFilter({ commit, dispatch }, filter) {
       commit('SET_DATE_FILTER', filter);
-      if (filter !== 'specific') {
+      const today = new Date();
+      const todayIso = today.toISOString().slice(0, 10);
+
+      if (filter === 'today') {
+        commit('SET_SPECIFIC_DATE', todayIso);
+        commit('SET_DATE_RANGE', { start: null, end: null });
+      } else if (filter === 'this-week') {
+        const weekFromNow = new Date(today);
+        weekFromNow.setDate(weekFromNow.getDate() + 7);
+        const weekFromNowIso = weekFromNow.toISOString().slice(0, 10);
+        commit('SET_DATE_RANGE', { start: todayIso, end: weekFromNowIso });
         commit('SET_SPECIFIC_DATE', null);
-      }
-      if (filter === 'range') {
-        const today = new Date();
-        const todayIso = today.toISOString().slice(0, 10);
+      } else if (filter === 'this-month') {
+        const monthFromNow = new Date(today);
+        monthFromNow.setDate(monthFromNow.getDate() + 30);
+        const monthFromNowIso = monthFromNow.toISOString().slice(0, 10);
+        commit('SET_DATE_RANGE', { start: todayIso, end: monthFromNowIso });
+        commit('SET_SPECIFIC_DATE', null);
+      } else if (filter === 'specific') {
+        commit('SET_SPECIFIC_DATE', null);
+        commit('SET_DATE_RANGE', { start: null, end: null });
+      } else if (filter === 'range') {
         commit('SET_DATE_RANGE', { start: todayIso, end: todayIso });
+        commit('SET_SPECIFIC_DATE', null);
       } else {
+        commit('SET_SPECIFIC_DATE', null);
         commit('SET_DATE_RANGE', { start: null, end: null });
       }
       await dispatch('fetchAllEvents');
@@ -1535,13 +1554,32 @@ export default createStore({
 
     updateClubEventDateFilter({ commit }, filter) {
       commit('SET_CLUB_EVENT_DATE_FILTER', filter);
-      if (filter !== 'specific') {
+      const today = new Date();
+      const todayIso = today.toISOString().slice(0, 10);
+
+      if (filter === 'today') {
+        commit('SET_CLUB_EVENT_SPECIFIC_DATE', todayIso);
+        commit('SET_CLUB_EVENT_DATE_RANGE', { start: null, end: null });
+      } else if (filter === 'this-week') {
+        const weekFromNow = new Date(today);
+        weekFromNow.setDate(weekFromNow.getDate() + 7);
+        const weekFromNowIso = weekFromNow.toISOString().slice(0, 10);
+        commit('SET_CLUB_EVENT_DATE_RANGE', { start: todayIso, end: weekFromNowIso });
         commit('SET_CLUB_EVENT_SPECIFIC_DATE', null);
-      }
-      if (filter === 'range') {
-        const today = new Date().toISOString().slice(0, 10);
-        commit('SET_CLUB_EVENT_DATE_RANGE', { start: today, end: today });
+      } else if (filter === 'this-month') {
+        const monthFromNow = new Date(today);
+        monthFromNow.setDate(monthFromNow.getDate() + 30);
+        const monthFromNowIso = monthFromNow.toISOString().slice(0, 10);
+        commit('SET_CLUB_EVENT_DATE_RANGE', { start: todayIso, end: monthFromNowIso });
+        commit('SET_CLUB_EVENT_SPECIFIC_DATE', null);
+      } else if (filter === 'specific') {
+        commit('SET_CLUB_EVENT_SPECIFIC_DATE', null);
+        commit('SET_CLUB_EVENT_DATE_RANGE', { start: null, end: null });
+      } else if (filter === 'range') {
+        commit('SET_CLUB_EVENT_DATE_RANGE', { start: todayIso, end: todayIso });
+        commit('SET_CLUB_EVENT_SPECIFIC_DATE', null);
       } else {
+        commit('SET_CLUB_EVENT_SPECIFIC_DATE', null);
         commit('SET_CLUB_EVENT_DATE_RANGE', { start: null, end: null });
       }
     },
