@@ -47,14 +47,14 @@
                     </section>
 
                     <footer class="modal-actions">
-                        <button type="button" class="btn btn-primary" @click="emitViewEvents">
+                        <button type="button" class="btn btn-primary" @click="emitViewEvents" :disabled="previewMode">
                             View Events
                         </button>
                         <div class="secondary-actions">
-                            <button type="button" class="btn btn-primary" @click="emitToggleFollow" :disabled="isClub">
+                            <button type="button" class="btn btn-primary" @click="emitToggleFollow" :disabled="isClub || previewMode">
                                 {{ isFollowing ? 'Unfollow' : 'Follow' }}
                             </button>
-                            <button type="button" class="btn btn-outline" @click="$emit('share')">Share</button>
+                            <button type="button" class="btn btn-outline" @click="$emit('share')" :disabled="previewMode">Share</button>
                         </div>
                     </footer>
                 </div>
@@ -99,6 +99,10 @@ export default {
         totalEvents: {
             type: Number,
             default: 0
+        },
+        previewMode: {
+            type: Boolean,
+            default: false
         }
     },
     emits: ['close', 'view-events', 'toggle-follow', 'share'],

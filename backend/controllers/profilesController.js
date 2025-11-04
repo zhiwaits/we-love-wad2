@@ -232,13 +232,26 @@ exports.createClubProfile = async (req, res) => {
 exports.updateUserProfile = async (req, res) => {
   const { id } = req.params;
   const {
-    username, email, password
+    name, username, email, password
   } = req.body;
   try {
-    const result = await pool.query(
-      `UPDATE ${table} SET username=$1, email=$2, password=$3 WHERE id=$4 AND account_type='user' RETURNING *`,
-      [username, email, password, id]
-    );
+    // Handle password - only hash if provided
+    let passwordValue = password;
+    if (password) {
+      passwordValue = crypto.createHash('sha256').update(String(password)).digest('hex');
+    }
+
+    // Build dynamic query based on whether password is being updated
+    let query, params;
+    if (passwordValue) {
+      query = `UPDATE ${table} SET name=$1, username=$2, email=$3, password=$4 WHERE id=$5 AND account_type='user' RETURNING *`;
+      params = [name, username, email, passwordValue, id];
+    } else {
+      query = `UPDATE ${table} SET name=$1, username=$2, email=$3 WHERE id=$4 AND account_type='user' RETURNING *`;
+      params = [name, username, email, id];
+    }
+
+    const result = await pool.query(query, params);
     if (result.rows.length === 0) return res.status(404).json({ error: 'User profile not found' });
     res.json(result.rows[0]);
   } catch (err) {
@@ -373,5 +386,142 @@ exports.deleteProfile = async (req, res) => {
     res.json({ message: 'Profile deleted', profile: result.rows[0] });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+};
+
+// Get user preferences
+exports.getUserPreferences = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get category preferences
+    const categoryPrefs = await pool.query(
+      `SELECT category FROM category_preference WHERE userid = $1`,
+      [id]
+    );
+
+    // Get club category preferences
+    const clubCategoryPrefs = await pool.query(
+      `SELECT club_category FROM club_category_preference WHERE userid = $1`,
+      [id]
+    );
+
+    // Get tag preferences
+    const tagPrefs = await pool.query(
+      `SELECT tagid FROM tag_preference WHERE userid = $1`,
+      [id]
+    );
+
+    res.json({
+      categoryPreferences: categoryPrefs.rows.map(row => row.category),
+      clubCategoryPreferences: clubCategoryPrefs.rows.map(row => Number(row.club_category)),
+      tagPreferences: tagPrefs.rows.map(row => Number(row.tagid))
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Update user preferences
+exports.updateUserPreferences = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    const {
+      categoryPreferences = [],
+      clubCategoryPreferences = [],
+      tagPreferences = []
+    } = req.body;
+
+    // Limit size and enforce uniqueness for string-based preferences
+    const sanitizeStringArray = (values, limit) => {
+      if (!Array.isArray(values) || values.length === 0) return [];
+      const seen = new Set();
+      const output = [];
+      for (const raw of values) {
+        if (output.length >= limit) break;
+        if (typeof raw !== 'string') continue;
+        const trimmed = raw.trim();
+        if (!trimmed) continue;
+        const dedupeKey = trimmed.toLowerCase();
+        if (seen.has(dedupeKey)) continue;
+        seen.add(dedupeKey);
+        output.push(trimmed);
+      }
+      return output;
+    };
+
+    // Limit size and enforce uniqueness for numeric-based preferences
+    const sanitizeNumericArray = (values, limit) => {
+      if (!Array.isArray(values) || values.length === 0) return [];
+      const seen = new Set();
+      const output = [];
+      for (const raw of values) {
+        if (output.length >= limit) break;
+        const numeric = Number(raw);
+        if (!Number.isFinite(numeric)) continue;
+        if (seen.has(numeric)) continue;
+        seen.add(numeric);
+        output.push(numeric);
+      }
+      return output;
+    };
+
+    const categoryPrefs = sanitizeStringArray(categoryPreferences, 3);
+    const clubCategoryPrefs = sanitizeNumericArray(clubCategoryPreferences, 3);
+    const tagPrefs = sanitizeNumericArray(tagPreferences, 10);
+
+    await client.query('BEGIN');
+
+    // Delete existing preferences
+    await client.query(`DELETE FROM category_preference WHERE userid = $1`, [id]);
+    await client.query(`DELETE FROM club_category_preference WHERE userid = $1`, [id]);
+    await client.query(`DELETE FROM tag_preference WHERE userid = $1`, [id]);
+
+    // Insert new preferences
+    if (categoryPrefs.length > 0) {
+      await client.query(
+        `INSERT INTO category_preference (userid, category)
+         SELECT $1, UNNEST($2::text[])
+         ON CONFLICT DO NOTHING`,
+        [id, categoryPrefs]
+      );
+    }
+
+    if (clubCategoryPrefs.length > 0) {
+      await client.query(
+        `INSERT INTO club_category_preference (userid, club_category)
+         SELECT $1, UNNEST($2::bigint[])
+         ON CONFLICT DO NOTHING`,
+        [id, clubCategoryPrefs]
+      );
+    }
+
+    if (tagPrefs.length > 0) {
+      await client.query(
+        `INSERT INTO tag_preference (userid, tagid)
+         SELECT $1, UNNEST($2::int[])
+         ON CONFLICT DO NOTHING`,
+        [id, tagPrefs]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    res.json({
+      message: 'Preferences updated successfully',
+      preferences: {
+        categoryPreferences: categoryPrefs,
+        clubCategoryPreferences: clubCategoryPrefs,
+        tagPreferences: tagPrefs
+      }
+    });
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {}
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 };
