@@ -57,6 +57,10 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
+  attendanceAnalytics: {
+    type: Array,
+    default: () => []
+  },
   followerAnalytics: {
     type: Object,
     default: () => ({})
@@ -90,6 +94,9 @@ const followerRangeDays = {
 };
 
 const hasEventAnalytics = computed(() => Array.isArray(props.eventAnalytics) && props.eventAnalytics.length > 0);
+const hasAttendanceAnalytics = computed(
+  () => Array.isArray(props.attendanceAnalytics) && props.attendanceAnalytics.length > 0
+);
 
 const normalizedFollowerTimeline = computed(() => {
   const timeline = Array.isArray(props.followerAnalytics?.timeline) ? props.followerAnalytics.timeline : [];
@@ -353,6 +360,67 @@ const handleRetry = () => {
             </div>
 
             <p class="insight-description">{{ event.insightDescription }}</p>
+          </article>
+        </div>
+      </template>
+      <template v-else-if="activeTab === 'attendance'">
+        <div v-if="loading" class="analytics-state analytics-state--loading">
+          Loading attendance analytics...
+        </div>
+        <div v-else-if="error" class="analytics-state analytics-state--error">
+          <p>{{ error }}</p>
+          <button type="button" class="btn btn-sm" @click="handleRetry">Try again</button>
+        </div>
+        <div v-else-if="!hasAttendanceAnalytics" class="analytics-state">
+          <p>No past events with attendance data yet.</p>
+        </div>
+        <div v-else class="analytics-event-list">
+          <article v-for="event in attendanceAnalytics" :key="event.eventId || event.id" class="analytics-card">
+            <div class="analytics-card-header">
+              <div>
+                <h3 class="analytics-card-title">{{ event.title }}</h3>
+                <p class="analytics-card-subtitle">
+                  {{ event.startDateTimeText }} · Capacity {{ event.capacityLabel }}
+                </p>
+              </div>
+              <span class="insight-badge" :class="`insight-badge--${event.insightColor || 'gray'}`">
+                {{ event.insightLabel || 'Insight' }}
+              </span>
+            </div>
+
+            <div class="analytics-card-metrics">
+              <div class="metric">
+                <span class="metric-label">Attendance rate</span>
+                <span class="metric-value">
+                  <template v-if="event.attendancePercent != null">
+                    {{ event.attendancePercentText }} · {{ event.confirmedAttendeesLabel }} /
+                    {{ event.capacityLabel }}
+                  </template>
+                  <template v-else>
+                    Unknown · {{ event.confirmedAttendeesLabel }} attendees
+                  </template>
+                </span>
+              </div>
+              <div class="metric">
+                <span class="metric-label">Confirmed attendees</span>
+                <span class="metric-value">{{ event.confirmedAttendeesLabel }}</span>
+              </div>
+            </div>
+
+            <div
+              class="progress-bar"
+              role="progressbar"
+              :aria-valuenow="event.attendancePercent ?? 0"
+              aria-valuemin="0"
+              aria-valuemax="100"
+            >
+              <div
+                class="progress-bar__fill"
+                :style="{ width: `${event.attendanceWidth}%` }"
+              ></div>
+            </div>
+
+            <p v-if="event.insightDescription" class="insight-description">{{ event.insightDescription }}</p>
           </article>
         </div>
       </template>
