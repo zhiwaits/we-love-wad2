@@ -23,6 +23,7 @@ const categoryColorMap = computed(() => store.getters['categoryColorMap'] || {})
 const upcomingEvents = computed(() => store.getters.upcomingUserEvents);
 const recommendedEvents = computed(() => store.getters.recommendedEvents);
 const savedEvents = computed(() => store.getters.userSavedEvents);
+const allEvents = computed(() => store.getters.allEvents);
 
 // NEW - Past attended events (confirmed RSVPs that have passed)
 const pastAttendedEvents = computed(() => {
@@ -37,9 +38,129 @@ const pastAttendedEvents = computed(() => {
   });
 });
 
-// NEW - Top 10 recommended events
+// NEW - Top 6 recommended events (upcoming only, highest preference scores, excluding saved and RSVP'd)
 const topRecommendedEvents = computed(() => {
-  return recommendedEvents.value.slice(0, 10);
+  const now = new Date();
+  const savedEventIds = new Set(savedEvents.value.map(event => event.id));
+  const rsvpdEventIds = new Set(upcomingEvents.value.map(event => event.id));
+  
+  // Get user preferences for scoring
+  const userPrefs = store.state.userPreferences;
+  const categories = store.state.categories || [];
+  const availableTags = store.state.availableTags || [];
+  
+  // Build preference scorer (replicated from store logic)
+  const buildPreferenceScorer = () => {
+    const categoryPrefsSource = Array.isArray(userPrefs?.categoryPreferences) && userPrefs.categoryPreferences.length > 0
+      ? userPrefs.categoryPreferences
+      : [];
+    
+    const tagPreferencesSource = Array.isArray(userPrefs?.tagPreferences) && userPrefs.tagPreferences.length > 0
+      ? userPrefs.tagPreferences
+      : [];
+    
+    const hasAnyPrefs = categoryPrefsSource.length > 0 || tagPreferencesSource.length > 0;
+    
+    if (!hasAnyPrefs) return null;
+    
+    const categoryPrefs = categoryPrefsSource;
+    const tagPreferences = tagPreferencesSource;
+    
+    const preferredCategories = new Set();
+    const categoryIdToName = new Map();
+    categories.forEach((category) => {
+      if (!category) return;
+      const id = Number(category.id);
+      const name = (typeof category === 'string' ? category : category.name)?.toString().trim().toLowerCase();
+      if (Number.isFinite(id) && name) {
+        categoryIdToName.set(id, name);
+      }
+    });
+    
+    categoryPrefs.forEach((value) => {
+      if (!value && value !== 0) return;
+      if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (normalized) {
+          preferredCategories.add(normalized);
+        }
+      }
+    });
+    
+    const tagIdToName = new Map();
+    availableTags.forEach((tag) => {
+      if (!tag) return;
+      const id = Number(tag.id);
+      if (Number.isFinite(id)) {
+        const name = (tag.tag_name || tag.name || '').trim().toLowerCase();
+        if (name) {
+          tagIdToName.set(id, name);
+        }
+      }
+    });
+    
+    const preferredTagNames = new Set();
+    tagPreferences.forEach((value) => {
+      if (!value && value !== 0) return;
+      if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (normalized) {
+          preferredTagNames.add(normalized);
+        }
+      }
+    });
+    
+    return (event) => {
+      let score = 0;
+      
+      const category = event?.category?.toString().trim().toLowerCase();
+      if (category && preferredCategories.has(category)) {
+        score += 1;
+      }
+      
+      const eventTags = Array.isArray(event?.tags)
+        ? event.tags.map((tag) => tag?.toString().trim().toLowerCase()).filter(Boolean)
+        : [];
+      
+      let preferredTagCounter = 0;
+      eventTags.forEach((tagName) => {
+        if (preferredTagNames.has(tagName)) {
+          score += 0.3 + 0.1 * preferredTagCounter;
+          preferredTagCounter += 1;
+        }
+      });
+      
+      return score;
+    };
+  };
+  
+  const preferenceScorer = buildPreferenceScorer();
+  
+  // Filter and score events
+  const scoredEvents = allEvents.value
+    .filter(event => {
+      // Must be upcoming
+      const eventDate = new Date(event.datetime || event.date);
+      if (eventDate <= now) return false;
+      
+      // Must not be saved
+      if (savedEventIds.has(event.id)) return false;
+      
+      // Must not be RSVP'd
+      if (rsvpdEventIds.has(event.id)) return false;
+      
+      return true;
+    })
+    .map(event => {
+      const score = preferenceScorer ? preferenceScorer(event) : 0;
+      return { event, score };
+    });
+  
+  // Sort by score descending and take top 6
+  return scoredEvents
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6)
+    .map(item => item.event);
 });
 
 const selectedEvent = ref(null);
