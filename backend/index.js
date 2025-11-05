@@ -25,7 +25,7 @@ const corsOptions = {
     'http://localhost:5173', 
     'http://localhost:3000', 
     'http://127.0.0.1:5173',
-    /^https:\/\/wad2groupproject.*\.vercel\.app$/  // Matches any wad2groupproject variation
+    "https://wad2groupproject.vercel.app/", // Matches any wad2groupproject variation
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
