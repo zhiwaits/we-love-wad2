@@ -842,8 +842,22 @@ exports.getClubEventAnalytics = async (req, res) => {
     return res.status(400).json({ error: 'Invalid club ID' });
   }
 
+  const toDateKey = (value) => {
+    if (!value) {
+      return null;
+    }
+    const date = value instanceof Date ? new Date(value.getTime()) : new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+    date.setUTCHours(0, 0, 0, 0);
+    return date.toISOString().slice(0, 10);
+  };
+
+  const DAYS_IN_YEAR = 365;
+
   try {
-    const query = `
+    const eventsQuery = `
       SELECT
         e.id,
         e.title,
@@ -859,9 +873,66 @@ exports.getClubEventAnalytics = async (req, res) => {
       ORDER BY e.datetime ASC
     `;
 
-    const result = await pool.query(query, [clubId]);
+    const followerTotalQuery = `
+      SELECT COUNT(*)::int AS total
+      FROM user_follows
+      WHERE followed_club_id = $1
+    `;
 
-    const events = result.rows.map((row) => {
+    const followerTimelineQuery = `
+      SELECT
+        DATE_TRUNC('day', COALESCE(uf.followed_at, NOW()))::date AS follower_date,
+        COUNT(*)::int AS new_followers
+      FROM user_follows uf
+      WHERE uf.followed_club_id = $1
+        AND COALESCE(uf.followed_at, NOW()) >= NOW() - INTERVAL '365 days'
+      GROUP BY follower_date
+      ORDER BY follower_date ASC
+    `;
+
+    const categoryPreferenceQuery = `
+      SELECT
+        LOWER(cp.category) AS category_key,
+        COALESCE(ec.name, cp.category) AS category_name,
+        COUNT(DISTINCT cp.userid)::int AS follower_count
+      FROM user_follows uf
+      JOIN category_preference cp ON cp.userid = uf.follower_id
+      LEFT JOIN event_categories ec ON LOWER(ec.name) = LOWER(cp.category)
+      WHERE uf.followed_club_id = $1
+      GROUP BY category_key, category_name
+      ORDER BY follower_count DESC, category_name ASC
+      LIMIT 5
+    `;
+
+    const tagPreferenceQuery = `
+      SELECT
+        et.id AS tag_id,
+        et.tag_name,
+        COUNT(DISTINCT tp.userid)::int AS follower_count
+      FROM user_follows uf
+      JOIN tag_preference tp ON tp.userid = uf.follower_id
+      JOIN event_tags et ON et.id = tp.tagid
+      WHERE uf.followed_club_id = $1
+      GROUP BY et.id, et.tag_name
+      ORDER BY follower_count DESC, et.tag_name ASC
+      LIMIT 10
+    `;
+
+    const [
+      eventsResult,
+      followerTotalResult,
+      followerTimelineResult,
+      categoryPreferenceResult,
+      tagPreferenceResult
+    ] = await Promise.all([
+      pool.query(eventsQuery, [clubId]),
+      pool.query(followerTotalQuery, [clubId]),
+      pool.query(followerTimelineQuery, [clubId]),
+      pool.query(categoryPreferenceQuery, [clubId]),
+      pool.query(tagPreferenceQuery, [clubId])
+    ]);
+
+    const events = eventsResult.rows.map((row) => {
       const capacity = row.capacity != null ? Number(row.capacity) : null;
       const confirmed = Number(row.confirmed_attendees) || 0;
 
@@ -897,10 +968,133 @@ exports.getClubEventAnalytics = async (req, res) => {
       };
     });
 
+    const totalFollowers = Number(followerTotalResult.rows[0]?.total) || 0;
+
+    const timelineMap = new Map();
+    followerTimelineResult.rows.forEach((row) => {
+      const dateKey = toDateKey(row.follower_date);
+      if (!dateKey) {
+        return;
+      }
+      const newFollowers = Number(row.new_followers) || 0;
+      const currentTotal = timelineMap.get(dateKey) || 0;
+      timelineMap.set(dateKey, currentTotal + newFollowers);
+    });
+
+    const totalNewInWindow = Array.from(timelineMap.values()).reduce((sum, value) => sum + value, 0);
+    const baselineFollowers = Math.max(totalFollowers - totalNewInWindow, 0);
+
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const startDate = new Date(today.getTime());
+    startDate.setUTCDate(startDate.getUTCDate() - (DAYS_IN_YEAR - 1));
+
+    const buildTimeline = () => {
+      if (timelineMap.size === 0 && totalFollowers === 0) {
+        return [];
+      }
+
+      const timeline = [];
+      let runningTotal = baselineFollowers;
+      const cursor = new Date(startDate.getTime());
+
+      while (cursor <= today) {
+        const key = toDateKey(cursor);
+        const newFollowers = timelineMap.get(key) || 0;
+        runningTotal += newFollowers;
+        timeline.push({
+          date: key,
+          newFollowers,
+          totalFollowers: runningTotal
+        });
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+
+      return timeline;
+    };
+
+    const timeline = buildTimeline();
+
+    const computeRangeSummary = (rangeDays) => {
+      if (!Array.isArray(timeline) || timeline.length === 0) {
+        return {
+          startDate: null,
+          endDate: null,
+          newFollowers: 0,
+          netChange: 0,
+          averagePerDay: 0
+        };
+      }
+
+      const sliceStart = Math.max(timeline.length - rangeDays, 0);
+      const windowSlice = timeline.slice(sliceStart);
+
+      if (windowSlice.length === 0) {
+        return {
+          startDate: null,
+          endDate: null,
+          newFollowers: 0,
+          netChange: 0,
+          averagePerDay: 0
+        };
+      }
+
+      const newFollowers = windowSlice.reduce((sum, day) => sum + day.newFollowers, 0);
+      const firstEntry = windowSlice[0];
+      const lastEntry = windowSlice[windowSlice.length - 1];
+      const startTotal = firstEntry.totalFollowers - firstEntry.newFollowers;
+      const netChange = lastEntry.totalFollowers - startTotal;
+
+      return {
+        startDate: firstEntry.date,
+        endDate: lastEntry.date,
+        newFollowers,
+        netChange,
+        averagePerDay: windowSlice.length > 0 ? Number((newFollowers / windowSlice.length).toFixed(2)) : 0
+      };
+    };
+
+    const followerRanges = {
+      '30': computeRangeSummary(30),
+      '180': computeRangeSummary(180),
+      '365': computeRangeSummary(365)
+    };
+
+    const followersPayload = {
+      totalFollowers,
+      totalNewFollowers: totalNewInWindow,
+      baselineFollowers,
+      timeline,
+      ranges: followerRanges,
+      generatedAt: new Date().toISOString()
+    };
+
+    const topCategories = categoryPreferenceResult.rows.map((row) => ({
+      key: row.category_key,
+      name: row.category_name || row.category_key || 'Unspecified',
+      followerCount: Number(row.follower_count) || 0
+    }));
+
+    const topTags = tagPreferenceResult.rows.map((row) => ({
+      id: row.tag_id,
+      name: row.tag_name || 'Unspecified',
+      followerCount: Number(row.follower_count) || 0
+    }));
+
+    const preferencesPayload = {
+      totalFollowers,
+      topCategories,
+      topTags,
+      maxCategoryCount: topCategories.reduce((max, item) => Math.max(max, item.followerCount), 0),
+      maxTagCount: topTags.reduce((max, item) => Math.max(max, item.followerCount), 0)
+    };
+
     res.json({
       clubId,
       generatedAt: new Date().toISOString(),
-      events
+      events,
+      followers: followersPayload,
+      preferences: preferencesPayload
     });
   } catch (error) {
     console.error('getClubEventAnalytics error:', error);

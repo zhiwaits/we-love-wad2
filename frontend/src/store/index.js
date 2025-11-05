@@ -283,6 +283,110 @@ const createDefaultClubEventFilters = () => ({
   sortOption: 'newest'
 });
 
+const createEmptyRangeSummary = () => ({
+  startDate: null,
+  endDate: null,
+  newFollowers: 0,
+  netChange: 0,
+  averagePerDay: 0
+});
+
+const createDefaultClubAnalytics = () => ({
+  events: [],
+  followers: {
+    totalFollowers: 0,
+    totalNewFollowers: 0,
+    baselineFollowers: 0,
+    timeline: [],
+    ranges: {
+      '30': createEmptyRangeSummary(),
+      '180': createEmptyRangeSummary(),
+      '365': createEmptyRangeSummary()
+    },
+    generatedAt: null
+  },
+  preferences: {
+    totalFollowers: 0,
+    topCategories: [],
+    topTags: [],
+    maxCategoryCount: 0,
+    maxTagCount: 0
+  }
+});
+
+const sanitizeRangeSummary = (range) => ({
+  startDate: range?.startDate || null,
+  endDate: range?.endDate || null,
+  newFollowers: Number(range?.newFollowers) || 0,
+  netChange: Number(range?.netChange) || 0,
+  averagePerDay: Number(range?.averagePerDay) || 0
+});
+
+const sanitizeClubAnalytics = (analytics) => {
+  const base = createDefaultClubAnalytics();
+
+  if (!analytics || typeof analytics !== 'object') {
+    return base;
+  }
+
+  if (Array.isArray(analytics.events)) {
+    base.events = analytics.events.map((event) => ({ ...event }));
+  }
+
+  if (analytics.followers && typeof analytics.followers === 'object') {
+    const followers = analytics.followers;
+    const timelineEntries = Array.isArray(followers.timeline)
+      ? followers.timeline
+          .map((entry) => ({
+            date: entry?.date || null,
+            newFollowers: Number(entry?.newFollowers) || 0,
+            totalFollowers: Number(entry?.totalFollowers) || 0
+          }))
+          .filter((entry) => typeof entry.date === 'string')
+      : [];
+
+    timelineEntries.sort((a, b) => a.date.localeCompare(b.date));
+
+    base.followers = {
+      totalFollowers: Number(followers.totalFollowers) || 0,
+      totalNewFollowers: Number(followers.totalNewFollowers) || 0,
+      baselineFollowers: Number(followers.baselineFollowers) || 0,
+      timeline: timelineEntries,
+      ranges: {
+        '30': sanitizeRangeSummary(followers.ranges?.['30']),
+        '180': sanitizeRangeSummary(followers.ranges?.['180']),
+        '365': sanitizeRangeSummary(followers.ranges?.['365'])
+      },
+      generatedAt: followers.generatedAt || null
+    };
+  }
+
+  if (analytics.preferences && typeof analytics.preferences === 'object') {
+    const preferences = analytics.preferences;
+    base.preferences = {
+      totalFollowers: Number(preferences.totalFollowers) || base.followers.totalFollowers,
+      topCategories: Array.isArray(preferences.topCategories)
+        ? preferences.topCategories.map((item) => ({
+            key: item?.key ?? null,
+            name: item?.name || 'Unspecified',
+            followerCount: Number(item?.followerCount) || 0
+          }))
+        : [],
+      topTags: Array.isArray(preferences.topTags)
+        ? preferences.topTags.map((item) => ({
+            id: item?.id ?? null,
+            name: item?.name || 'Unspecified',
+            followerCount: Number(item?.followerCount) || 0
+          }))
+        : [],
+      maxCategoryCount: Number(preferences.maxCategoryCount) || 0,
+      maxTagCount: Number(preferences.maxTagCount) || 0
+    };
+  }
+
+  return base;
+};
+
 const createDefaultToast = () => ({
   message: '',
   type: 'info',
@@ -316,7 +420,7 @@ const getDefaultRootState = () => ({
   savedEvents: [],
   clubRSVPs: [],
   clubFollowers: [],
-  clubAnalytics: [],
+  clubAnalytics: createDefaultClubAnalytics(),
   randomSortMap: {},
   clubRandomSortMap: {},
   filters: createDefaultFilters(),
@@ -379,7 +483,7 @@ export default createStore({
 
     clubRSVPs: [], // Will hold RSVPs for events owned by the club
 
-    clubAnalytics: [],
+    clubAnalytics: createDefaultClubAnalytics(),
 
     // Filters state
     filters: createDefaultFilters(),
@@ -1357,9 +1461,7 @@ export default createStore({
       return Array.isArray(state.clubRSVPs) ? state.clubRSVPs.length : 0;
     },
 
-    clubEventAnalytics: (state) => {
-      return Array.isArray(state.clubAnalytics) ? state.clubAnalytics : [];
-    },
+    clubEventAnalytics: (state) => state.clubAnalytics || createDefaultClubAnalytics(),
 
     toast: (state) => state.toast
   },
@@ -1510,7 +1612,7 @@ export default createStore({
     },
 
     SET_CLUB_ANALYTICS(state, analytics) {
-      state.clubAnalytics = Array.isArray(analytics) ? analytics : [];
+      state.clubAnalytics = sanitizeClubAnalytics(analytics);
     },
 
     SET_SAVED_EVENTS(state, savedEventIds) {
@@ -2190,19 +2292,19 @@ export default createStore({
     async fetchClubEventAnalytics({ commit }, clubId) {
       const ownerId = Number(clubId);
       if (!Number.isFinite(ownerId)) {
-        commit('SET_CLUB_ANALYTICS', []);
-        return [];
+        commit('SET_CLUB_ANALYTICS', null);
+        return createDefaultClubAnalytics();
       }
 
       try {
         const { getClubEventAnalytics } = await import('../services/eventService.js');
         const response = await getClubEventAnalytics(ownerId);
-        const events = Array.isArray(response.data?.events) ? response.data.events : [];
-        commit('SET_CLUB_ANALYTICS', events);
-        return events;
+        const analytics = response?.data || {};
+        commit('SET_CLUB_ANALYTICS', analytics);
+        return sanitizeClubAnalytics(analytics);
       } catch (error) {
         console.error('Error fetching club analytics:', error);
-        commit('SET_CLUB_ANALYTICS', []);
+        commit('SET_CLUB_ANALYTICS', null);
         throw error;
       }
     },
