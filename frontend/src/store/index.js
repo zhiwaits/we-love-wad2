@@ -157,8 +157,10 @@ const generateRandomSortMap = (events = []) => {
   if (!Array.isArray(events)) return {};
   const map = {};
   events.forEach((event) => {
-    if (!event || event.id == null) return;
-    map[String(event.id)] = Math.random();
+    if (!event) return;
+    const key = event.id != null ? String(event.id) : (event.event_id != null ? String(event.event_id) : null);
+    if (!key) return;
+    map[key] = Math.random();
   });
   return map;
 };
@@ -168,7 +170,12 @@ const pruneRandomSortMap = (map = {}, events = []) => {
   if (!Array.isArray(events)) return {};
   const allowed = new Set(
     events
-      .map((event) => (event && event.id != null ? String(event.id) : null))
+      .map((event) => {
+        if (!event) return null;
+        if (event.id != null) return String(event.id);
+        if (event.event_id != null) return String(event.event_id);
+        return null;
+      })
       .filter(Boolean)
   );
   const next = {};
@@ -272,7 +279,8 @@ const createDefaultClubEventFilters = () => ({
   },
   venueFilter: 'all',
   locationQuery: '',
-  eventStatus: 'both'
+  eventStatus: 'both',
+  sortOption: 'newest'
 });
 
 const createDefaultToast = () => ({
@@ -308,7 +316,9 @@ const getDefaultRootState = () => ({
   savedEvents: [],
   clubRSVPs: [],
   clubFollowers: [],
+  clubAnalytics: [],
   randomSortMap: {},
+  clubRandomSortMap: {},
   filters: createDefaultFilters(),
   clubEventFilters: createDefaultClubEventFilters(),
   categories: [],
@@ -369,10 +379,13 @@ export default createStore({
 
     clubRSVPs: [], // Will hold RSVPs for events owned by the club
 
+    clubAnalytics: [],
+
     // Filters state
     filters: createDefaultFilters(),
 
-  randomSortMap: {},
+    randomSortMap: {},
+    clubRandomSortMap: {},
 
     // Club event filters (for managing club's own events)
     clubEventFilters: createDefaultClubEventFilters(),
@@ -990,108 +1003,244 @@ export default createStore({
         !state.clubEventFilters.locationQuery &&
         state.clubEventFilters.eventStatus === 'both';
 
-      if (noFiltersActive) {
-        return clubEvents;
-      }
-
       let filtered = [...clubEvents];
 
-      // Search filter
-      if (state.clubEventFilters.searchQuery) {
-        const query = state.clubEventFilters.searchQuery.toLowerCase();
-        filtered = filtered.filter(event =>
-          event.title.toLowerCase().includes(query) ||
-          event.description.toLowerCase().includes(query)
-        );
-      }
+      if (!noFiltersActive) {
+        // Search filter
+        if (state.clubEventFilters.searchQuery) {
+          const query = state.clubEventFilters.searchQuery.toLowerCase();
+          filtered = filtered.filter(event =>
+            event.title.toLowerCase().includes(query) ||
+            event.description.toLowerCase().includes(query)
+          );
+        }
 
-      // Tag filter
-      if (state.clubEventFilters.selectedTags.length > 0) {
-        filtered = filtered.filter(event => {
-          if (!Array.isArray(event.tags) || event.tags.length === 0) {
-            return false;
-          }
-          return state.clubEventFilters.selectedTags.some(tag => event.tags.includes(tag));
-        });
-      }
+        // Tag filter
+        if (state.clubEventFilters.selectedTags.length > 0) {
+          filtered = filtered.filter(event => {
+            if (!Array.isArray(event.tags) || event.tags.length === 0) {
+              return false;
+            }
+            return state.clubEventFilters.selectedTags.some(tag => event.tags.includes(tag));
+          });
+        }
 
-      // Price filter
-      if (state.clubEventFilters.priceFilter === 'free') {
-        filtered = filtered.filter(event => event.price === 'FREE');
-      } else if (state.clubEventFilters.priceFilter === 'paid') {
-        filtered = filtered.filter(event => event.price !== 'FREE');
-      }
+        // Price filter
+        if (state.clubEventFilters.priceFilter === 'free') {
+          filtered = filtered.filter(event => event.price === 'FREE');
+        } else if (state.clubEventFilters.priceFilter === 'paid') {
+          filtered = filtered.filter(event => event.price !== 'FREE');
+        }
 
-      // Date filter
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+        // Date filter
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
-      if (state.clubEventFilters.dateFilter === 'today') {
-        filtered = filtered.filter(event => {
-          const eventDate = new Date(event.date);
-          eventDate.setHours(0, 0, 0, 0);
-          return eventDate.getTime() === today.getTime();
-        });
-      } else if (state.clubEventFilters.dateFilter === 'this-week') {
-        const weekFromNow = new Date(today);
-        weekFromNow.setDate(weekFromNow.getDate() + 7);
-        filtered = filtered.filter(event => {
-          const eventDate = new Date(event.date);
-          return eventDate >= today && eventDate <= weekFromNow;
-        });
-      } else if (state.clubEventFilters.dateFilter === 'this-month') {
-        const monthFromNow = new Date(today);
-        monthFromNow.setDate(monthFromNow.getDate() + 30);
-        filtered = filtered.filter(event => {
-          const eventDate = new Date(event.date);
-          return eventDate >= today && eventDate <= monthFromNow;
-        });
-      } else if (state.clubEventFilters.dateFilter === 'specific' && state.clubEventFilters.specificDate) {
-        const target = new Date(state.clubEventFilters.specificDate);
-        target.setHours(0, 0, 0, 0);
-        filtered = filtered.filter(event => {
-          const eventDate = new Date(event.date);
-          eventDate.setHours(0, 0, 0, 0);
-          return eventDate.getTime() === target.getTime();
-        });
-      } else if (state.clubEventFilters.dateFilter === 'range') {
-        const startRaw = state.clubEventFilters.dateRange?.start;
-        const endRaw = state.clubEventFilters.dateRange?.end;
-        if (startRaw && endRaw) {
-          const startDate = new Date(startRaw);
-          startDate.setHours(0, 0, 0, 0);
-          const endDate = new Date(endRaw);
-          endDate.setHours(0, 0, 0, 0);
+        if (state.clubEventFilters.dateFilter === 'today') {
           filtered = filtered.filter(event => {
             const eventDate = new Date(event.date);
             eventDate.setHours(0, 0, 0, 0);
-            return eventDate >= startDate && eventDate <= endDate;
+            return eventDate.getTime() === today.getTime();
           });
+        } else if (state.clubEventFilters.dateFilter === 'this-week') {
+          const weekFromNow = new Date(today);
+          weekFromNow.setDate(weekFromNow.getDate() + 7);
+          filtered = filtered.filter(event => {
+            const eventDate = new Date(event.date);
+            return eventDate >= today && eventDate <= weekFromNow;
+          });
+        } else if (state.clubEventFilters.dateFilter === 'this-month') {
+          const monthFromNow = new Date(today);
+          monthFromNow.setDate(monthFromNow.getDate() + 30);
+          filtered = filtered.filter(event => {
+            const eventDate = new Date(event.date);
+            return eventDate >= today && eventDate <= monthFromNow;
+          });
+        } else if (state.clubEventFilters.dateFilter === 'specific' && state.clubEventFilters.specificDate) {
+          const target = new Date(state.clubEventFilters.specificDate);
+          target.setHours(0, 0, 0, 0);
+          filtered = filtered.filter(event => {
+            const eventDate = new Date(event.date);
+            eventDate.setHours(0, 0, 0, 0);
+            return eventDate.getTime() === target.getTime();
+          });
+        } else if (state.clubEventFilters.dateFilter === 'range') {
+          const startRaw = state.clubEventFilters.dateRange?.start;
+          const endRaw = state.clubEventFilters.dateRange?.end;
+          if (startRaw && endRaw) {
+            const startDate = new Date(startRaw);
+            startDate.setHours(0, 0, 0, 0);
+            const endDate = new Date(endRaw);
+            endDate.setHours(0, 0, 0, 0);
+            filtered = filtered.filter(event => {
+              const eventDate = new Date(event.date);
+              eventDate.setHours(0, 0, 0, 0);
+              return eventDate >= startDate && eventDate <= endDate;
+            });
+          }
+        }
+
+        // Venue filter
+        if (state.clubEventFilters.venueFilter !== 'all') {
+          filtered = filtered.filter(event =>
+            event.venue === state.clubEventFilters.venueFilter
+          );
+        }
+
+        // Location search
+        if (state.clubEventFilters.locationQuery) {
+          const locQuery = state.clubEventFilters.locationQuery.toLowerCase();
+          filtered = filtered.filter(event =>
+            event.location.toLowerCase().includes(locQuery) ||
+            event.venue.toLowerCase().includes(locQuery)
+          );
+        }
+
+        // Event status filter
+        const now = new Date();
+        if (state.clubEventFilters.eventStatus === 'upcoming') {
+          filtered = filtered.filter(event => new Date(event.date) > now);
+        } else if (state.clubEventFilters.eventStatus === 'past') {
+          filtered = filtered.filter(event => new Date(event.date) <= now);
         }
       }
 
-      // Venue filter
-      if (state.clubEventFilters.venueFilter !== 'all') {
-        filtered = filtered.filter(event =>
-          event.venue === state.clubEventFilters.venueFilter
-        );
-      }
+      const getCreatedAtTime = (event) => {
+        if (!event) return 0;
+        const fields = [event.created_at, event.createdAt, event.date_created, event.dateCreated, event.datetime, event.date];
+        for (const field of fields) {
+          const parsed = parseDateValue(field);
+          if (parsed != null) {
+            return parsed;
+          }
+        }
+        return 0;
+      };
 
-      // Location search
-      if (state.clubEventFilters.locationQuery) {
-        const locQuery = state.clubEventFilters.locationQuery.toLowerCase();
-        filtered = filtered.filter(event =>
-          event.location.toLowerCase().includes(locQuery) ||
-          event.venue.toLowerCase().includes(locQuery)
-        );
-      }
+      const getEventDateTime = (event) => {
+        if (!event) return null;
+        const dateFields = [event.datetime, event.date, event.start_time, event.startTime, event.startDateTime, event.enddatetime, event.endDatetime];
+        for (const field of dateFields) {
+          const parsed = parseDateValue(field);
+          if (parsed != null) {
+            return parsed;
+          }
+        }
+        return null;
+      };
 
-      // Event status filter
-      const now = new Date();
-      if (state.clubEventFilters.eventStatus === 'upcoming') {
-        filtered = filtered.filter(event => new Date(event.date) > now);
-      } else if (state.clubEventFilters.eventStatus === 'past') {
-        filtered = filtered.filter(event => new Date(event.date) <= now);
+      const getEventPriceValue = (event) => {
+        if (!event) return 0;
+        if (typeof event.priceValue === 'number' && !Number.isNaN(event.priceValue)) {
+          return event.priceValue;
+        }
+        if (typeof event.price === 'number') {
+          return Number.isNaN(event.price) ? 0 : event.price;
+        }
+        if (typeof event.price === 'string') {
+          const trimmed = event.price.trim().toUpperCase();
+          if (trimmed === 'FREE') {
+            return 0;
+          }
+          const numeric = Number(trimmed.replace(/[^0-9.]/g, ''));
+          return Number.isNaN(numeric) ? 0 : numeric;
+        }
+        return 0;
+      };
+
+      const tieBreaker = (a, b) => {
+        const createdDiff = getCreatedAtTime(b) - getCreatedAtTime(a);
+        if (createdDiff !== 0) {
+          return createdDiff;
+        }
+        const idA = Number(a?.id ?? a?.event_id);
+        const idB = Number(b?.id ?? b?.event_id);
+        if (Number.isFinite(idA) && Number.isFinite(idB) && idA !== idB) {
+          return idB - idA;
+        }
+        return 0;
+      };
+
+      const getRandomWeight = (event) => {
+        if (!event) return 0;
+        const key = event.id != null ? String(event.id) : (event.event_id != null ? String(event.event_id) : null);
+        if (!key) return 0;
+        const map = state.clubRandomSortMap || {};
+        if (map[key] == null) {
+          return 0;
+        }
+        return map[key];
+      };
+
+      const sortOption = state.clubEventFilters.sortOption || 'newest';
+
+      const sorters = {
+        newest: () => {
+          filtered.sort((a, b) => {
+            const diff = getCreatedAtTime(b) - getCreatedAtTime(a);
+            if (diff !== 0) {
+              return diff;
+            }
+            return tieBreaker(a, b);
+          });
+        },
+        'earliest-date': () => {
+          filtered.sort((a, b) => {
+            const aDate = getEventDateTime(a);
+            const bDate = getEventDateTime(b);
+            if (aDate != null && bDate != null && aDate !== bDate) {
+              return aDate - bDate;
+            }
+            if (aDate == null && bDate != null) return 1;
+            if (aDate != null && bDate == null) return -1;
+            return tieBreaker(a, b);
+          });
+        },
+        'latest-date': () => {
+          filtered.sort((a, b) => {
+            const aDate = getEventDateTime(a);
+            const bDate = getEventDateTime(b);
+            if (aDate != null && bDate != null && aDate !== bDate) {
+              return bDate - aDate;
+            }
+            if (aDate == null && bDate != null) return 1;
+            if (aDate != null && bDate == null) return -1;
+            return tieBreaker(a, b);
+          });
+        },
+        'highest-price': () => {
+          filtered.sort((a, b) => {
+            const diff = getEventPriceValue(b) - getEventPriceValue(a);
+            if (diff !== 0) {
+              return diff;
+            }
+            return tieBreaker(a, b);
+          });
+        },
+        'lowest-price': () => {
+          filtered.sort((a, b) => {
+            const diff = getEventPriceValue(a) - getEventPriceValue(b);
+            if (diff !== 0) {
+              return diff;
+            }
+            return tieBreaker(a, b);
+          });
+        },
+        random: () => {
+          filtered.sort((a, b) => {
+            const diff = getRandomWeight(a) - getRandomWeight(b);
+            if (diff !== 0) {
+              return diff;
+            }
+            return tieBreaker(a, b);
+          });
+        }
+      };
+
+      if (sorters[sortOption]) {
+        sorters[sortOption]();
+      } else {
+        sorters.newest();
       }
 
       return filtered;
@@ -1208,6 +1357,10 @@ export default createStore({
       return Array.isArray(state.clubRSVPs) ? state.clubRSVPs.length : 0;
     },
 
+    clubEventAnalytics: (state) => {
+      return Array.isArray(state.clubAnalytics) ? state.clubAnalytics : [];
+    },
+
     toast: (state) => state.toast
   },
 
@@ -1220,6 +1373,12 @@ export default createStore({
 
     setAllEvents(state, events) {
       state.allEvents = events;
+      const source = getClubEventSource(state);
+      if (state.clubEventFilters?.sortOption === 'random') {
+        state.clubRandomSortMap = generateRandomSortMap(source);
+      } else {
+        state.clubRandomSortMap = pruneRandomSortMap(state.clubRandomSortMap, source);
+      }
     },
 
     setBrowseEvents(state, events) {
@@ -1253,7 +1412,15 @@ export default createStore({
     },
 
     setClubOwnedEvents(state, events) {
-      state.clubOwnedEvents = Array.isArray(events) ? events : [];
+      const normalized = Array.isArray(events) ? events : [];
+      state.clubOwnedEvents = normalized;
+
+      const source = getClubEventSource(state);
+      if (state.clubEventFilters?.sortOption === 'random') {
+        state.clubRandomSortMap = generateRandomSortMap(source);
+      } else {
+        state.clubRandomSortMap = pruneRandomSortMap(state.clubRandomSortMap, source);
+      }
     },
 
     SET_PAGINATION(state, paginationData) {
@@ -1340,6 +1507,10 @@ export default createStore({
 
     SET_CLUB_FOLLOWERS(state, followers) {
       state.clubFollowers = Array.isArray(followers) ? followers : [];
+    },
+
+    SET_CLUB_ANALYTICS(state, analytics) {
+      state.clubAnalytics = Array.isArray(analytics) ? analytics : [];
     },
 
     SET_SAVED_EVENTS(state, savedEventIds) {
@@ -1515,8 +1686,25 @@ export default createStore({
       state.clubEventFilters.eventStatus = status;
     },
 
+    SET_CLUB_EVENT_SORT_OPTION(state, sortOption) {
+      if (!state.clubEventFilters) {
+        state.clubEventFilters = createDefaultClubEventFilters();
+      }
+      const normalized = sortOption || 'newest';
+      state.clubEventFilters.sortOption = normalized;
+
+      const source = getClubEventSource(state);
+      if (normalized === 'random') {
+        state.clubRandomSortMap = generateRandomSortMap(source);
+      } else {
+        state.clubRandomSortMap = pruneRandomSortMap(state.clubRandomSortMap, source);
+      }
+    },
+
     RESET_CLUB_EVENT_FILTERS(state) {
       state.clubEventFilters = createDefaultClubEventFilters();
+      const source = getClubEventSource(state);
+      state.clubRandomSortMap = pruneRandomSortMap(state.clubRandomSortMap, source);
     },
 
     SHOW_TOAST(state, { message, type }) {
@@ -1543,6 +1731,10 @@ export default createStore({
 
     updateSortOption({ commit }, sortOption) {
       commit('SET_SORT_OPTION', sortOption);
+    },
+
+    updateClubEventSortOption({ commit }, sortOption) {
+      commit('SET_CLUB_EVENT_SORT_OPTION', sortOption);
     },
 
     async initializeAppData({ dispatch, rootState }, { force = false } = {}) {
@@ -1992,6 +2184,26 @@ export default createStore({
       } catch (error) {
         console.error('Error fetching club followers:', error);
         commit('SET_CLUB_FOLLOWERS', []);
+      }
+    },
+
+    async fetchClubEventAnalytics({ commit }, clubId) {
+      const ownerId = Number(clubId);
+      if (!Number.isFinite(ownerId)) {
+        commit('SET_CLUB_ANALYTICS', []);
+        return [];
+      }
+
+      try {
+        const { getClubEventAnalytics } = await import('../services/eventService.js');
+        const response = await getClubEventAnalytics(ownerId);
+        const events = Array.isArray(response.data?.events) ? response.data.events : [];
+        commit('SET_CLUB_ANALYTICS', events);
+        return events;
+      } catch (error) {
+        console.error('Error fetching club analytics:', error);
+        commit('SET_CLUB_ANALYTICS', []);
+        throw error;
       }
     },
 

@@ -89,6 +89,111 @@ function convertToSGTime(isoString) {
   return date.toLocaleString('sv-SE', { timeZone: 'Asia/Singapore' }).replace(',', '');
 }
 
+function clamp(value, min, max) {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(Math.max(value, min), max);
+}
+
+function computeEventProgress(createdAt, startAt) {
+  const createdMs = createdAt ? new Date(createdAt).getTime() : NaN;
+  const startMs = startAt ? new Date(startAt).getTime() : NaN;
+
+  if (!Number.isFinite(createdMs) || !Number.isFinite(startMs)) {
+    return 0;
+  }
+
+  if (startMs <= createdMs) {
+    return clamp(Date.now() >= startMs ? 1 : 0, 0, 1);
+  }
+
+  const ratio = (Date.now() - createdMs) / (startMs - createdMs);
+  return clamp(ratio, 0, 1);
+}
+
+function classifyProgressStage(progressRatio) {
+  const ratio = Number.isFinite(progressRatio) ? progressRatio : 0;
+  if (ratio <= 0.33) return 'early';
+  if (ratio <= 0.66) return 'mid';
+  return 'late';
+}
+
+function determineInsight(stageKey, capacityFillPercentage) {
+  if (!Number.isFinite(capacityFillPercentage)) {
+    return {
+      label: 'Capacity not set',
+      color: 'gray',
+      description: 'Set an event capacity to unlock fill rate insights.'
+    };
+  }
+
+  const fill = capacityFillPercentage;
+
+  if (stageKey === 'early') {
+    if (fill < 20) {
+      return {
+        label: 'Normal',
+        color: 'yellow',
+        description: 'Normal for early promotion; consider an awareness push.'
+      };
+    }
+    if (fill <= 60) {
+      return {
+        label: 'Strong early interest',
+        color: 'green',
+        description: 'Promising demand; continue current marketing.'
+      };
+    }
+    return {
+      label: 'Exceptional early fill',
+      color: 'blue',
+      description: 'Demand is very high; consider premium pricing or scaling capacity.'
+    };
+  }
+
+  if (stageKey === 'mid') {
+    if (fill < 40) {
+      return {
+        label: 'Lagging sign-ups',
+        color: 'orange',
+        description: 'Behind expected fill; review marketing or pricing.'
+      };
+    }
+    if (fill <= 80) {
+      return {
+        label: 'On track',
+        color: 'yellow',
+        description: 'Healthy fill rate relative to the time left.'
+      };
+    }
+    return {
+      label: 'Ahead of schedule',
+      color: 'green',
+      description: 'Demand is strong; prepare for a near-full event early.'
+    };
+  }
+
+  // Late stage
+  if (fill < 60) {
+    return {
+      label: 'Underperforming',
+      color: 'red',
+      description: 'Low registrations close to start; trigger a last-minute push or discount.'
+    };
+  }
+  if (fill <= 90) {
+    return {
+      label: 'Decent Fill',
+      color: 'yellow',
+      description: 'Tracking well; maintain final-stage promotion.'
+    };
+  }
+  return {
+    label: 'At/near capacity',
+    color: 'green',
+    description: 'Great job; prepare for a full house.'
+  };
+}
+
 exports.getAllEvents = async (req, res) => {
   try {
     // Pagination parameters
@@ -727,6 +832,79 @@ exports.deleteEvent = async (req, res) => {
     res.status(500).json({ error: err.message });
   } finally {
     client.release();
+  }
+};
+
+exports.getClubEventAnalytics = async (req, res) => {
+  const clubId = Number(req.params.clubId);
+
+  if (!Number.isFinite(clubId)) {
+    return res.status(400).json({ error: 'Invalid club ID' });
+  }
+
+  try {
+    const query = `
+      SELECT
+        e.id,
+        e.title,
+        e.datetime,
+        e.created_at,
+        e.capacity,
+        COUNT(CASE WHEN r.status = 'confirmed' THEN 1 END) AS confirmed_attendees
+      FROM ${table} e
+      LEFT JOIN rsvps r ON r.event_id = e.id AND r.status = 'confirmed'
+      WHERE e.owner_id = $1
+        AND e.datetime > NOW()
+      GROUP BY e.id
+      ORDER BY e.datetime ASC
+    `;
+
+    const result = await pool.query(query, [clubId]);
+
+    const events = result.rows.map((row) => {
+      const capacity = row.capacity != null ? Number(row.capacity) : null;
+      const confirmed = Number(row.confirmed_attendees) || 0;
+
+      const capacityRatio = capacity && capacity > 0 ? confirmed / capacity : null;
+      const capacityFillPercentage = capacityRatio != null
+        ? Number(clamp(capacityRatio * 100, 0, 200).toFixed(1))
+        : null;
+
+      const progressRatioRaw = computeEventProgress(row.created_at, row.datetime);
+      const progressRatio = Number(progressRatioRaw.toFixed(4));
+      const progressPercent = Number((progressRatio * 100).toFixed(1));
+      const stageKey = classifyProgressStage(progressRatio);
+      const stageLabel =
+        stageKey === 'early' ? 'Early stage' : stageKey === 'mid' ? 'Mid stage' : 'Late stage';
+      const insight = determineInsight(stageKey, capacityFillPercentage);
+
+      return {
+        eventId: row.id,
+        title: row.title,
+        startDateTime: row.datetime,
+        createdAt: row.created_at,
+        capacity: capacity,
+        confirmedAttendees: confirmed,
+        capacityFillRatio: capacityRatio != null ? Number(clamp(capacityRatio, 0, 1).toFixed(4)) : null,
+        capacityFillPercentage,
+        progressRatio,
+        progressPercent,
+        progressStage: stageKey,
+        progressStageLabel: stageLabel,
+        insightLabel: insight.label,
+        insightColor: insight.color,
+        insightDescription: insight.description
+      };
+    });
+
+    res.json({
+      clubId,
+      generatedAt: new Date().toISOString(),
+      events
+    });
+  } catch (error) {
+    console.error('getClubEventAnalytics error:', error);
+    res.status(500).json({ error: 'Failed to load club event analytics' });
   }
 };
 

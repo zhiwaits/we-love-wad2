@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useStore } from 'vuex';
 import StatCard from './StatCard.vue';
@@ -42,6 +42,81 @@ const showFollowersModal = ref(false);
 const showProfileModal = ref(false);
 const showPreviewModal = ref(false);
 const rsvpActionKey = ref(null);
+
+const analyticsTabs = [
+  { id: 'event', label: 'Event Analytics' },
+  { id: 'audience', label: 'Audience Analytics' },
+  { id: 'engagement', label: 'Engagement Insights' }
+];
+const activeAnalyticsTab = ref('event');
+const analyticsLoading = ref(false);
+const analyticsError = ref(null);
+
+const clampRatio = (value, min = 0, max = 1) => {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+  return Math.min(Math.max(value, min), max);
+};
+
+const analyticsOwnerId = computed(() => {
+  if (!isMounted.value) {
+    return null;
+  }
+  const user = store.getters['auth/currentUser'];
+  if (!user || user.id == null) {
+    return null;
+  }
+  const numericId = Number(user.id);
+  return Number.isFinite(numericId) ? numericId : null;
+});
+
+const rawAnalyticsEvents = computed(() => {
+  if (!isMounted.value) {
+    return [];
+  }
+  const analytics = store.getters.clubEventAnalytics;
+  return Array.isArray(analytics) ? analytics : [];
+});
+
+const eventAnalytics = computed(() => {
+  return rawAnalyticsEvents.value.map((event) => {
+    const fillPercentRaw = Number(event.capacityFillPercentage);
+    const hasFillPercent = Number.isFinite(fillPercentRaw);
+    const fillRatioRaw = Number(event.capacityFillRatio);
+    const resolvedFillRatio = Number.isFinite(fillRatioRaw)
+      ? clampRatio(fillRatioRaw)
+      : hasFillPercent
+        ? clampRatio(fillPercentRaw / 100)
+        : 0;
+    const capacityFillWidth = Math.round(resolvedFillRatio * 100);
+
+    let resolvedProgressPercent = Number(event.progressPercent);
+    if (!Number.isFinite(resolvedProgressPercent)) {
+      const ratio = Number(event.progressRatio);
+      resolvedProgressPercent = Number.isFinite(ratio) ? Number((ratio * 100).toFixed(1)) : 0;
+    }
+    const normalizedProgress = Number.isFinite(resolvedProgressPercent) ? resolvedProgressPercent : 0;
+    const progressPercentText = `${normalizedProgress.toFixed(1)}%`;
+
+    const stageLabel = event.progressStageLabel
+      ? event.progressStageLabel
+      : event.progressStage
+        ? `${event.progressStage.charAt(0).toUpperCase()}${event.progressStage.slice(1)} stage`
+        : 'Stage unavailable';
+
+    return {
+      ...event,
+      capacityFillPercentage: hasFillPercent ? Number(fillPercentRaw.toFixed(1)) : null,
+      capacityFillPercentText: hasFillPercent ? `${fillPercentRaw.toFixed(1)}%` : 'Not available',
+      capacityFillRatio: resolvedFillRatio,
+      capacityFillWidth,
+      progressPercent: Number(normalizedProgress.toFixed(1)),
+      progressPercentText,
+      progressStageLabel: stageLabel
+    };
+  });
+});
 
 // Image modal state
 const showImageModal = ref(false);
@@ -154,19 +229,62 @@ const currentClubCategory = computed(() => {
 });
 
 const refreshClubRsvps = async () => {
-  const ownerId = currentUser.value?.id;
-  if (!ownerId) {
+  const ownerId = analyticsOwnerId.value;
+  if (!Number.isFinite(ownerId)) {
     return;
   }
   await store.dispatch('fetchClubRSVPs', ownerId);
 };
 
 const refreshClubFollowers = async () => {
-  const ownerId = currentUser.value?.id;
-  if (!ownerId) {
+  const ownerId = analyticsOwnerId.value;
+  if (!Number.isFinite(ownerId)) {
     return;
   }
   await store.dispatch('fetchClubFollowers', ownerId);
+};
+
+const loadClubAnalytics = async (ownerId) => {
+  const numericOwnerId = Number(ownerId);
+  if (!Number.isFinite(numericOwnerId)) {
+    return;
+  }
+
+  analyticsLoading.value = true;
+  analyticsError.value = null;
+
+  try {
+    await store.dispatch('fetchClubEventAnalytics', numericOwnerId);
+  } catch (error) {
+    console.error('Failed to load club analytics:', error);
+    analyticsError.value = 'Failed to load event analytics.';
+  } finally {
+    analyticsLoading.value = false;
+  }
+};
+
+const retryAnalytics = () => {
+  if (analyticsOwnerId.value == null) {
+    return;
+  }
+  loadClubAnalytics(analyticsOwnerId.value);
+};
+
+const formatDateTime = (value) => {
+  if (!value) {
+    return 'TBD';
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return 'TBD';
+  }
+  return parsed.toLocaleString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  });
 };
 
 const navigateToClubEvents = async (status = 'both') => {
@@ -247,16 +365,41 @@ const handleRemoveAllRsvps = async ({ eventId, rsvps }) => {
   }
 };
 
+watch(
+  () => analyticsOwnerId.value,
+  async (newOwnerId, oldOwnerId) => {
+    if (Number.isFinite(newOwnerId)) {
+      if (newOwnerId === oldOwnerId) {
+        return;
+      }
+      await loadClubAnalytics(newOwnerId);
+      try {
+        await refreshClubRsvps();
+      } catch (error) {
+        console.error('Failed to refresh club RSVPs:', error);
+      }
+      try {
+        await refreshClubFollowers();
+      } catch (error) {
+        console.error('Failed to refresh club followers:', error);
+      }
+      try {
+        await store.dispatch('fetchClubStats', newOwnerId);
+      } catch (error) {
+        console.error('Failed to refresh club stats:', error);
+      }
+    } else if (Number.isFinite(oldOwnerId)) {
+      store.commit('SET_CLUB_ANALYTICS', []);
+    }
+  },
+  { immediate: true }
+);
+
 // Fetch data on mount
 onMounted(async () => {
-  const userId = currentUser.value.id;
-  
   // Fetch all data
   await store.dispatch('fetchAllEvents');
   await store.dispatch('fetchClubOwnedEvents', { force: true });
-  await store.dispatch('fetchClubStats', userId);
-  await refreshClubRsvps();
-  await refreshClubFollowers();
 });
 
 const handleProfileUpdated = () => {
@@ -343,6 +486,96 @@ const closeImageModal = () => {
       <!-- Calendar Section -->
       <section class="calendar-section">
         <ClubCalendar />
+      </section>
+
+      <section class="analytics-section">
+        <div class="section-header">
+          <h2 class="section-title">Club Analytics</h2>
+        </div>
+
+        <div class="analytics-tabs" role="tablist">
+          <button
+            v-for="tab in analyticsTabs"
+            :key="tab.id"
+            type="button"
+            class="analytics-tab"
+            :class="{ 'analytics-tab--active': activeAnalyticsTab === tab.id }"
+            role="tab"
+            :aria-selected="activeAnalyticsTab === tab.id"
+            @click="activeAnalyticsTab = tab.id"
+          >
+            {{ tab.label }}
+          </button>
+        </div>
+
+        <div class="analytics-content">
+          <template v-if="activeAnalyticsTab === 'event'">
+            <div v-if="analyticsLoading" class="analytics-state analytics-state--loading">
+              Loading event analytics...
+            </div>
+            <div v-else-if="analyticsError" class="analytics-state analytics-state--error">
+              <p>{{ analyticsError }}</p>
+              <button type="button" class="btn btn-sm" @click="retryAnalytics">Try again</button>
+            </div>
+            <div v-else-if="eventAnalytics.length === 0" class="analytics-state">
+              <p>No upcoming events with analytics yet.</p>
+            </div>
+            <div v-else class="analytics-event-list">
+              <article v-for="event in eventAnalytics" :key="event.eventId" class="analytics-card">
+                <div class="analytics-card-header">
+                  <div>
+                    <h3 class="analytics-card-title">{{ event.title }}</h3>
+                    <p class="analytics-card-subtitle">
+                      {{ event.progressStageLabel }} · Timeline {{ event.progressPercentText }}
+                    </p>
+                  </div>
+                  <span class="insight-badge" :class="`insight-badge--${event.insightColor}`">
+                    {{ event.insightLabel }}
+                  </span>
+                </div>
+
+                <div class="analytics-card-metrics">
+                  <div class="metric">
+                    <span class="metric-label">Capacity filled</span>
+                    <span class="metric-value">
+                      <template v-if="event.capacityFillPercentage !== null">
+                        {{ event.capacityFillPercentText }} · {{ event.confirmedAttendees }} /
+                        {{ event.capacity != null ? event.capacity : 'N/A' }}
+                      </template>
+                      <template v-else>
+                        Not available
+                      </template>
+                    </span>
+                  </div>
+                  <div class="metric">
+                    <span class="metric-label">Start</span>
+                    <span class="metric-value">{{ formatDateTime(event.startDateTime) }}</span>
+                  </div>
+                </div>
+
+                <div
+                  class="progress-bar"
+                  role="progressbar"
+                  :aria-valuenow="event.capacityFillPercentage ?? 0"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                >
+                  <div
+                    class="progress-bar__fill"
+                    :style="{ width: `${event.capacityFillWidth}%` }"
+                  ></div>
+                </div>
+
+                <p class="insight-description">{{ event.insightDescription }}</p>
+              </article>
+            </div>
+          </template>
+          <template v-else>
+            <div class="analytics-state analytics-state--placeholder">
+              <p>Insights coming soon.</p>
+            </div>
+          </template>
+        </div>
       </section>
     </div>
 
@@ -454,6 +687,173 @@ const closeImageModal = () => {
 /* Calendar Section */
 .calendar-section {
   margin-bottom: var(--space-56);
+}
+
+.analytics-section {
+  margin-bottom: var(--space-56);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-32);
+}
+
+.analytics-tabs {
+  display: flex;
+  gap: var(--space-12);
+  margin-bottom: var(--space-24);
+  flex-wrap: wrap;
+}
+
+.analytics-tab {
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-secondary);
+  padding: var(--space-8) var(--space-16);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  transition: all var(--duration-fast);
+}
+
+.analytics-tab:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.analytics-tab--active {
+  background: var(--color-primary);
+  color: var(--color-white);
+  border-color: var(--color-primary);
+}
+
+.analytics-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-20);
+}
+
+.analytics-state {
+  background: var(--color-surface-alt, rgba(15, 23, 42, 0.04));
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-24);
+  text-align: center;
+  color: var(--color-text-secondary);
+}
+
+.analytics-state--error {
+  border-color: var(--color-danger, #f87171);
+  color: var(--color-danger, #f87171);
+}
+
+.analytics-event-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-20);
+}
+
+.analytics-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-24);
+  background: var(--color-surface-strong, var(--color-surface));
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.analytics-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-16);
+}
+
+.analytics-card-title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.analytics-card-subtitle {
+  margin: var(--space-4) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.insight-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4) var(--space-12);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #0f172a;
+  background: var(--color-border);
+}
+
+.insight-badge--yellow { background: #facc15; }
+.insight-badge--green { background: #22c55e; }
+.insight-badge--blue { background: #3b82f6; color: #f8fafc; }
+.insight-badge--orange { background: #fb923c; }
+.insight-badge--red { background: #f87171; }
+.insight-badge--gray { background: #94a3b8; }
+
+.analytics-card-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-16);
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+}
+
+.metric-label {
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-secondary);
+}
+
+.metric-value {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.progress-bar {
+  position: relative;
+  height: 10px;
+  background: var(--color-border);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.progress-bar__fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  background: var(--color-primary);
+  border-radius: var(--radius-full);
+  transition: width var(--duration-normal) var(--ease-standard);
+}
+
+.insight-description {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.analytics-state--placeholder {
+  color: var(--color-text-secondary);
 }
 
 /* Dashboard Sections */
@@ -790,6 +1190,24 @@ const closeImageModal = () => {
     grid-template-columns: 1fr;
   }
 
+  .analytics-section {
+    padding: var(--space-24);
+  }
+
+  .analytics-card {
+    padding: var(--space-20);
+  }
+
+  .analytics-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-12);
+  }
+
+  .analytics-tabs {
+    gap: var(--space-8);
+  }
+
   .section-header {
     flex-direction: column;
     align-items: flex-start;
@@ -827,6 +1245,14 @@ const closeImageModal = () => {
 
   .dashboard-title {
     font-size: var(--font-size-xl);
+  }
+
+  .analytics-section {
+    padding: var(--space-20);
+  }
+
+  .analytics-card {
+    padding: var(--space-16);
   }
 }
 

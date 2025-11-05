@@ -63,7 +63,15 @@ export default {
     },
 
     methods: {
-        ...mapActions(['toggleClubEventTag']),
+        ...mapActions(['toggleClubEventTag', 'updateClubEventSortOption']),
+
+        handleSortChange(event) {
+            const next = event?.target?.value || 'newest';
+            this.updateClubEventSortOption(next);
+            this.currentPage = 1;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        },
+
         handlePageChange(page) {
             if (page < 1 || page > this.totalPages) {
                 return;
@@ -249,6 +257,25 @@ export default {
 <template>
     <section class="events-grid">
         <div class="container">
+            <div class="events-toolbar">
+                <div class="sort-container">
+                    <label class="sort-label" for="club-events-sort-select">Sort By</label>
+                    <select
+                        id="club-events-sort-select"
+                        class="sort-select"
+                        :value="clubEventFilters.sortOption"
+                        @change="handleSortChange"
+                    >
+                        <option value="newest">Newest</option>
+                        <option value="earliest-date">Earliest Date</option>
+                        <option value="latest-date">Latest Date</option>
+                        <option value="highest-price">Highest Price</option>
+                        <option value="lowest-price">Lowest Price</option>
+                        <option value="random">Random</option>
+                    </select>
+                </div>
+            </div>
+
             <!-- No Results Message -->
             <div v-if="events.length === 0" class="no-results">
                 <h3>No events found</h3>
@@ -403,6 +430,45 @@ export default {
     justify-content: center;
     gap: var(--space-24);
     width: 100%;
+}
+
+.events-toolbar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--space-16);
+    margin-bottom: var(--space-16);
+}
+
+.sort-container {
+    display: flex;
+    align-items: center;
+    gap: var(--space-12);
+}
+
+.sort-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    font-weight: var(--font-weight-medium);
+}
+
+.sort-select {
+    appearance: none;
+    padding: var(--space-8) var(--space-12);
+    border-radius: var(--radius-base);
+    border: 1px solid var(--color-border);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    min-width: 160px;
+}
+
+.sort-select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
 }
 
 .event-card {
@@ -726,6 +792,15 @@ export default {
 
 /* Responsive Design */
 @media (max-width: 768px) {
+    .events-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .sort-container {
+        justify-content: space-between;
+    }
+
     .events-container {
         grid-template-columns: 1fr;
     }

@@ -62,3 +62,7 @@ export const deleteEvent = (id, options = {}) => axios.delete(`${BASE_URL}/event
 		cancellationReason: options.cancellationReason ?? ''
 	}
 });
+
+export const getClubEventAnalytics = (clubId) => {
+	return axios.get(`${BASE_URL}/events/club/${clubId}/analytics`);
+};
