@@ -1,7 +1,7 @@
 
 import axios from 'axios';
 
-const BASE_URL = import.meta.env.VUE_APP_API_BASE_URL;
+const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 // ============================================
 // MOCK DATA - Remove when backend is ready
