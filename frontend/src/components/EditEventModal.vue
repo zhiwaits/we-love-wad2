@@ -185,6 +185,25 @@ import LocationPicker from './LocationPicker.vue';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 const MAX_TAGS = 10;
 
+// Helper function to scroll to top of the modal
+const scrollModalToTop = (element) => {
+    if (!element) return;
+    const modalBody = element.querySelector?.('.modal-body');
+    if (modalBody) {
+        const errorAlert = modalBody.querySelector?.('.alert--error');
+        const scrollOffset = errorAlert ? Math.max(0, errorAlert.offsetTop - (modalBody.clientHeight * 0.25)) : 0;
+        if (modalBody.scrollTo) {
+            try {
+                modalBody.scrollTo({ top: scrollOffset, behavior: 'smooth' });
+            } catch (e) {
+                modalBody.scrollTop = scrollOffset;
+            }
+        } else {
+            modalBody.scrollTop = scrollOffset;
+        }
+    }
+};
+
 export default {
     name: 'EditEventModal',
     components: {
@@ -695,6 +714,16 @@ export default {
             return date.toISOString();
         },
 
+        isPastDateTime(dateTimeStr) {
+            if (!dateTimeStr) return false;
+            try {
+                return new Date(dateTimeStr) < new Date();
+            } catch (error) {
+                console.error('Error checking past datetime:', error);
+                return false;
+            }
+        },
+
         formatLocation() {
             const { location, venue } = this.form;
             if (!venue || venue === 'Other Venue') return location.trim();
@@ -767,12 +796,22 @@ export default {
             if (desiredCapacity !== null && (!Number.isFinite(desiredCapacity) || desiredCapacity < 0)) {
                 this.error = 'Capacity must be a non-negative number or left blank.';
                 this.success = '';
+                scrollModalToTop(this.$el);
                 return;
             }
 
             if (desiredCapacity !== null && desiredCapacity < this.confirmedAttendeeCount) {
                 this.error = `Capacity cannot be lower than the ${this.confirmedAttendeeCount} confirmed attendees already registered.`;
                 this.success = '';
+                scrollModalToTop(this.$el);
+                return;
+            }
+
+            // Check if event date is in the past
+            if (this.form.start && this.isPastDateTime(this.form.start)) {
+                this.error = 'Cannot edit an event with a past date. Please select a future date.';
+                this.success = '';
+                scrollModalToTop(this.$el);
                 return;
             }
 

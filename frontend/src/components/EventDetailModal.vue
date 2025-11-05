@@ -14,6 +14,11 @@
                 </div>
 
                 <div class="modal-body">
+                    <!-- Error/Success Messages at the top -->
+                    <div v-if="rsvpMessage" class="rsvp-message" :class="rsvpMessageType">
+                        {{ rsvpMessage }}
+                    </div>
+
                     <header class="modal-header">
                         <h2 class="event-title">{{ event.title }}</h2>
                         <p class="event-organiser" v-if="event.organiser">
@@ -228,11 +233,6 @@
                                 <button type="button" class="btn btn-outline" @click="$emit('share')">Share</button>
                             </div>
                         </div>
-
-                        <!-- Error/Success Messages -->
-                        <div v-if="rsvpMessage" class="rsvp-message" :class="rsvpMessageType">
-                            {{ rsvpMessage }}
-                        </div>
                     </footer>
                 </div>
             </div>
@@ -284,13 +284,22 @@ export default {
             attendeesError: '',
             attendeesExpanded: false,
             attendeesLoadedFor: null,
-            attendeeRemovalId: null
+            attendeeRemovalId: null,
+            
+            // Message auto-dismiss timeout
+            messageTimeoutId: null,
+            messageScrollTimeout: null
         };
     },
 
     computed: {
         ...mapState(['userRSVPs']), // Use your existing state
         ...mapGetters('auth', ['isClub', 'currentUser']),
+        
+        isPastEvent() {
+            return this.isPastDateTime(this.event?.date, this.event?.time);
+        },
+        
         hasJoined() {
             if (!this.event || !this.userRSVPs) return false;
             const rsvp = this.userRSVPs.find(r => r.event_id === this.event.id);
@@ -309,11 +318,12 @@ export default {
 
         joinButtonDisabled() {
             const eventAtCapacity = this.isEventFull && !this.isPending;
-            return this.isJoining || this.hasJoined || this.isClub || eventAtCapacity;
+            return this.isJoining || this.hasJoined || this.isClub || eventAtCapacity || this.isPastEvent;
         },
 
         joinButtonLabel() {
             if (this.isClub) return 'Clubs Cannot RSVP';
+            if (this.isPastEvent) return 'Event Has Passed';
             if (this.isJoining) return this.isPending ? 'Cancelling...' : 'Joining...';
             if (this.hasJoined) return '✓ Joined';
             if (this.isPending) return 'Pending Confirmation';
@@ -462,6 +472,8 @@ export default {
     beforeUnmount() {
         document.body.classList.remove('modal-open');
         window.removeEventListener('keyup', this.handleEsc);
+        if (this.messageTimeoutId) clearTimeout(this.messageTimeoutId);
+        if (this.messageScrollTimeout) clearTimeout(this.messageScrollTimeout);
         this.resetAttendeesState();
     },
 
@@ -614,6 +626,94 @@ export default {
             }
         },
 
+        isPastDateTime(dateStr, timeStr) {
+            if (!dateStr) return false;
+            
+            try {
+                // If we have both date and time, combine them
+                let dateTimeStr = dateStr;
+                if (timeStr) {
+                    // Parse time string (e.g., "2:30 PM" or "14:30")
+                    dateTimeStr = `${dateStr}T${this.parseTimeToISO(timeStr)}`;
+                } else {
+                    // If only date is provided, assume midnight
+                    dateTimeStr = `${dateStr}T00:00:00`;
+                }
+                
+                const eventDateTime = new Date(dateTimeStr);
+                const now = new Date();
+                
+                // Return true if event is in the past
+                return eventDateTime < now;
+            } catch (error) {
+                console.error('Error checking past datetime:', error);
+                return false;
+            }
+        },
+
+        parseTimeToISO(timeStr) {
+            if (!timeStr) return '00:00:00';
+            
+            try {
+                // Handle different time formats
+                // "2:30 PM", "14:30", "02:30 PM", etc.
+                const timeRegex = /^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?$/i;
+                const match = timeStr.match(timeRegex);
+                
+                if (!match) return '00:00:00';
+                
+                let hours = parseInt(match[1], 10);
+                const minutes = match[2];
+                const seconds = match[3] || '00';
+                const meridiem = match[4];
+                
+                // Convert to 24-hour format if AM/PM is specified
+                if (meridiem) {
+                    const isPM = meridiem.toUpperCase() === 'PM';
+                    if (isPM && hours !== 12) {
+                        hours += 12;
+                    } else if (!isPM && hours === 12) {
+                        hours = 0;
+                    }
+                }
+                
+                return `${String(hours).padStart(2, '0')}:${minutes}:${seconds}`;
+            } catch (error) {
+                console.error('Error parsing time:', error);
+                return '00:00:00';
+            }
+        },
+
+        showMessage(message, type = 'error') {
+            this.rsvpMessage = message;
+            this.rsvpMessageType = type;
+            
+            if (this.messageTimeoutId) clearTimeout(this.messageTimeoutId);
+            if (this.messageScrollTimeout) clearTimeout(this.messageScrollTimeout);
+            
+            this.messageScrollTimeout = setTimeout(() => {
+                const modalBody = this.$el?.querySelector?.('.modal-body');
+                if (modalBody) {
+                    const targetScroll = Math.max(0, -60);
+                    if (modalBody.scrollTo) {
+                        try {
+                            modalBody.scrollTo({ top: targetScroll, behavior: 'smooth' });
+                        } catch (e) {
+                            modalBody.scrollTop = targetScroll;
+                        }
+                    } else {
+                        modalBody.scrollTop = targetScroll;
+                    }
+                }
+            }, 10);
+            
+            this.messageTimeoutId = setTimeout(() => {
+                this.rsvpMessage = '';
+                this.rsvpMessageType = '';
+                this.messageTimeoutId = null;
+            }, 3000);
+        },
+
         // Handle Join Event Button Click
         async handleJoinEvent() {
             if (this.isJoining || this.hasJoined) return;
@@ -625,20 +725,18 @@ export default {
 
             // Check if user is logged in
             if (!this.currentUser || !this.currentUser.id) {
-                this.rsvpMessage = 'Please log in to join events';
-                this.rsvpMessageType = 'error';
-                setTimeout(() => {
-                    this.rsvpMessage = '';
-                }, 3000);
+                this.showMessage('Please log in to join events', 'error');
+                return;
+            }
+
+            // Check if event date is in the past
+            if (this.isPastEvent) {
+                this.showMessage('Cannot RSVP for past events.', 'error');
                 return;
             }
 
             if (this.isEventFull) {
-                this.rsvpMessage = 'This event is already at full capacity.';
-                this.rsvpMessageType = 'error';
-                setTimeout(() => {
-                    this.rsvpMessage = '';
-                }, 3000);
+                this.showMessage('This event is already at full capacity.', 'error');
                 return;
             }
 
@@ -656,8 +754,10 @@ export default {
                 
                 // Set pending state - this will be preserved until store updates
                 this.isPending = true;
-                this.rsvpMessage = data?.message || 'Confirmation email sent! Please check your inbox.';
-                this.rsvpMessageType = 'success';
+                this.showMessage(
+                    data?.message || 'Confirmation email sent! Please check your inbox.',
+                    'success'
+                );
 
                 // Refresh attendee data if this is a club owner viewing attendees
                 if (this.shouldShowAttendeesSection) {
@@ -671,8 +771,8 @@ export default {
                 this.$emit('rsvp-created', this.event);
             } catch (error) {
                 console.error('Error creating RSVP:', error);
-                this.rsvpMessage = error.response?.data?.error || 'Failed to join event. Please try again.';
-                this.rsvpMessageType = 'error';
+                const errorMsg = error.response?.data?.error || 'Failed to join event. Please try again.';
+                this.showMessage(errorMsg, 'error');
             } finally {
                 this.isJoining = false;
             }
