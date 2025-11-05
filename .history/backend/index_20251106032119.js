@@ -52,13 +52,12 @@ const isOriginAllowed = (origin) => {
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   const allowed = isOriginAllowed(origin);
-  const requestedHeaders = req.headers['access-control-request-headers'];
 
   if (allowed) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Methods', ALLOWED_METHODS);
-  res.setHeader('Access-Control-Allow-Headers', requestedHeaders || ALLOWED_HEADERS.join(', '));
+    res.setHeader('Access-Control-Allow-Headers', ALLOWED_HEADERS.join(', '));
     res.setHeader('Access-Control-Max-Age', '86400');
     res.setHeader('Vary', 'Origin');
   }

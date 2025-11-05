@@ -23,8 +23,6 @@ const STATIC_ALLOWED_ORIGINS = new Set([
   'http://localhost:5173',
   'http://localhost:3000',
   'http://127.0.0.1:5173',
-  'https://testwad2-tglu.vercel.app',
-  'https://testwad2-tglu-gwjbn2gka-jin-raes-projects.vercel.app',
   'https://testwad2-a91n.vercel.app',
   'https://testwad2-a91n-g02b5xnav-jin-raes-projects.vercel.app'
 ]);
@@ -52,13 +50,12 @@ const isOriginAllowed = (origin) => {
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   const allowed = isOriginAllowed(origin);
-  const requestedHeaders = req.headers['access-control-request-headers'];
 
   if (allowed) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Methods', ALLOWED_METHODS);
-  res.setHeader('Access-Control-Allow-Headers', requestedHeaders || ALLOWED_HEADERS.join(', '));
+    res.setHeader('Access-Control-Allow-Headers', ALLOWED_HEADERS.join(', '));
     res.setHeader('Access-Control-Max-Age', '86400');
     res.setHeader('Vary', 'Origin');
   }
