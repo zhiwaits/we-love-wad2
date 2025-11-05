@@ -2,15 +2,24 @@
   <div class="user-calendar">
     <div class="calendar-header">
       <h3>My Event Calendar</h3>
-      <div class="calendar-legend">
-        <span class="legend-item rsvp">
-          <span class="legend-dot"></span>
-          RSVP'd Events
-        </span>
-        <span class="legend-item saved">
-          <span class="legend-dot"></span>
-          Saved Events
-        </span>
+      <div class="calendar-header-actions">
+        <div class="calendar-legend" v-show="!showAllEvents">
+          <span class="legend-item rsvp">
+            <span class="legend-dot"></span>
+            RSVP'd Events
+          </span>
+          <span class="legend-item saved">
+            <span class="legend-dot"></span>
+            Saved Events
+          </span>
+        </div>
+        <label class="all-events-toggle">
+          <input type="checkbox" v-model="showAllEvents" aria-label="Toggle all events" />
+          <span class="toggle-track">
+            <span class="toggle-thumb"></span>
+          </span>
+          <span class="toggle-label">All Events</span>
+        </label>
       </div>
     </div>
 
@@ -45,12 +54,81 @@ const store = useStore();
 const allEvents = computed(() => store.state.allEvents);
 const userRSVPs = computed(() => store.state.userRSVPs);
 const savedEvents = computed(() => store.state.savedEvents);
+const showAllEvents = ref(false);
+const categoryColorMap = computed(() => store.getters.categoryColorMap || {});
+const normalizedCategoryColors = computed(() => {
+  const entries = {};
+  const map = categoryColorMap.value;
+  if (!map || typeof map !== 'object') {
+    return entries;
+  }
+  Object.keys(map).forEach((name) => {
+    if (!name) {
+      return;
+    }
+    const key = String(name).toLowerCase();
+    if (!entries[key]) {
+      entries[key] = map[name];
+    }
+  });
+  return entries;
+});
 
 const selectedEvent = ref(null);
 const isModalVisible = ref(false);
 
 // Transform events for FullCalendar
+const resolveEventStartDate = (event) => {
+  if (!event) return null;
+  return (
+    event.date ||
+    event.datetime ||
+    event.start_datetime ||
+    event.startDateTime ||
+    event.startDate ||
+    null
+  );
+};
+
 const calendarEvents = computed(() => {
+  if (showAllEvents.value) {
+    const normalizedColors = normalizedCategoryColors.value;
+    const events = [];
+    allEvents.value.forEach((event) => {
+      if (!event) {
+        return;
+      }
+      const eventId = event.id != null ? event.id : event.event_id;
+      const startDate = resolveEventStartDate(event);
+      if (eventId == null || !startDate) {
+        return;
+      }
+      const categoryName = typeof event.category === 'string' ? event.category : '';
+      const colorKey = categoryName ? categoryName.toLowerCase() : '';
+      const color = normalizedColors[colorKey] || '#2563eb';
+      events.push({
+        id: `all-${eventId}`,
+        title: event.title,
+        start: startDate,
+        className: 'event-category',
+        backgroundColor: color,
+        borderColor: color,
+        textColor: '#ffffff',
+        extendedProps: {
+          eventId,
+          eventType: 'all',
+          description: event.description,
+          venue: event.venue || event.location,
+          category: event.category,
+          time: event.time,
+          imageUrl: event.image,
+          organiser: event.organiser
+        }
+      });
+    });
+    return events;
+  }
+
   const events = [];
   console.log('=== CALENDAR DEBUG ===');
   console.log('All Events:', allEvents.value.length);
@@ -62,13 +140,14 @@ const calendarEvents = computed(() => {
     const eventId = Number(event.id);
     const isRsvp = userRSVPs.value.some(rsvp => Number(rsvp.event_id || rsvp) === eventId);
     const isSaved = savedEvents.value.some(saved => Number(saved.event_id || saved) === eventId);
-    
-    if (isRsvp && isSaved) {
+    const startDate = resolveEventStartDate(event);
+
+    if (isRsvp && isSaved && startDate) {
       console.log('Found BOTH event:', eventId, event.title);
       events.push({
         id: `both-${event.id}`,
         title: event.title,
-        start: event.date,
+        start: startDate,
         className: 'event-both',
         extendedProps: {
           eventId: event.id,
@@ -89,13 +168,14 @@ const calendarEvents = computed(() => {
     const eventId = Number(event.id);
     const isRsvp = userRSVPs.value.some(rsvp => Number(rsvp.event_id || rsvp) === eventId);
     const isSaved = savedEvents.value.some(saved => Number(saved.event_id || saved) === eventId);
-    
-    if (isRsvp && !isSaved) {
+    const startDate = resolveEventStartDate(event);
+
+    if (isRsvp && !isSaved && startDate) {
       console.log('Found RSVP-only event:', eventId, event.title);
       events.push({
         id: `rsvp-${event.id}`,
         title: event.title,
-        start: event.date,
+        start: startDate,
         className: 'event-rsvp',
         extendedProps: {
           eventId: event.id,
@@ -116,13 +196,14 @@ const calendarEvents = computed(() => {
     const eventId = Number(event.id);
     const isRsvp = userRSVPs.value.some(rsvp => Number(rsvp.event_id || rsvp) === eventId);
     const isSaved = savedEvents.value.some(saved => Number(saved.event_id || saved) === eventId);
-    
-    if (isSaved && !isRsvp) {
+    const startDate = resolveEventStartDate(event);
+
+    if (isSaved && !isRsvp && startDate) {
       console.log('Found SAVED-only event:', eventId, event.title);
       events.push({
         id: `saved-${event.id}`,
         title: event.title,
-        start: event.date,
+        start: startDate,
         className: 'event-saved',
         extendedProps: {
           eventId: event.id,
@@ -273,6 +354,67 @@ function formatEventDate(date) {
   margin: 0;
   font-size: 20px;
   font-weight: 600;
+  color: #1f2937;
+}
+
+.calendar-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.all-events-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 14px;
+  color: #1f2937;
+}
+
+.all-events-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-track {
+  width: 44px;
+  height: 24px;
+  background: #d1d5db;
+  border-radius: 9999px;
+  position: relative;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.2);
+  transition: transform 0.2s ease;
+}
+
+.all-events-toggle input:checked + .toggle-track {
+  background: #3788d8;
+}
+
+.all-events-toggle input:checked + .toggle-track .toggle-thumb {
+  transform: translateX(20px);
+}
+
+.toggle-label {
+  font-weight: 500;
   color: #1f2937;
 }
 
@@ -570,6 +712,19 @@ function formatEventDate(date) {
   .calendar-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .calendar-header-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 12px;
+  }
+
+  .calendar-legend {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   :deep(.fc .fc-toolbar) {
