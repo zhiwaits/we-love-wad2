@@ -10,6 +10,20 @@ const router = useRouter();
 
 const MAX_TAGS = 10;
 
+// Helper function to scroll to top of the page
+const scrollToTop = () => {
+	nextTick(() => {
+		const errorAlert = document.querySelector('.create-event .alert--error');
+		if (errorAlert) {
+			const elementRect = errorAlert.getBoundingClientRect();
+			const scrollPosition = window.scrollY + elementRect.top - (window.innerHeight * 0.25);
+			window.scrollTo({ top: Math.max(0, scrollPosition), behavior: 'smooth' });
+		} else {
+			window.scrollTo({ top: 0, behavior: 'smooth' });
+		}
+	});
+};
+
 const form = ref({
 	title: '',
 	description: '',
@@ -91,7 +105,15 @@ const toIsoString = (value) => {
 	return date.toISOString();
 };
 
-const resetMessages = () => {
+	const isPastDateTime = (dateTimeStr) => {
+		if (!dateTimeStr) return false;
+		try {
+			return new Date(dateTimeStr) < new Date();
+		} catch (error) {
+			console.error('Error checking past datetime:', error);
+			return false;
+		}
+	};const resetMessages = () => {
 	error.value = '';
 	success.value = '';
 };
@@ -266,9 +288,17 @@ const handleSubmit = async () => {
 	submitting.value = true;
 
 	try {
+		// Check if event date is in the past
+		if (form.value.start && isPastDateTime(form.value.start)) {
+			error.value = 'Cannot create an event with a past date. Please select a future date.';
+			scrollToTop();
+			submitting.value = false;
+			return;
+		}
 
 		if (!imageFile.value) {
 			error.value = 'Event image is required.';
+			scrollToTop();
 			submitting.value = false;
 			return;
 		}
