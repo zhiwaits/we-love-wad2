@@ -80,7 +80,7 @@ export const checkAvailability = async ({ email, username }) => {
 
 export const login = async (email, password) => {
   try {
-    const response = await axios.post(`/login`, { email, password });
+    const response = await axios.post(`${BASE_URL}/login`, { email, password });
     const { token } = response.data ?? {};
     if (token) {
       localStorage.setItem('token', token);
