@@ -31,6 +31,14 @@ export default {
 
     mounted() {
         this.$store.dispatch('fetchAllEvents');
+        // Load all events for recommendation logic
+        this.$store.dispatch('fetchAllEventsUnfiltered');
+        // Load user data for tags - only if user is already logged in
+        if (this.isUserLoggedIn) {
+            this.$store.dispatch('fetchUserRSVPs', this.currentUser.id);
+            this.$store.dispatch('loadSavedEvents');
+            this.$store.dispatch('fetchUserPreferences', { userId: this.currentUser.id });
+        }
     },
 
     computed: {
@@ -38,6 +46,7 @@ export default {
         ...mapGetters(['categoryColorMap']),
         ...mapGetters('auth', { currentUser: 'currentUser' }),
         ...mapState(['filters', 'pagination', 'showRecommended']),
+        ...mapState(['allEvents', 'userRSVPs', 'savedEvents', 'userPreferences', 'categories', 'availableTags']),
 
         events() {
             return this.filteredEvents;
@@ -56,14 +65,247 @@ export default {
 
         totalEventCount() {
             return this.events.length;
+        },
+
+        // Top 6 recommended events (upcoming, highest preference score, excluding saved/RSVP'd)
+        topRecommendedEvents() {
+            const now = new Date();
+            const savedEventIds = new Set(this.savedEvents || []);
+            const rsvpdEventIds = new Set((this.userRSVPs || [])
+                .filter(rsvp => rsvp.status === 'confirmed' || rsvp.status === 'pending')
+                .map(rsvp => rsvp.event_id));
+
+            // Build preference scorer
+            const buildPreferenceScorer = () => {
+                const categoryPrefsSource = Array.isArray(this.userPreferences?.categoryPreferences) && this.userPreferences.categoryPreferences.length > 0
+                    ? this.userPreferences.categoryPreferences
+                    : Array.isArray(this.currentUser?.categoryPreferences)
+                        ? this.currentUser.categoryPreferences
+                        : [];
+
+                const clubCategoryPrefsSource = Array.isArray(this.userPreferences?.clubCategoryPreferences) && this.userPreferences.clubCategoryPreferences.length > 0
+                    ? this.userPreferences.clubCategoryPreferences
+                    : Array.isArray(this.currentUser?.clubCategoryPreferences)
+                        ? this.currentUser.clubCategoryPreferences
+                        : [];
+
+                const tagPreferencesSource = Array.isArray(this.userPreferences?.tagPreferences) && this.userPreferences.tagPreferences.length > 0
+                    ? this.userPreferences.tagPreferences
+                    : Array.isArray(this.currentUser?.tagPreferences)
+                        ? this.currentUser.tagPreferences
+                        : [];
+
+                const hasAnyPrefs =
+                    categoryPrefsSource.length > 0 ||
+                    clubCategoryPrefsSource.length > 0 ||
+                    tagPreferencesSource.length > 0;
+
+                if (!hasAnyPrefs) return null;
+
+                const categoryPrefs = categoryPrefsSource;
+                const clubCategoryPrefs = clubCategoryPrefsSource;
+                const tagPreferences = tagPreferencesSource;
+
+                const preferredCategories = new Set();
+                const availableCategories = Array.isArray(this.categories) ? this.categories : [];
+                const categoryIdToName = new Map();
+                availableCategories.forEach((category) => {
+                    if (!category) return;
+                    const id = Number(category.id);
+                    const name = (typeof category === 'string' ? category : category.name)?.toString().trim().toLowerCase();
+                    if (Number.isFinite(id) && name) {
+                        categoryIdToName.set(id, name);
+                    }
+                });
+
+                categoryPrefs.forEach((value) => {
+                    if (!value && value !== 0) return;
+                    if (typeof value === 'string') {
+                        const normalized = value.trim().toLowerCase();
+                        if (normalized) {
+                            preferredCategories.add(normalized);
+                        }
+                        const numeric = Number(value);
+                        if (Number.isFinite(numeric) && categoryIdToName.has(numeric)) {
+                            preferredCategories.add(categoryIdToName.get(numeric));
+                        }
+                    } else if (Number.isFinite(Number(value))) {
+                        const numeric = Number(value);
+                        if (categoryIdToName.has(numeric)) {
+                            preferredCategories.add(categoryIdToName.get(numeric));
+                        }
+                    } else if (typeof value === 'object') {
+                        const numeric = Number(value.category_id ?? value.id);
+                        if (Number.isFinite(numeric) && categoryIdToName.has(numeric)) {
+                            preferredCategories.add(categoryIdToName.get(numeric));
+                        }
+                        const name = (value.name || value.category_name || '').toString().trim().toLowerCase();
+                        if (name) {
+                            preferredCategories.add(name);
+                        }
+                    }
+                });
+
+                const preferredClubCategoryIds = new Set();
+                const preferredClubCategoryNames = new Set();
+
+                clubCategoryPrefs.forEach((value) => {
+                    if (!value && value !== 0) return;
+                    if (typeof value === 'string') {
+                        const normalized = value.trim().toLowerCase();
+                        if (normalized) {
+                            preferredClubCategoryNames.add(normalized);
+                        }
+                        const numeric = Number(value);
+                        if (Number.isFinite(numeric)) {
+                            preferredClubCategoryIds.add(numeric);
+                        }
+                    } else if (Number.isFinite(Number(value))) {
+                        preferredClubCategoryIds.add(Number(value));
+                    } else if (typeof value === 'object') {
+                        const numeric = Number(value.club_category_id ?? value.id);
+                        if (Number.isFinite(numeric)) {
+                            preferredClubCategoryIds.add(numeric);
+                        }
+                        const name = (value.name || value.category_name || value.club_category_name || '')
+                            .toString()
+                            .trim()
+                            .toLowerCase();
+                        if (name) {
+                            preferredClubCategoryNames.add(name);
+                        }
+                    }
+                });
+
+                const availableTags = Array.isArray(this.availableTags) ? this.availableTags : [];
+                const tagIdToName = new Map();
+                availableTags.forEach((tag) => {
+                    if (!tag) return;
+                    const id = Number(tag.id);
+                    if (Number.isFinite(id)) {
+                        const name = (tag.tag_name || tag.name || '').trim().toLowerCase();
+                        if (name) {
+                            tagIdToName.set(id, name);
+                        }
+                    }
+                });
+
+                const preferredTagNames = new Set();
+                tagPreferences.forEach((value) => {
+                    if (!value && value !== 0) return;
+                    if (typeof value === 'string') {
+                        const normalized = value.trim().toLowerCase();
+                        if (normalized) {
+                            preferredTagNames.add(normalized);
+                        }
+                        const numeric = Number(value);
+                        if (Number.isFinite(numeric) && tagIdToName.has(numeric)) {
+                            preferredTagNames.add(tagIdToName.get(numeric));
+                        }
+                    } else if (Number.isFinite(Number(value))) {
+                        const numeric = Number(value);
+                        if (tagIdToName.has(numeric)) {
+                            preferredTagNames.add(tagIdToName.get(numeric));
+                        }
+                    } else if (typeof value === 'object') {
+                        const numeric = Number(value.tag_id ?? value.id);
+                        if (Number.isFinite(numeric) && tagIdToName.has(numeric)) {
+                            preferredTagNames.add(tagIdToName.get(numeric));
+                        }
+                        const name = (value.name || value.tag_name || '').toString().trim().toLowerCase();
+                        if (name) {
+                            preferredTagNames.add(name);
+                        }
+                    }
+                });
+
+                const hasPrefs =
+                    preferredCategories.size > 0 ||
+                    preferredClubCategoryIds.size > 0 ||
+                    preferredClubCategoryNames.size > 0 ||
+                    preferredTagNames.size > 0;
+
+                if (!hasPrefs) return null;
+
+                return (event) => {
+                    let score = 0;
+
+                    const category = event?.category?.toString().trim().toLowerCase();
+                    if (category && preferredCategories.has(category)) {
+                        score += 1;
+                    }
+
+                    const eventTags = Array.isArray(event?.tags)
+                        ? event.tags.map((tag) => tag?.toString().trim().toLowerCase()).filter(Boolean)
+                        : [];
+
+                    let preferredTagCounter = 0;
+                    eventTags.forEach((tagName) => {
+                        if (preferredTagNames.has(tagName)) {
+                            score += 0.3 + 0.1 * preferredTagCounter;
+                            preferredTagCounter += 1;
+                        } else if (preferredTagNames.size > 0) {
+                            score -= 0.02;
+                        }
+                    });
+
+                    const clubCategoryId = event?.clubCategoryId ?? event?.club_category_id;
+                    const clubCategoryName = event?.clubCategoryName ?? event?.club_category_name;
+                    let appliedMultiplier = false;
+
+                    if (Number.isFinite(Number(clubCategoryId)) && preferredClubCategoryIds.has(Number(clubCategoryId))) {
+                        score += 0.4;
+                        appliedMultiplier = true;
+                    } else if (typeof clubCategoryName === 'string' && preferredClubCategoryNames.has(clubCategoryName.trim().toLowerCase())) {
+                        score += 0.4;
+                        appliedMultiplier = true;
+                    }
+
+                    if (appliedMultiplier) {
+                        score *= 1.25;
+                    }
+
+                    return score;
+                };
+            };
+
+            const preferenceScorer = buildPreferenceScorer();
+
+            // Filter and score events
+            const scoredEvents = (this.allEvents || [])
+                .filter(event => {
+                    if (!event) return false;
+                    const eventDate = new Date(event.datetime || event.date);
+                    return eventDate > now; // Only upcoming events
+                })
+                .filter(event => {
+                    // Exclude saved and RSVP'd events
+                    return !savedEventIds.has(event.id) && !rsvpdEventIds.has(event.id);
+                })
+                .map(event => {
+                    const score = preferenceScorer ? preferenceScorer(event) : 0;
+                    return { event, score };
+                })
+                .sort((a, b) => b.score - a.score) // Sort by score descending
+                .slice(0, 6) // Take top 6
+                .map(item => item.event);
+
+            return scoredEvents;
         }
     },
 
     methods: {
-        ...mapActions(['toggleTag', 'changeEventsPage', 'toggleRecommended']),
+        ...mapActions(['toggleTag', 'changeEventsPage', 'toggleRecommended', 'updateSortOption']),
 
         handleToggleRecommended() {
             this.$store.dispatch('toggleRecommended');
+        },
+
+        handleSortChange(event) {
+            const next = event?.target?.value || 'preference';
+            this.updateSortOption(next);
+            this.changeEventsPage(1);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         },
 
         eventImageSrc(event) {
@@ -217,10 +459,68 @@ export default {
                 message: 'RSVP successful!',
                 type: 'success'
             });
+        },
+
+        // Get the appropriate tag for an event based on precedence
+        getEventTag(event) {
+            if (!event || !this.isUserLoggedIn) return null;
+
+            const now = new Date();
+            const eventDate = new Date(event.datetime || event.date);
+            const isPast = eventDate < now;
+
+            const userRSVPs = this.userRSVPs || [];
+            const savedEvents = this.savedEvents || [];
+
+            const hasConfirmedRSVP = userRSVPs.some(rsvp => 
+                Number(rsvp.event_id) === Number(event.id) && rsvp.status === 'confirmed'
+            );
+            const hasPendingRSVP = userRSVPs.some(rsvp => 
+                Number(rsvp.event_id) === Number(event.id) && rsvp.status === 'pending'
+            );
+            const isSaved = savedEvents.includes(Number(event.id));
+
+            // Check precedence: Attended > Past > RSVP'd > Pending > Saved > Recommended
+            if (isPast && hasConfirmedRSVP) return 'Attended';
+            if (isPast) return 'Past';
+            if (hasConfirmedRSVP) return 'RSVP\'d';
+            if (hasPendingRSVP) return 'Pending';
+            if (isSaved) return 'Saved';
+
+            // Check if it's in top recommended
+            const topRecommended = this.topRecommendedEvents || [];
+            if (topRecommended.some(rec => Number(rec.id) === Number(event.id))) {
+                return 'Recommended';
+            }
+
+            return null;
+        },
+
+        // Get emoji for event tag
+        getEventTagEmoji(event) {
+            const tag = this.getEventTag(event);
+            const emojiMap = {
+                'Attended': '✅',
+                'Past': '⏰',
+                'RSVP\'d': '🎫',
+                'Pending': '⏳',
+                'Saved': '💾',
+                'Recommended': '⭐'
+            };
+            return emojiMap[tag] || '';
         }
     },
 
     watch: {
+        currentUser(newUser, oldUser) {
+            if (newUser && newUser.id && (!oldUser || !oldUser.id)) {
+                // User just logged in, load their data
+                this.$store.dispatch('fetchUserRSVPs', newUser.id);
+                this.$store.dispatch('loadSavedEvents');
+                this.$store.dispatch('fetchUserPreferences', { userId: newUser.id });
+            }
+        },
+
         filteredEvents(newEvents) {
             const perPage = this.pagination?.eventsPerPage || 6;
             const totalEvents = Array.isArray(newEvents) ? newEvents.length : 0;
@@ -244,18 +544,37 @@ export default {
 <template>
     <section class="events-grid">
         <div class="container">
-            <!-- Recommended Toggle (only for logged-in users) -->
-            <div v-if="isUserLoggedIn" class="recommended-toggle-container">
-                <button
-                    class="recommended-toggle"
-                    :class="{ 'active': showRecommended }"
-                    @click="handleToggleRecommended"
-                >
-                    <span class="toggle-icon">{{ showRecommended ? '⭐' : '☆' }}</span>
-                    <span class="toggle-text">
-                        {{ showRecommended ? 'Viewing Recommended' : 'View Recommended' }}
-                    </span>
-                </button>
+            <div class="events-toolbar">
+                <div v-if="isUserLoggedIn" class="recommended-toggle-container">
+                    <button
+                        class="recommended-toggle"
+                        :class="{ 'active': showRecommended }"
+                        @click="handleToggleRecommended"
+                    >
+                        <span class="toggle-icon">{{ showRecommended ? '⭐' : '☆' }}</span>
+                        <span class="toggle-text">
+                            {{ showRecommended ? 'Viewing Recommended' : 'View Recommended' }}
+                        </span>
+                    </button>
+                </div>
+
+                <div class="sort-container">
+                    <label class="sort-label" for="events-sort-select">Sort By</label>
+                    <select
+                        id="events-sort-select"
+                        class="sort-select"
+                        :value="filters.sortOption"
+                        @change="handleSortChange"
+                    >
+                        <option value="preference">Preference</option>
+                        <option value="newest">Newest</option>
+                        <option value="earliest-date">Earliest Date</option>
+                        <option value="latest-date">Latest Date</option>
+                        <option value="highest-price">Highest Price</option>
+                        <option value="lowest-price">Lowest Price</option>
+                        <option value="random">Random</option>
+                    </select>
+                </div>
             </div>
 
             <!-- No Results Message -->
@@ -281,6 +600,11 @@ export default {
                         <div v-if="!eventImageSrc(event)" class="event-image-placeholder"></div>
                         <div class="event-price-tag" :class="{ 'price-free': event.price === 'FREE' }">
                             {{ event.price }}
+                        </div>
+                        <!-- Event Status Badge -->
+                        <div v-if="getEventTag(event)" class="event-status-badge" :class="`badge-${getEventTag(event).toLowerCase().replace(/'/g, '').replace(/\s+/g, '-')}`">
+                            <span class="badge-emoji">{{ getEventTagEmoji(event) }}</span>
+                            <span class="badge-text">{{ getEventTag(event) }}</span>
                         </div>
                     </div>
 
@@ -490,6 +814,84 @@ export default {
     color: var(--color-white) !important;
 }
 
+.event-status-badge {
+    position: absolute;
+    top: var(--space-12);
+    left: var(--space-12);
+    padding: var(--space-6) var(--space-10);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    cursor: default;
+}
+
+.event-status-badge:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.badge-emoji {
+    font-size: var(--font-size-sm);
+    line-height: 1;
+}
+
+.badge-text {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+}
+
+.badge-attended {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: var(--color-white);
+    border-color: #10b981;
+}
+
+.badge-past {
+    background: linear-gradient(135deg, #6b7280, #4b5563);
+    color: var(--color-white);
+    border-color: #6b7280;
+}
+
+.badge-rsvpd {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: var(--color-white);
+    border-color: #3b82f6;
+}
+
+.badge-pending {
+    background: linear-gradient(135deg, #f97316, #ea580c);
+    color: var(--color-white);
+    border-color: #f97316;
+}
+
+.badge-saved {
+    background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+    color: var(--color-white);
+    border-color: #8b5cf6;
+}
+
+.badge-recommended {
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    color: #1f2937;
+    border-color: #fbbf24;
+    animation: sparkle 2s ease-in-out infinite;
+    font-weight: 800;
+}
+
+@keyframes sparkle {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
 .event-content {
     padding: var(--space-20);
     display: flex;
@@ -561,6 +963,7 @@ export default {
     margin: 0;
     display: -webkit-box;
     -webkit-line-clamp: 3;
+    line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
     flex: 1;
@@ -716,11 +1119,49 @@ export default {
     to { opacity: 1; transform: translateY(0); }
 }
 
+/* Toolbar */
+.events-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: var(--space-16, 16px);
+    margin-bottom: var(--space-16, 16px);
+}
+
+.sort-container {
+    display: flex;
+    align-items: center;
+    gap: var(--space-8, 8px);
+}
+
+.sort-label {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--color-text-secondary, #6b7280);
+}
+
+.sort-select {
+    min-width: 180px;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    background-color: #ffffff;
+    color: #1f2937;
+    font-size: 0.95rem;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sort-select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
 /* Recommended toggle styles */
 .recommended-toggle-container {
     display: flex;
     justify-content: flex-end;
-    margin-bottom: var(--space-16, 16px);
 }
 
 .recommended-toggle {
@@ -764,6 +1205,19 @@ export default {
 @media (max-width: 768px) {
     .events-container {
         grid-template-columns: 1fr;
+    }
+
+    .events-toolbar {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .sort-container {
+        justify-content: center;
+    }
+
+    .sort-select {
+        width: 100%;
     }
 
     .recommended-toggle-container {

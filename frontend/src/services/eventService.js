@@ -57,4 +57,12 @@ export const createEvent = (eventData) => {
 };
 
 export const updateEvent = (id, eventData) => axios.put(`${BASE_URL}/events/${id}`, eventData);
-export const deleteEvent = (id) => axios.delete(`${BASE_URL}/events/${id}`);
+export const deleteEvent = (id, options = {}) => axios.delete(`${BASE_URL}/events/${id}`, {
+	data: {
+		cancellationReason: options.cancellationReason ?? ''
+	}
+});
+
+export const getClubEventAnalytics = (clubId) => {
+	return axios.get(`${BASE_URL}/events/club/${clubId}/analytics`);
+};

@@ -6,6 +6,7 @@ import { getAllEventVenues } from '../services/eventVenueService.js';
 import { getAllTags } from '../services/tagService.js';
 import { getAllEventTags } from '../services/eventTagService.js';
 import { getAllSaved, getSavedByUserId, getSavedByEventId, createSaved, deleteSaved } from '../services/savedEventsService.js';
+import { getUserPreferences } from '../services/profileService.js';
 import clubs from './modules/clubs';
 
 let toastTimer = null;
@@ -152,6 +153,85 @@ const getClubEventSource = (state) => {
   return Array.isArray(state.allEvents) ? state.allEvents : [];
 };
 
+const generateRandomSortMap = (events = []) => {
+  if (!Array.isArray(events)) return {};
+  const map = {};
+  events.forEach((event) => {
+    if (!event) return;
+    const key = event.id != null ? String(event.id) : (event.event_id != null ? String(event.event_id) : null);
+    if (!key) return;
+    map[key] = Math.random();
+  });
+  return map;
+};
+
+const pruneRandomSortMap = (map = {}, events = []) => {
+  if (!map || typeof map !== 'object') return {};
+  if (!Array.isArray(events)) return {};
+  const allowed = new Set(
+    events
+      .map((event) => {
+        if (!event) return null;
+        if (event.id != null) return String(event.id);
+        if (event.event_id != null) return String(event.event_id);
+        return null;
+      })
+      .filter(Boolean)
+  );
+  const next = {};
+  Object.keys(map).forEach((key) => {
+    if (allowed.has(key)) {
+      next[key] = map[key];
+    }
+  });
+  return next;
+};
+
+const parseDateValue = (value) => {
+  if (!value && value !== 0) return null;
+
+  if (value instanceof Date) {
+    const time = value.getTime();
+    return Number.isNaN(time) ? null : time;
+  }
+
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    const attempts = new Set();
+    const baseCandidates = [trimmed];
+
+    if (trimmed.includes(' ')) {
+      baseCandidates.push(trimmed.replace(' ', 'T'));
+    }
+
+    baseCandidates.forEach((candidate) => {
+      let working = candidate;
+      if (/\.\d{4,}$/.test(working)) {
+        working = working.replace(/(\.\d{3})\d+$/, '$1');
+      }
+      attempts.add(working);
+      if (!/[zZ]$/.test(working) && !/[+\-]\d{2}:?\d{2}$/.test(working)) {
+        attempts.add(`${working}Z`);
+      }
+    });
+
+    for (const attempt of attempts) {
+      const parsed = Date.parse(attempt);
+      if (!Number.isNaN(parsed)) {
+        return parsed;
+      }
+    }
+  }
+
+  return null;
+};
+
 const createDefaultFilters = () => ({
   searchQuery: '',
   selectedCategories: [],
@@ -179,7 +259,8 @@ const createDefaultFilters = () => ({
   clubFilter: {
     categoryId: 'all',
     followedOnly: false
-  }
+  },
+  sortOption: 'preference'
 });
 
 const createDefaultClubEventFilters = () => ({
@@ -198,8 +279,113 @@ const createDefaultClubEventFilters = () => ({
   },
   venueFilter: 'all',
   locationQuery: '',
-  eventStatus: 'both'
+  eventStatus: 'both',
+  sortOption: 'newest'
 });
+
+const createEmptyRangeSummary = () => ({
+  startDate: null,
+  endDate: null,
+  newFollowers: 0,
+  netChange: 0,
+  averagePerDay: 0
+});
+
+const createDefaultClubAnalytics = () => ({
+  events: [],
+  followers: {
+    totalFollowers: 0,
+    totalNewFollowers: 0,
+    baselineFollowers: 0,
+    timeline: [],
+    ranges: {
+      '30': createEmptyRangeSummary(),
+      '180': createEmptyRangeSummary(),
+      '365': createEmptyRangeSummary()
+    },
+    generatedAt: null
+  },
+  preferences: {
+    totalFollowers: 0,
+    topCategories: [],
+    topTags: [],
+    maxCategoryCount: 0,
+    maxTagCount: 0
+  }
+});
+
+const sanitizeRangeSummary = (range) => ({
+  startDate: range?.startDate || null,
+  endDate: range?.endDate || null,
+  newFollowers: Number(range?.newFollowers) || 0,
+  netChange: Number(range?.netChange) || 0,
+  averagePerDay: Number(range?.averagePerDay) || 0
+});
+
+const sanitizeClubAnalytics = (analytics) => {
+  const base = createDefaultClubAnalytics();
+
+  if (!analytics || typeof analytics !== 'object') {
+    return base;
+  }
+
+  if (Array.isArray(analytics.events)) {
+    base.events = analytics.events.map((event) => ({ ...event }));
+  }
+
+  if (analytics.followers && typeof analytics.followers === 'object') {
+    const followers = analytics.followers;
+    const timelineEntries = Array.isArray(followers.timeline)
+      ? followers.timeline
+          .map((entry) => ({
+            date: entry?.date || null,
+            newFollowers: Number(entry?.newFollowers) || 0,
+            totalFollowers: Number(entry?.totalFollowers) || 0
+          }))
+          .filter((entry) => typeof entry.date === 'string')
+      : [];
+
+    timelineEntries.sort((a, b) => a.date.localeCompare(b.date));
+
+    base.followers = {
+      totalFollowers: Number(followers.totalFollowers) || 0,
+      totalNewFollowers: Number(followers.totalNewFollowers) || 0,
+      baselineFollowers: Number(followers.baselineFollowers) || 0,
+      timeline: timelineEntries,
+      ranges: {
+        '30': sanitizeRangeSummary(followers.ranges?.['30']),
+        '180': sanitizeRangeSummary(followers.ranges?.['180']),
+        '365': sanitizeRangeSummary(followers.ranges?.['365'])
+      },
+      generatedAt: followers.generatedAt || null
+    };
+  }
+
+  if (analytics.preferences && typeof analytics.preferences === 'object') {
+    const preferences = analytics.preferences;
+    base.preferences = {
+      totalFollowers: Number(preferences.totalFollowers) || base.followers.totalFollowers,
+      topCategories: Array.isArray(preferences.topCategories)
+        ? preferences.topCategories.map((item) => ({
+            key: item?.key ?? null,
+            name: item?.name || 'Unspecified',
+            followerCount: Number(item?.followerCount) || 0
+          }))
+        : [],
+      topTags: Array.isArray(preferences.topTags)
+        ? preferences.topTags.map((item) => ({
+            id: item?.id ?? null,
+            name: item?.name || 'Unspecified',
+            followerCount: Number(item?.followerCount) || 0
+          }))
+        : [],
+      maxCategoryCount: Number(preferences.maxCategoryCount) || 0,
+      maxTagCount: Number(preferences.maxTagCount) || 0
+    };
+  }
+
+  return base;
+};
 
 const createDefaultToast = () => ({
   message: '',
@@ -234,11 +420,15 @@ const getDefaultRootState = () => ({
   savedEvents: [],
   clubRSVPs: [],
   clubFollowers: [],
+  clubAnalytics: createDefaultClubAnalytics(),
+  randomSortMap: {},
+  clubRandomSortMap: {},
   filters: createDefaultFilters(),
   clubEventFilters: createDefaultClubEventFilters(),
   categories: [],
   venues: [],
   availableTags: [],
+  userPreferences: null,
   toast: createDefaultToast()
 });
 
@@ -293,8 +483,13 @@ export default createStore({
 
     clubRSVPs: [], // Will hold RSVPs for events owned by the club
 
+    clubAnalytics: createDefaultClubAnalytics(),
+
     // Filters state
     filters: createDefaultFilters(),
+
+    randomSortMap: {},
+    clubRandomSortMap: {},
 
     // Club event filters (for managing club's own events)
     clubEventFilters: createDefaultClubEventFilters(),
@@ -303,6 +498,8 @@ export default createStore({
     venues: [],
 
     availableTags: [],
+
+    userPreferences: null,
 
     toast: {
       message: '',
@@ -319,69 +516,506 @@ export default createStore({
       return state.allEvents;
     },
     // Get filtered events based on current filters
-    filteredEvents: (state) => {
-      // If showing recommended events, use recommended events instead of browse events
-      if (state.showRecommended) {
-        return state.recommendedEvents;
+    filteredEvents: (state, getters, rootState) => {
+      const baseEvents = state.showRecommended ? state.recommendedEvents : state.browseEvents;
+      let filtered = Array.isArray(baseEvents) ? [...baseEvents] : [];
+
+      const filters = state.filters || createDefaultFilters();
+
+      const nowMs = Date.now();
+      if (filters.eventStatus === 'upcoming') {
+        filtered = filtered.filter((event) => {
+          const dateValue = event?.date || event?.datetime || event?.start_time;
+          const eventTimestamp = parseDateValue(dateValue);
+          return eventTimestamp != null ? eventTimestamp > nowMs : true;
+        });
+      } else if (filters.eventStatus === 'past') {
+        filtered = filtered.filter((event) => {
+          const dateValue = event?.date || event?.datetime || event?.start_time;
+          const eventTimestamp = parseDateValue(dateValue);
+          return eventTimestamp != null ? eventTimestamp <= nowMs : false;
+        });
       }
 
-      // Most filtering is now done on the backend
-      // Only apply client-side filters for:
-      // 1. Tags (not sent to backend)
-      // 2. Status filters (RSVP status, saved status)
-      // 3. Followed clubs (requires user data)
-      // 4. Event status (upcoming/past/both) - client-side fallback
-
-      let filtered = [...state.browseEvents];
-
-      // Event status filter (upcoming/past/both) - client-side
-      const now = new Date();
-      if (state.filters.eventStatus === 'upcoming') {
-        filtered = filtered.filter(event => new Date(event.date) > now);
-      } else if (state.filters.eventStatus === 'past') {
-        filtered = filtered.filter(event => new Date(event.date) <= now);
+      if (Array.isArray(filters.selectedTags) && filters.selectedTags.length > 0) {
+        filtered = filtered.filter((event) => {
+          const eventTags = Array.isArray(event?.tags) ? event.tags : [];
+          return filters.selectedTags.some((tag) => eventTags.includes(tag));
+        });
       }
 
-      // Tag filter (client-side only)
-      if (state.filters.selectedTags.length > 0) {
-        filtered = filtered.filter(event =>
-          state.filters.selectedTags.some(tag => event.tags.includes(tag))
-        );
-      }
-
-      // Status filters (RSVP/Saved) - client-side only
-      const statusFilter = state.filters.statusFilter || {};
+      const statusFilter = filters.statusFilter || {};
       if (statusFilter.rsvped || statusFilter.notRsvped || statusFilter.saved || statusFilter.notSaved) {
-        // Compute rsvped and saved event IDs from state
-        const rsvpedEventIds = state.userRSVPs.map(rsvp => rsvp.event_id);
-        const savedEventIds = state.savedEvents || [];
+        const rsvpedIds = new Set(state.userRSVPs.map((rsvp) => rsvp.event_id));
+        const savedIds = Array.isArray(state.savedEvents) ? new Set(state.savedEvents) : new Set();
 
-        filtered = filtered.filter(event => {
-          const isRsvped = rsvpedEventIds.includes(event.id);
-          const isSaved = savedEventIds.includes(event.id);
+        filtered = filtered.filter((event) => {
+          const isRsvped = rsvpedIds.has(event?.id);
+          const isSaved = savedIds.has(event?.id);
 
-          // RSVP filter
           if (statusFilter.rsvped && !isRsvped) return false;
           if (statusFilter.notRsvped && isRsvped) return false;
-
-          // Saved filter
           if (statusFilter.saved && !isSaved) return false;
           if (statusFilter.notSaved && isSaved) return false;
-
           return true;
         });
       }
 
-      // Followed clubs filter (client-side only)
-      const clubFilter = state.filters.clubFilter || { categoryId: 'all', followedOnly: false };
-      if (clubFilter.followedOnly && state.clubFollowers) {
-        const followedClubIds = state.clubFollowers.map(cf => cf.club_id);
-        filtered = filtered.filter(event =>
-          followedClubIds.includes(event.ownerId)
-        );
+      const clubFilter = filters.clubFilter || { categoryId: 'all', followedOnly: false };
+      if (clubFilter.categoryId && clubFilter.categoryId !== 'all') {
+        const desiredId = Number(clubFilter.categoryId);
+        filtered = filtered.filter((event) => {
+          const categoryId = event?.clubCategoryId ?? event?.club_category_id;
+          return Number(categoryId) === desiredId;
+        });
       }
 
-      return filtered;
+      if (clubFilter.followedOnly) {
+        const followedClubIds = Array.isArray(state.clubFollowers)
+          ? new Set(
+              state.clubFollowers
+                .map((entry) => entry?.club_id ?? entry?.following_id ?? entry?.id)
+                .filter((value) => value != null)
+                .map((value) => Number(value))
+            )
+          : new Set();
+        if (followedClubIds.size > 0) {
+          filtered = filtered.filter((event) => followedClubIds.has(Number(event?.ownerId ?? event?.owner_id)));
+        }
+      }
+
+      const searchQuery = filters.searchQuery?.trim().toLowerCase();
+      if (searchQuery) {
+        filtered = filtered.filter((event) => {
+          const title = event?.title?.toLowerCase() || '';
+          const description = event?.description?.toLowerCase() || '';
+          const organiser = event?.organiser?.toLowerCase() || '';
+          const location = event?.location?.toLowerCase() || '';
+          return (
+            title.includes(searchQuery) ||
+            description.includes(searchQuery) ||
+            organiser.includes(searchQuery) ||
+            location.includes(searchQuery)
+          );
+        });
+      }
+
+      const getCreatedAtTime = (event) => {
+        if (!event) return 0;
+        const candidateFields = [
+          event.created_at,
+          event.createdAt,
+          event.date_created,
+          event.dateCreated,
+          event.created_on,
+          event.createdOn
+        ];
+        for (const field of candidateFields) {
+          const parsed = parseDateValue(field);
+          if (parsed != null) {
+            return parsed;
+          }
+        }
+        const fallbackFields = [event.datetime, event.date];
+        for (const field of fallbackFields) {
+          const parsed = parseDateValue(field);
+          if (parsed != null) {
+            return parsed;
+          }
+        }
+        return 0;
+      };
+
+      const tieBreaker = (a, b, precomputedCreatedDiff) => {
+        const createdDiff = precomputedCreatedDiff ?? (getCreatedAtTime(b) - getCreatedAtTime(a));
+        if (createdDiff !== 0) {
+          return createdDiff;
+        }
+        const idA = Number(a?.id ?? a?.event_id);
+        const idB = Number(b?.id ?? b?.event_id);
+        if (Number.isFinite(idA) && Number.isFinite(idB) && idA !== idB) {
+          return idB - idA;
+        }
+        return 0;
+      };
+
+      const getEventDate = (event) => {
+        if (!event) return null;
+        const dateFields = [
+          event.datetime,
+          event.start_time,
+          event.startTime,
+          event.startDateTime,
+          event.date,
+          event.startDate,
+          event.enddatetime,
+          event.endDatetime
+        ];
+        for (const field of dateFields) {
+          const parsed = parseDateValue(field);
+          if (parsed != null) {
+            return parsed;
+          }
+        }
+        return null;
+      };
+
+      const getEventPrice = (event) => {
+        if (!event) return 0;
+        if (typeof event.priceValue === 'number' && !Number.isNaN(event.priceValue)) {
+          return event.priceValue;
+        }
+        if (typeof event.price === 'number') {
+          return Number.isNaN(event.price) ? 0 : event.price;
+        }
+        if (typeof event.price === 'string') {
+          const trimmed = event.price.trim().toUpperCase();
+          if (trimmed === 'FREE') {
+            return 0;
+          }
+          const numeric = Number(trimmed.replace(/[^0-9.]/g, ''));
+          return Number.isNaN(numeric) ? 0 : numeric;
+        }
+        return 0;
+      };
+
+      const getRandomWeight = (event) => {
+        if (!event || event.id == null) return Math.random();
+        const map = state.randomSortMap || {};
+        const key = String(event.id);
+        if (map[key] != null) {
+          return map[key];
+        }
+        return Math.random();
+      };
+
+      const user = rootState.auth?.user || null;
+      const explicitPreferences = state.userPreferences || null;
+
+      const buildPreferenceScorer = () => {
+        const categoryPrefsSource = Array.isArray(explicitPreferences?.categoryPreferences) && explicitPreferences.categoryPreferences.length > 0
+          ? explicitPreferences.categoryPreferences
+          : Array.isArray(user?.categoryPreferences)
+            ? user.categoryPreferences
+            : [];
+
+        const clubCategoryPrefsSource = Array.isArray(explicitPreferences?.clubCategoryPreferences) && explicitPreferences.clubCategoryPreferences.length > 0
+          ? explicitPreferences.clubCategoryPreferences
+          : Array.isArray(user?.clubCategoryPreferences)
+            ? user.clubCategoryPreferences
+            : [];
+
+        const tagPreferencesSource = Array.isArray(explicitPreferences?.tagPreferences) && explicitPreferences.tagPreferences.length > 0
+          ? explicitPreferences.tagPreferences
+          : Array.isArray(user?.tagPreferences)
+            ? user.tagPreferences
+            : [];
+
+        const hasAnyPrefs =
+          categoryPrefsSource.length > 0 ||
+          clubCategoryPrefsSource.length > 0 ||
+          tagPreferencesSource.length > 0;
+
+        if (!hasAnyPrefs) return null;
+
+        const categoryPrefs = categoryPrefsSource;
+        const clubCategoryPrefs = clubCategoryPrefsSource;
+        const tagPreferences = tagPreferencesSource;
+
+        const preferredCategories = new Set();
+        const availableCategories = Array.isArray(state.categories) ? state.categories : [];
+        const categoryIdToName = new Map();
+        availableCategories.forEach((category) => {
+          if (!category) return;
+          const id = Number(category.id);
+          const name = (typeof category === 'string' ? category : category.name)?.toString().trim().toLowerCase();
+          if (Number.isFinite(id) && name) {
+            categoryIdToName.set(id, name);
+          }
+        });
+
+        categoryPrefs.forEach((value) => {
+          if (!value && value !== 0) return;
+          if (typeof value === 'string') {
+            const normalized = value.trim().toLowerCase();
+            if (normalized) {
+              preferredCategories.add(normalized);
+            }
+            const numeric = Number(value);
+            if (Number.isFinite(numeric) && categoryIdToName.has(numeric)) {
+              preferredCategories.add(categoryIdToName.get(numeric));
+            }
+          } else if (Number.isFinite(Number(value))) {
+            const numeric = Number(value);
+            if (categoryIdToName.has(numeric)) {
+              preferredCategories.add(categoryIdToName.get(numeric));
+            }
+          } else if (typeof value === 'object') {
+            const numeric = Number(value.category_id ?? value.id);
+            if (Number.isFinite(numeric) && categoryIdToName.has(numeric)) {
+              preferredCategories.add(categoryIdToName.get(numeric));
+            }
+            const name = (value.name || value.category_name || '').toString().trim().toLowerCase();
+            if (name) {
+              preferredCategories.add(name);
+            }
+          }
+        });
+
+        const preferredClubCategoryIds = new Set();
+        const preferredClubCategoryNames = new Set();
+
+        clubCategoryPrefs.forEach((value) => {
+          if (!value && value !== 0) return;
+          if (typeof value === 'string') {
+            const normalized = value.trim().toLowerCase();
+            if (normalized) {
+              preferredClubCategoryNames.add(normalized);
+            }
+            const numeric = Number(value);
+            if (Number.isFinite(numeric)) {
+              preferredClubCategoryIds.add(numeric);
+            }
+          } else if (Number.isFinite(Number(value))) {
+            preferredClubCategoryIds.add(Number(value));
+          } else if (typeof value === 'object') {
+            const numeric = Number(value.club_category_id ?? value.id);
+            if (Number.isFinite(numeric)) {
+              preferredClubCategoryIds.add(numeric);
+            }
+            const name = (value.name || value.category_name || value.club_category_name || '')
+              .toString()
+              .trim()
+              .toLowerCase();
+            if (name) {
+              preferredClubCategoryNames.add(name);
+            }
+          }
+        });
+
+        const availableTags = Array.isArray(state.availableTags) ? state.availableTags : [];
+        const tagIdToName = new Map();
+        availableTags.forEach((tag) => {
+          if (!tag) return;
+          const id = Number(tag.id);
+          if (Number.isFinite(id)) {
+            const name = (tag.tag_name || tag.name || '').trim().toLowerCase();
+            if (name) {
+              tagIdToName.set(id, name);
+            }
+          }
+        });
+
+        const preferredTagNames = new Set();
+        tagPreferences.forEach((value) => {
+          if (!value && value !== 0) return;
+          if (typeof value === 'string') {
+            const normalized = value.trim().toLowerCase();
+            if (normalized) {
+              preferredTagNames.add(normalized);
+            }
+            const numeric = Number(value);
+            if (Number.isFinite(numeric) && tagIdToName.has(numeric)) {
+              preferredTagNames.add(tagIdToName.get(numeric));
+            }
+          } else if (Number.isFinite(Number(value))) {
+            const numeric = Number(value);
+            if (tagIdToName.has(numeric)) {
+              preferredTagNames.add(tagIdToName.get(numeric));
+            }
+          } else if (typeof value === 'object') {
+            const numeric = Number(value.tag_id ?? value.id);
+            if (Number.isFinite(numeric) && tagIdToName.has(numeric)) {
+              preferredTagNames.add(tagIdToName.get(numeric));
+            }
+            const name = (value.name || value.tag_name || '').toString().trim().toLowerCase();
+            if (name) {
+              preferredTagNames.add(name);
+            }
+          }
+        });
+
+        const hasPrefs =
+          preferredCategories.size > 0 ||
+          preferredClubCategoryIds.size > 0 ||
+          preferredClubCategoryNames.size > 0 ||
+          preferredTagNames.size > 0;
+
+        if (!hasPrefs) return null;
+
+        return (event) => {
+          let score = 0;
+
+          const category = event?.category?.toString().trim().toLowerCase();
+          if (category && preferredCategories.has(category)) {
+            score += 1;
+          }
+
+          const eventTags = Array.isArray(event?.tags)
+            ? event.tags.map((tag) => tag?.toString().trim().toLowerCase()).filter(Boolean)
+            : [];
+
+          let preferredTagCounter = 0;
+          eventTags.forEach((tagName) => {
+            if (preferredTagNames.has(tagName)) {
+              score += 0.3 + 0.1 * preferredTagCounter;
+              preferredTagCounter += 1;
+            } else if (preferredTagNames.size > 0) {
+              score -= 0.02;
+            }
+          });
+
+          const clubCategoryId = event?.clubCategoryId ?? event?.club_category_id;
+          const clubCategoryName = event?.clubCategoryName ?? event?.club_category_name;
+          let appliedMultiplier = false;
+
+          if (Number.isFinite(Number(clubCategoryId)) && preferredClubCategoryIds.has(Number(clubCategoryId))) {
+            score += 0.4;
+            appliedMultiplier = true;
+          } else if (typeof clubCategoryName === 'string' && preferredClubCategoryNames.has(clubCategoryName.trim().toLowerCase())) {
+            score += 0.4;
+            appliedMultiplier = true;
+          }
+
+          if (appliedMultiplier) {
+            score *= 1.25;
+          }
+
+          return score;
+        };
+      };
+
+      const preferenceScorer = buildPreferenceScorer();
+
+      if (preferenceScorer) {
+        filtered.forEach((event) => {
+          if (event && typeof event === 'object') {
+            event.preferenceScore = preferenceScorer(event);
+          }
+        });
+      } else {
+        filtered.forEach((event) => {
+          if (event && typeof event === 'object') {
+            event.preferenceScore = 0;
+          }
+        });
+      }
+
+      const sortByPreference = () => {
+        if (!preferenceScorer) {
+          return sortByNewest();
+        }
+        const scored = filtered.map((event) => ({
+          event,
+          score: event?.preferenceScore ?? 0
+        }));
+        scored.sort((a, b) => {
+          if (b.score !== a.score) {
+            return b.score - a.score;
+          }
+          return tieBreaker(a.event, b.event);
+        });
+        return scored.map((item) => item.event);
+      };
+
+      const sortByNewest = () => {
+        const sorted = [...filtered];
+        sorted.sort((a, b) => {
+          const createdDiff = getCreatedAtTime(b) - getCreatedAtTime(a);
+          if (createdDiff !== 0) {
+            return createdDiff;
+          }
+          return tieBreaker(a, b, createdDiff);
+        });
+        return sorted;
+      };
+
+      const sortByEarliestDate = () => {
+        const sorted = [...filtered];
+        sorted.sort((a, b) => {
+          const aDate = getEventDate(a);
+          const bDate = getEventDate(b);
+          if (aDate != null && bDate != null && aDate !== bDate) {
+            return aDate - bDate;
+          }
+          if (aDate == null && bDate != null) return 1;
+          if (aDate != null && bDate == null) return -1;
+          return tieBreaker(a, b);
+        });
+        return sorted;
+      };
+
+      const sortByLatestDate = () => {
+        const sorted = [...filtered];
+        sorted.sort((a, b) => {
+          const aDate = getEventDate(a);
+          const bDate = getEventDate(b);
+          if (aDate != null && bDate != null && aDate !== bDate) {
+            return bDate - aDate;
+          }
+          if (aDate == null && bDate != null) return 1;
+          if (aDate != null && bDate == null) return -1;
+          return tieBreaker(a, b);
+        });
+        return sorted;
+      };
+
+      const sortByHighestPrice = () => {
+        const sorted = [...filtered];
+        sorted.sort((a, b) => {
+          const priceDiff = getEventPrice(b) - getEventPrice(a);
+          if (priceDiff !== 0) return priceDiff;
+          return tieBreaker(a, b);
+        });
+        return sorted;
+      };
+
+      const sortByLowestPrice = () => {
+        const sorted = [...filtered];
+        sorted.sort((a, b) => {
+          const priceDiff = getEventPrice(a) - getEventPrice(b);
+          if (priceDiff !== 0) return priceDiff;
+          return tieBreaker(a, b);
+        });
+        return sorted;
+      };
+
+      const sortByRandom = () => {
+        const sorted = [...filtered];
+        sorted.sort((a, b) => {
+          const diff = getRandomWeight(a) - getRandomWeight(b);
+          if (diff !== 0) return diff;
+          return tieBreaker(a, b);
+        });
+        return sorted;
+      };
+
+      const option = filters.sortOption || 'preference';
+      switch (option) {
+        case 'newest':
+          return sortByNewest();
+        case 'earliest-date':
+        case 'earliest_date':
+        case 'earliestDate':
+          return sortByEarliestDate();
+        case 'latest-date':
+        case 'latest_date':
+        case 'latestDate':
+          return sortByLatestDate();
+        case 'highest-price':
+        case 'highest_price':
+        case 'highestPrice':
+          return sortByHighestPrice();
+        case 'lowest-price':
+        case 'lowest_price':
+        case 'lowestPrice':
+          return sortByLowestPrice();
+        case 'random':
+          return sortByRandom();
+        case 'preference':
+        default:
+          return sortByPreference();
+      }
     },
 
     // Get all unique tags
@@ -473,108 +1107,244 @@ export default createStore({
         !state.clubEventFilters.locationQuery &&
         state.clubEventFilters.eventStatus === 'both';
 
-      if (noFiltersActive) {
-        return clubEvents;
-      }
-
       let filtered = [...clubEvents];
 
-      // Search filter
-      if (state.clubEventFilters.searchQuery) {
-        const query = state.clubEventFilters.searchQuery.toLowerCase();
-        filtered = filtered.filter(event =>
-          event.title.toLowerCase().includes(query) ||
-          event.description.toLowerCase().includes(query)
-        );
-      }
+      if (!noFiltersActive) {
+        // Search filter
+        if (state.clubEventFilters.searchQuery) {
+          const query = state.clubEventFilters.searchQuery.toLowerCase();
+          filtered = filtered.filter(event =>
+            event.title.toLowerCase().includes(query) ||
+            event.description.toLowerCase().includes(query)
+          );
+        }
 
-      // Tag filter
-      if (state.clubEventFilters.selectedTags.length > 0) {
-        filtered = filtered.filter(event => {
-          if (!Array.isArray(event.tags) || event.tags.length === 0) {
-            return false;
-          }
-          return state.clubEventFilters.selectedTags.some(tag => event.tags.includes(tag));
-        });
-      }
+        // Tag filter
+        if (state.clubEventFilters.selectedTags.length > 0) {
+          filtered = filtered.filter(event => {
+            if (!Array.isArray(event.tags) || event.tags.length === 0) {
+              return false;
+            }
+            return state.clubEventFilters.selectedTags.some(tag => event.tags.includes(tag));
+          });
+        }
 
-      // Price filter
-      if (state.clubEventFilters.priceFilter === 'free') {
-        filtered = filtered.filter(event => event.price === 'FREE');
-      } else if (state.clubEventFilters.priceFilter === 'paid') {
-        filtered = filtered.filter(event => event.price !== 'FREE');
-      }
+        // Price filter
+        if (state.clubEventFilters.priceFilter === 'free') {
+          filtered = filtered.filter(event => event.price === 'FREE');
+        } else if (state.clubEventFilters.priceFilter === 'paid') {
+          filtered = filtered.filter(event => event.price !== 'FREE');
+        }
 
-      // Date filter
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+        // Date filter
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
-      if (state.clubEventFilters.dateFilter === 'today') {
-        filtered = filtered.filter(event => {
-          const eventDate = new Date(event.date);
-          eventDate.setHours(0, 0, 0, 0);
-          return eventDate.getTime() === today.getTime();
-        });
-      } else if (state.clubEventFilters.dateFilter === 'this-week') {
-        const weekFromNow = new Date(today);
-        weekFromNow.setDate(weekFromNow.getDate() + 7);
-        filtered = filtered.filter(event => {
-          const eventDate = new Date(event.date);
-          return eventDate >= today && eventDate <= weekFromNow;
-        });
-      } else if (state.clubEventFilters.dateFilter === 'this-month') {
-        const monthFromNow = new Date(today);
-        monthFromNow.setDate(monthFromNow.getDate() + 30);
-        filtered = filtered.filter(event => {
-          const eventDate = new Date(event.date);
-          return eventDate >= today && eventDate <= monthFromNow;
-        });
-      } else if (state.clubEventFilters.dateFilter === 'specific' && state.clubEventFilters.specificDate) {
-        const target = new Date(state.clubEventFilters.specificDate);
-        target.setHours(0, 0, 0, 0);
-        filtered = filtered.filter(event => {
-          const eventDate = new Date(event.date);
-          eventDate.setHours(0, 0, 0, 0);
-          return eventDate.getTime() === target.getTime();
-        });
-      } else if (state.clubEventFilters.dateFilter === 'range') {
-        const startRaw = state.clubEventFilters.dateRange?.start;
-        const endRaw = state.clubEventFilters.dateRange?.end;
-        if (startRaw && endRaw) {
-          const startDate = new Date(startRaw);
-          startDate.setHours(0, 0, 0, 0);
-          const endDate = new Date(endRaw);
-          endDate.setHours(0, 0, 0, 0);
+        if (state.clubEventFilters.dateFilter === 'today') {
           filtered = filtered.filter(event => {
             const eventDate = new Date(event.date);
             eventDate.setHours(0, 0, 0, 0);
-            return eventDate >= startDate && eventDate <= endDate;
+            return eventDate.getTime() === today.getTime();
           });
+        } else if (state.clubEventFilters.dateFilter === 'this-week') {
+          const weekFromNow = new Date(today);
+          weekFromNow.setDate(weekFromNow.getDate() + 7);
+          filtered = filtered.filter(event => {
+            const eventDate = new Date(event.date);
+            return eventDate >= today && eventDate <= weekFromNow;
+          });
+        } else if (state.clubEventFilters.dateFilter === 'this-month') {
+          const monthFromNow = new Date(today);
+          monthFromNow.setDate(monthFromNow.getDate() + 30);
+          filtered = filtered.filter(event => {
+            const eventDate = new Date(event.date);
+            return eventDate >= today && eventDate <= monthFromNow;
+          });
+        } else if (state.clubEventFilters.dateFilter === 'specific' && state.clubEventFilters.specificDate) {
+          const target = new Date(state.clubEventFilters.specificDate);
+          target.setHours(0, 0, 0, 0);
+          filtered = filtered.filter(event => {
+            const eventDate = new Date(event.date);
+            eventDate.setHours(0, 0, 0, 0);
+            return eventDate.getTime() === target.getTime();
+          });
+        } else if (state.clubEventFilters.dateFilter === 'range') {
+          const startRaw = state.clubEventFilters.dateRange?.start;
+          const endRaw = state.clubEventFilters.dateRange?.end;
+          if (startRaw && endRaw) {
+            const startDate = new Date(startRaw);
+            startDate.setHours(0, 0, 0, 0);
+            const endDate = new Date(endRaw);
+            endDate.setHours(0, 0, 0, 0);
+            filtered = filtered.filter(event => {
+              const eventDate = new Date(event.date);
+              eventDate.setHours(0, 0, 0, 0);
+              return eventDate >= startDate && eventDate <= endDate;
+            });
+          }
+        }
+
+        // Venue filter
+        if (state.clubEventFilters.venueFilter !== 'all') {
+          filtered = filtered.filter(event =>
+            event.venue === state.clubEventFilters.venueFilter
+          );
+        }
+
+        // Location search
+        if (state.clubEventFilters.locationQuery) {
+          const locQuery = state.clubEventFilters.locationQuery.toLowerCase();
+          filtered = filtered.filter(event =>
+            event.location.toLowerCase().includes(locQuery) ||
+            event.venue.toLowerCase().includes(locQuery)
+          );
+        }
+
+        // Event status filter
+        const now = new Date();
+        if (state.clubEventFilters.eventStatus === 'upcoming') {
+          filtered = filtered.filter(event => new Date(event.date) > now);
+        } else if (state.clubEventFilters.eventStatus === 'past') {
+          filtered = filtered.filter(event => new Date(event.date) <= now);
         }
       }
 
-      // Venue filter
-      if (state.clubEventFilters.venueFilter !== 'all') {
-        filtered = filtered.filter(event =>
-          event.venue === state.clubEventFilters.venueFilter
-        );
-      }
+      const getCreatedAtTime = (event) => {
+        if (!event) return 0;
+        const fields = [event.created_at, event.createdAt, event.date_created, event.dateCreated, event.datetime, event.date];
+        for (const field of fields) {
+          const parsed = parseDateValue(field);
+          if (parsed != null) {
+            return parsed;
+          }
+        }
+        return 0;
+      };
 
-      // Location search
-      if (state.clubEventFilters.locationQuery) {
-        const locQuery = state.clubEventFilters.locationQuery.toLowerCase();
-        filtered = filtered.filter(event =>
-          event.location.toLowerCase().includes(locQuery) ||
-          event.venue.toLowerCase().includes(locQuery)
-        );
-      }
+      const getEventDateTime = (event) => {
+        if (!event) return null;
+        const dateFields = [event.datetime, event.date, event.start_time, event.startTime, event.startDateTime, event.enddatetime, event.endDatetime];
+        for (const field of dateFields) {
+          const parsed = parseDateValue(field);
+          if (parsed != null) {
+            return parsed;
+          }
+        }
+        return null;
+      };
 
-      // Event status filter
-      const now = new Date();
-      if (state.clubEventFilters.eventStatus === 'upcoming') {
-        filtered = filtered.filter(event => new Date(event.date) > now);
-      } else if (state.clubEventFilters.eventStatus === 'past') {
-        filtered = filtered.filter(event => new Date(event.date) <= now);
+      const getEventPriceValue = (event) => {
+        if (!event) return 0;
+        if (typeof event.priceValue === 'number' && !Number.isNaN(event.priceValue)) {
+          return event.priceValue;
+        }
+        if (typeof event.price === 'number') {
+          return Number.isNaN(event.price) ? 0 : event.price;
+        }
+        if (typeof event.price === 'string') {
+          const trimmed = event.price.trim().toUpperCase();
+          if (trimmed === 'FREE') {
+            return 0;
+          }
+          const numeric = Number(trimmed.replace(/[^0-9.]/g, ''));
+          return Number.isNaN(numeric) ? 0 : numeric;
+        }
+        return 0;
+      };
+
+      const tieBreaker = (a, b) => {
+        const createdDiff = getCreatedAtTime(b) - getCreatedAtTime(a);
+        if (createdDiff !== 0) {
+          return createdDiff;
+        }
+        const idA = Number(a?.id ?? a?.event_id);
+        const idB = Number(b?.id ?? b?.event_id);
+        if (Number.isFinite(idA) && Number.isFinite(idB) && idA !== idB) {
+          return idB - idA;
+        }
+        return 0;
+      };
+
+      const getRandomWeight = (event) => {
+        if (!event) return 0;
+        const key = event.id != null ? String(event.id) : (event.event_id != null ? String(event.event_id) : null);
+        if (!key) return 0;
+        const map = state.clubRandomSortMap || {};
+        if (map[key] == null) {
+          return 0;
+        }
+        return map[key];
+      };
+
+      const sortOption = state.clubEventFilters.sortOption || 'newest';
+
+      const sorters = {
+        newest: () => {
+          filtered.sort((a, b) => {
+            const diff = getCreatedAtTime(b) - getCreatedAtTime(a);
+            if (diff !== 0) {
+              return diff;
+            }
+            return tieBreaker(a, b);
+          });
+        },
+        'earliest-date': () => {
+          filtered.sort((a, b) => {
+            const aDate = getEventDateTime(a);
+            const bDate = getEventDateTime(b);
+            if (aDate != null && bDate != null && aDate !== bDate) {
+              return aDate - bDate;
+            }
+            if (aDate == null && bDate != null) return 1;
+            if (aDate != null && bDate == null) return -1;
+            return tieBreaker(a, b);
+          });
+        },
+        'latest-date': () => {
+          filtered.sort((a, b) => {
+            const aDate = getEventDateTime(a);
+            const bDate = getEventDateTime(b);
+            if (aDate != null && bDate != null && aDate !== bDate) {
+              return bDate - aDate;
+            }
+            if (aDate == null && bDate != null) return 1;
+            if (aDate != null && bDate == null) return -1;
+            return tieBreaker(a, b);
+          });
+        },
+        'highest-price': () => {
+          filtered.sort((a, b) => {
+            const diff = getEventPriceValue(b) - getEventPriceValue(a);
+            if (diff !== 0) {
+              return diff;
+            }
+            return tieBreaker(a, b);
+          });
+        },
+        'lowest-price': () => {
+          filtered.sort((a, b) => {
+            const diff = getEventPriceValue(a) - getEventPriceValue(b);
+            if (diff !== 0) {
+              return diff;
+            }
+            return tieBreaker(a, b);
+          });
+        },
+        random: () => {
+          filtered.sort((a, b) => {
+            const diff = getRandomWeight(a) - getRandomWeight(b);
+            if (diff !== 0) {
+              return diff;
+            }
+            return tieBreaker(a, b);
+          });
+        }
+      };
+
+      if (sorters[sortOption]) {
+        sorters[sortOption]();
+      } else {
+        sorters.newest();
       }
 
       return filtered;
@@ -691,6 +1461,8 @@ export default createStore({
       return Array.isArray(state.clubRSVPs) ? state.clubRSVPs.length : 0;
     },
 
+    clubEventAnalytics: (state) => state.clubAnalytics || createDefaultClubAnalytics(),
+
     toast: (state) => state.toast
   },
 
@@ -703,22 +1475,54 @@ export default createStore({
 
     setAllEvents(state, events) {
       state.allEvents = events;
+      const source = getClubEventSource(state);
+      if (state.clubEventFilters?.sortOption === 'random') {
+        state.clubRandomSortMap = generateRandomSortMap(source);
+      } else {
+        state.clubRandomSortMap = pruneRandomSortMap(state.clubRandomSortMap, source);
+      }
     },
 
     setBrowseEvents(state, events) {
-      state.browseEvents = events;
+      state.browseEvents = Array.isArray(events) ? events : [];
+      const activeEvents = state.showRecommended ? state.recommendedEvents : state.browseEvents;
+      if ((state.filters?.sortOption || 'preference') === 'random') {
+        state.randomSortMap = generateRandomSortMap(activeEvents);
+      } else {
+        state.randomSortMap = pruneRandomSortMap(state.randomSortMap, activeEvents);
+      }
     },
 
     setRecommendedEvents(state, events) {
-      state.recommendedEvents = events;
+      state.recommendedEvents = Array.isArray(events) ? events : [];
+      const activeEvents = state.showRecommended ? state.recommendedEvents : state.browseEvents;
+      if ((state.filters?.sortOption || 'preference') === 'random') {
+        state.randomSortMap = generateRandomSortMap(activeEvents);
+      } else {
+        state.randomSortMap = pruneRandomSortMap(state.randomSortMap, activeEvents);
+      }
     },
 
     setShowRecommended(state, value) {
       state.showRecommended = value;
+      const activeEvents = value ? state.recommendedEvents : state.browseEvents;
+      if ((state.filters?.sortOption || 'preference') === 'random') {
+        state.randomSortMap = generateRandomSortMap(activeEvents);
+      } else {
+        state.randomSortMap = pruneRandomSortMap(state.randomSortMap, activeEvents);
+      }
     },
 
     setClubOwnedEvents(state, events) {
-      state.clubOwnedEvents = Array.isArray(events) ? events : [];
+      const normalized = Array.isArray(events) ? events : [];
+      state.clubOwnedEvents = normalized;
+
+      const source = getClubEventSource(state);
+      if (state.clubEventFilters?.sortOption === 'random') {
+        state.clubRandomSortMap = generateRandomSortMap(source);
+      } else {
+        state.clubRandomSortMap = pruneRandomSortMap(state.clubRandomSortMap, source);
+      }
     },
 
     SET_PAGINATION(state, paginationData) {
@@ -764,6 +1568,24 @@ export default createStore({
       state.availableTags = Array.isArray(tags) ? tags : [];
     },
 
+    SET_USER_PREFERENCES(state, preferences) {
+      if (preferences && typeof preferences === 'object') {
+        state.userPreferences = {
+          categoryPreferences: Array.isArray(preferences.categoryPreferences)
+            ? [...preferences.categoryPreferences]
+            : [],
+          clubCategoryPreferences: Array.isArray(preferences.clubCategoryPreferences)
+            ? [...preferences.clubCategoryPreferences]
+            : [],
+          tagPreferences: Array.isArray(preferences.tagPreferences)
+            ? [...preferences.tagPreferences]
+            : []
+        };
+      } else {
+        state.userPreferences = null;
+      }
+    },
+
     // Update search query
     SET_SEARCH_QUERY(state, query) {
       state.filters.searchQuery = query;
@@ -787,6 +1609,10 @@ export default createStore({
 
     SET_CLUB_FOLLOWERS(state, followers) {
       state.clubFollowers = Array.isArray(followers) ? followers : [];
+    },
+
+    SET_CLUB_ANALYTICS(state, analytics) {
+      state.clubAnalytics = sanitizeClubAnalytics(analytics);
     },
 
     SET_SAVED_EVENTS(state, savedEventIds) {
@@ -865,6 +1691,20 @@ export default createStore({
       state.filters.eventStatus = status;
     },
 
+    SET_SORT_OPTION(state, sortOption) {
+      if (!state.filters) {
+        state.filters = createDefaultFilters();
+      }
+      const normalized = sortOption || 'preference';
+      state.filters.sortOption = normalized;
+      const activeEvents = state.showRecommended ? state.recommendedEvents : state.browseEvents;
+      if (normalized === 'random') {
+        state.randomSortMap = generateRandomSortMap(activeEvents);
+      } else {
+        state.randomSortMap = pruneRandomSortMap(state.randomSortMap, activeEvents);
+      }
+    },
+
     // Toggle status filter (for RSVP/Saved filters)
     TOGGLE_STATUS_FILTER(state, option) {
       if (state.filters.statusFilter && state.filters.statusFilter[option] !== undefined) {
@@ -888,6 +1728,8 @@ export default createStore({
     // Reset all filters
     RESET_FILTERS(state) {
       state.filters = createDefaultFilters();
+      const activeEvents = state.showRecommended ? state.recommendedEvents : state.browseEvents;
+      state.randomSortMap = pruneRandomSortMap(state.randomSortMap, activeEvents);
     },
 
     // Club Event Filter Mutations
@@ -946,8 +1788,25 @@ export default createStore({
       state.clubEventFilters.eventStatus = status;
     },
 
+    SET_CLUB_EVENT_SORT_OPTION(state, sortOption) {
+      if (!state.clubEventFilters) {
+        state.clubEventFilters = createDefaultClubEventFilters();
+      }
+      const normalized = sortOption || 'newest';
+      state.clubEventFilters.sortOption = normalized;
+
+      const source = getClubEventSource(state);
+      if (normalized === 'random') {
+        state.clubRandomSortMap = generateRandomSortMap(source);
+      } else {
+        state.clubRandomSortMap = pruneRandomSortMap(state.clubRandomSortMap, source);
+      }
+    },
+
     RESET_CLUB_EVENT_FILTERS(state) {
       state.clubEventFilters = createDefaultClubEventFilters();
+      const source = getClubEventSource(state);
+      state.clubRandomSortMap = pruneRandomSortMap(state.clubRandomSortMap, source);
     },
 
     SHOW_TOAST(state, { message, type }) {
@@ -972,14 +1831,32 @@ export default createStore({
       commit('clubs/RESET_STATE', null, { root: true });
     },
 
-    async initializeAppData({ dispatch }, { force = false } = {}) {
+    updateSortOption({ commit }, sortOption) {
+      commit('SET_SORT_OPTION', sortOption);
+    },
+
+    updateClubEventSortOption({ commit }, sortOption) {
+      commit('SET_CLUB_EVENT_SORT_OPTION', sortOption);
+    },
+
+    async initializeAppData({ dispatch, rootState }, { force = false } = {}) {
       try {
+        const currentUser = rootState?.auth?.user || null;
         await Promise.all([
           dispatch('fetchEventCategories', { force }),
           dispatch('fetchEventVenues', { force }),
           dispatch('fetchAvailableTags', { force }),
+          dispatch('fetchUserPreferences', { userId: currentUser?.id, force }),
           dispatch('fetchAllEvents', { force })
         ]);
+
+        // Load user-specific data if user is authenticated
+        if (currentUser?.id && currentUser?.role !== 'club') {
+          await Promise.all([
+            dispatch('fetchUserRSVPs', currentUser.id),
+            dispatch('loadSavedEvents')
+          ]);
+        }
       } catch (error) {
         console.error('initializeAppData - error:', error);
       }
@@ -1053,14 +1930,48 @@ export default createStore({
         commit('SET_AVAILABLE_TAGS', []);
       }
     },
+
+    async fetchUserPreferences({ state, rootState, commit }, { userId, force = false } = {}) {
+      const currentUser = rootState?.auth?.user || null;
+      const effectiveUserId = userId ?? currentUser?.id ?? null;
+      const role = (currentUser?.role || currentUser?.account_type || '').toLowerCase();
+
+      if (!effectiveUserId || role === 'club' || role === 'admin' || role === 'staff') {
+        if (state.userPreferences !== null) {
+          commit('SET_USER_PREFERENCES', null);
+        }
+        return;
+      }
+
+      if (!force && state.userPreferences) {
+        return;
+      }
+
+      try {
+        const response = await getUserPreferences(effectiveUserId);
+        const payload = response && response.data && typeof response.data === 'object' ? response.data : {};
+        const normalized = {
+          categoryPreferences: Array.isArray(payload.categoryPreferences) ? payload.categoryPreferences : [],
+          clubCategoryPreferences: Array.isArray(payload.clubCategoryPreferences) ? payload.clubCategoryPreferences : [],
+          tagPreferences: Array.isArray(payload.tagPreferences) ? payload.tagPreferences : []
+        };
+        commit('SET_USER_PREFERENCES', normalized);
+      } catch (error) {
+        console.warn('fetchUserPreferences - failed:', error?.message || error);
+        commit('SET_USER_PREFERENCES', null);
+      }
+    },
     
     async fetchAllEvents({ commit, state }, options = {}) {
       const normalizedOptions = typeof options === 'number' ? { page: options } : (options || {});
       const requestedPage = typeof normalizedOptions.page === 'number' ? normalizedOptions.page : null;
 
+      const { sortOption, ...restFilters } = state.filters || {};
+      const filtersPayload = { ...restFilters };
+
       try {
         const [eventsResponse, eventTagsResponse, tagsResponse] = await Promise.all([
-          getAllEvents(1, 'all', state.filters),
+          getAllEvents(1, 'all', filtersPayload),
           getAllEventTags(),
           getAllTags()
         ]);
@@ -1383,6 +2294,26 @@ export default createStore({
       } catch (error) {
         console.error('Error fetching club followers:', error);
         commit('SET_CLUB_FOLLOWERS', []);
+      }
+    },
+
+    async fetchClubEventAnalytics({ commit }, clubId) {
+      const ownerId = Number(clubId);
+      if (!Number.isFinite(ownerId)) {
+        commit('SET_CLUB_ANALYTICS', null);
+        return createDefaultClubAnalytics();
+      }
+
+      try {
+        const { getClubEventAnalytics } = await import('../services/eventService.js');
+        const response = await getClubEventAnalytics(ownerId);
+        const analytics = response?.data || {};
+        commit('SET_CLUB_ANALYTICS', analytics);
+        return sanitizeClubAnalytics(analytics);
+      } catch (error) {
+        console.error('Error fetching club analytics:', error);
+        commit('SET_CLUB_ANALYTICS', null);
+        throw error;
       }
     },
 

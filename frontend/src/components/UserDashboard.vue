@@ -23,16 +23,161 @@ const categoryColorMap = computed(() => store.getters['categoryColorMap'] || {})
 const upcomingEvents = computed(() => store.getters.upcomingUserEvents);
 const recommendedEvents = computed(() => store.getters.recommendedEvents);
 const savedEvents = computed(() => store.getters.userSavedEvents);
+const allEvents = computed(() => store.getters.allEvents);
+
+// NEW - Past attended events (confirmed RSVPs that have passed)
+const pastAttendedEvents = computed(() => {
+  const allEvents = store.state.allEvents;
+  const userRSVPs = store.state.userRSVPs;
+  const pastEvents = allEvents.filter(event => {
+    const eventDate = new Date(event.datetime || event.date);
+    return eventDate < new Date();
+  });
+  return pastEvents.filter(event => {
+    return userRSVPs.some(rsvp => Number(rsvp.event_id) === Number(event.id) && rsvp.status === 'confirmed');
+  });
+});
+
+// NEW - Top 6 recommended events (upcoming only, highest preference scores, excluding saved and RSVP'd)
+const topRecommendedEvents = computed(() => {
+  const now = new Date();
+  const savedEventIds = new Set(savedEvents.value.map(event => event.id));
+  const rsvpdEventIds = new Set(upcomingEvents.value.map(event => event.id));
+  
+  // Get user preferences for scoring
+  const userPrefs = store.state.userPreferences;
+  const categories = store.state.categories || [];
+  const availableTags = store.state.availableTags || [];
+  
+  // Build preference scorer (replicated from store logic)
+  const buildPreferenceScorer = () => {
+    const categoryPrefsSource = Array.isArray(userPrefs?.categoryPreferences) && userPrefs.categoryPreferences.length > 0
+      ? userPrefs.categoryPreferences
+      : [];
+    
+    const tagPreferencesSource = Array.isArray(userPrefs?.tagPreferences) && userPrefs.tagPreferences.length > 0
+      ? userPrefs.tagPreferences
+      : [];
+    
+    const hasAnyPrefs = categoryPrefsSource.length > 0 || tagPreferencesSource.length > 0;
+    
+    if (!hasAnyPrefs) return null;
+    
+    const categoryPrefs = categoryPrefsSource;
+    const tagPreferences = tagPreferencesSource;
+    
+    const preferredCategories = new Set();
+    const categoryIdToName = new Map();
+    categories.forEach((category) => {
+      if (!category) return;
+      const id = Number(category.id);
+      const name = (typeof category === 'string' ? category : category.name)?.toString().trim().toLowerCase();
+      if (Number.isFinite(id) && name) {
+        categoryIdToName.set(id, name);
+      }
+    });
+    
+    categoryPrefs.forEach((value) => {
+      if (!value && value !== 0) return;
+      if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (normalized) {
+          preferredCategories.add(normalized);
+        }
+      }
+    });
+    
+    const tagIdToName = new Map();
+    availableTags.forEach((tag) => {
+      if (!tag) return;
+      const id = Number(tag.id);
+      if (Number.isFinite(id)) {
+        const name = (tag.tag_name || tag.name || '').trim().toLowerCase();
+        if (name) {
+          tagIdToName.set(id, name);
+        }
+      }
+    });
+    
+    const preferredTagNames = new Set();
+    tagPreferences.forEach((value) => {
+      if (!value && value !== 0) return;
+      if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (normalized) {
+          preferredTagNames.add(normalized);
+        }
+      }
+    });
+    
+    return (event) => {
+      let score = 0;
+      
+      const category = event?.category?.toString().trim().toLowerCase();
+      if (category && preferredCategories.has(category)) {
+        score += 1;
+      }
+      
+      const eventTags = Array.isArray(event?.tags)
+        ? event.tags.map((tag) => tag?.toString().trim().toLowerCase()).filter(Boolean)
+        : [];
+      
+      let preferredTagCounter = 0;
+      eventTags.forEach((tagName) => {
+        if (preferredTagNames.has(tagName)) {
+          score += 0.3 + 0.1 * preferredTagCounter;
+          preferredTagCounter += 1;
+        }
+      });
+      
+      return score;
+    };
+  };
+  
+  const preferenceScorer = buildPreferenceScorer();
+  
+  // Filter and score events
+  const scoredEvents = allEvents.value
+    .filter(event => {
+      // Must be upcoming
+      const eventDate = new Date(event.datetime || event.date);
+      if (eventDate <= now) return false;
+      
+      // Must not be saved
+      if (savedEventIds.has(event.id)) return false;
+      
+      // Must not be RSVP'd
+      if (rsvpdEventIds.has(event.id)) return false;
+      
+      return true;
+    })
+    .map(event => {
+      const score = preferenceScorer ? preferenceScorer(event) : 0;
+      return { event, score };
+    });
+  
+  // Sort by score descending and take top 6
+  return scoredEvents
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6)
+    .map(item => item.event);
+});
 
 const selectedEvent = ref(null);
 const showEventModal = ref(false);
 const upcomingSectionRef = ref(null);
 const savedSectionRef = ref(null);
+const historySectionRef = ref(null);
+const recommendedSectionRef = ref(null);
 
 const upcomingCarouselWrapper = ref(null);
 const savedCarouselWrapper = ref(null);
+const historyCarouselWrapper = ref(null);
+const recommendedCarouselWrapper = ref(null);
 const upcomingCarouselWidth = ref(0);
 const savedCarouselWidth = ref(0);
+const historyCarouselWidth = ref(0);
+const recommendedCarouselWidth = ref(0);
 
 const CAROUSEL_GAP = 24;
 const MIN_CARD_WIDTH = 280;
@@ -41,6 +186,8 @@ const MAX_CARD_WIDTH = 360;
 // Carousel state
 const upcomingCarouselIndex = ref(0);
 const savedCarouselIndex = ref(0);
+const historyCarouselIndex = ref(0);
+const recommendedCarouselIndex = ref(0);
 
 // Image modal state
 const showImageModal = ref(false);
@@ -66,6 +213,8 @@ const windowWidth = ref(window.innerWidth);
 const updateCarouselWidths = () => {
   upcomingCarouselWidth.value = upcomingCarouselWrapper.value?.offsetWidth || 0;
   savedCarouselWidth.value = savedCarouselWrapper.value?.offsetWidth || 0;
+  historyCarouselWidth.value = historyCarouselWrapper.value?.offsetWidth || 0;
+  recommendedCarouselWidth.value = recommendedCarouselWrapper.value?.offsetWidth || 0;
 };
 const updateWindowWidth = () => {
   windowWidth.value = window.innerWidth;
@@ -89,6 +238,8 @@ const calculateCardWidth = (containerWidth) => {
 
 const upcomingCardWidth = computed(() => calculateCardWidth(upcomingCarouselWidth.value));
 const savedCardWidth = computed(() => calculateCardWidth(savedCarouselWidth.value));
+const historyCardWidth = computed(() => calculateCardWidth(historyCarouselWidth.value));
+const recommendedCardWidth = computed(() => calculateCardWidth(recommendedCarouselWidth.value));
 
 const upcomingCardStyle = computed(() => ({
   flex: '0 0 auto',
@@ -104,8 +255,24 @@ const savedCardStyle = computed(() => ({
   maxWidth: `${MAX_CARD_WIDTH}px`
 }));
 
+const historyCardStyle = computed(() => ({
+  flex: '0 0 auto',
+  width: `${historyCardWidth.value}px`,
+  minWidth: `${MIN_CARD_WIDTH}px`,
+  maxWidth: `${MAX_CARD_WIDTH}px`
+}));
+
+const recommendedCardStyle = computed(() => ({
+  flex: '0 0 auto',
+  width: `${recommendedCardWidth.value}px`,
+  minWidth: `${MIN_CARD_WIDTH}px`,
+  maxWidth: `${MAX_CARD_WIDTH}px`
+}));
+
 const upcomingCarouselMaxIndex = computed(() => Math.max(0, upcomingEvents.value.length - itemsPerView.value));
 const savedCarouselMaxIndex = computed(() => Math.max(0, savedEvents.value.length - itemsPerView.value));
+const historyCarouselMaxIndex = computed(() => Math.max(0, pastAttendedEvents.value.length - itemsPerView.value));
+const recommendedCarouselMaxIndex = computed(() => Math.max(0, topRecommendedEvents.value.length - itemsPerView.value));
 
 // Carousel navigation methods
 const nextUpcoming = () => {
@@ -122,6 +289,22 @@ const nextSaved = () => {
 
 const prevSaved = () => {
   savedCarouselIndex.value = Math.max(savedCarouselIndex.value - 1, 0);
+};
+
+const nextHistory = () => {
+  historyCarouselIndex.value = Math.min(historyCarouselIndex.value + 1, historyCarouselMaxIndex.value);
+};
+
+const prevHistory = () => {
+  historyCarouselIndex.value = Math.max(historyCarouselIndex.value - 1, 0);
+};
+
+const nextRecommended = () => {
+  recommendedCarouselIndex.value = Math.min(recommendedCarouselIndex.value + 1, recommendedCarouselMaxIndex.value);
+};
+
+const prevRecommended = () => {
+  recommendedCarouselIndex.value = Math.max(recommendedCarouselIndex.value - 1, 0);
 };
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
@@ -355,6 +538,14 @@ const visibleSavedEvents = computed(() => {
   return savedEvents.value;
 });
 
+const visibleHistoryEvents = computed(() => {
+  return pastAttendedEvents.value;
+});
+
+const visibleRecommendedEvents = computed(() => {
+  return topRecommendedEvents.value;
+});
+
 // Carousel transform styles
 const upcomingCarouselTransform = computed(() => {
   const step = upcomingCardWidth.value + CAROUSEL_GAP;
@@ -364,6 +555,16 @@ const upcomingCarouselTransform = computed(() => {
 const savedCarouselTransform = computed(() => {
   const step = savedCardWidth.value + CAROUSEL_GAP;
   return `translateX(-${savedCarouselIndex.value * step}px)`;
+});
+
+const historyCarouselTransform = computed(() => {
+  const step = historyCardWidth.value + CAROUSEL_GAP;
+  return `translateX(-${historyCarouselIndex.value * step}px)`;
+});
+
+const recommendedCarouselTransform = computed(() => {
+  const step = recommendedCardWidth.value + CAROUSEL_GAP;
+  return `translateX(-${recommendedCarouselIndex.value * step}px)`;
 });
 
 // Tags display logic
@@ -417,6 +618,8 @@ const hasMoreTags = (tags) => {
 watch(itemsPerView, () => {
   upcomingCarouselIndex.value = Math.min(upcomingCarouselIndex.value, upcomingCarouselMaxIndex.value);
   savedCarouselIndex.value = Math.min(savedCarouselIndex.value, savedCarouselMaxIndex.value);
+  historyCarouselIndex.value = Math.min(historyCarouselIndex.value, historyCarouselMaxIndex.value);
+  recommendedCarouselIndex.value = Math.min(recommendedCarouselIndex.value, recommendedCarouselMaxIndex.value);
   nextTick(updateCarouselWidths);
 });
 
@@ -427,6 +630,16 @@ watch(upcomingEvents, () => {
 
 watch(savedEvents, () => {
   savedCarouselIndex.value = Math.min(savedCarouselIndex.value, savedCarouselMaxIndex.value);
+  nextTick(updateCarouselWidths);
+});
+
+watch(pastAttendedEvents, () => {
+  historyCarouselIndex.value = Math.min(historyCarouselIndex.value, historyCarouselMaxIndex.value);
+  nextTick(updateCarouselWidths);
+});
+
+watch(topRecommendedEvents, () => {
+  recommendedCarouselIndex.value = Math.min(recommendedCarouselIndex.value, recommendedCarouselMaxIndex.value);
   nextTick(updateCarouselWidths);
 });
 </script>
@@ -693,6 +906,210 @@ watch(savedEvents, () => {
             class="carousel-btn carousel-btn--next" 
             @click="nextSaved"
             :disabled="savedCarouselIndex >= savedCarouselMaxIndex"
+            aria-label="Next events"
+          >
+            ›
+          </button>
+        </div>
+      </section>
+
+  <!-- History Section -->
+  <section class="dashboard-section" ref="historySectionRef">
+        <div class="section-header">
+          <h2 class="section-title">Event History <span class="section-count">({{ pastAttendedEvents.length }})</span></h2>
+        </div>
+
+        <!-- Empty State -->
+        <div v-if="pastAttendedEvents.length === 0" class="empty-state">
+          <p class="empty-message">You haven't attended any events yet</p>
+          <router-link to="/" class="btn btn--primary">Browse Events</router-link>
+        </div>
+
+        <!-- Events Carousel -->
+        <div v-else class="carousel-container">
+          <button 
+            class="carousel-btn carousel-btn--prev" 
+            @click="prevHistory"
+            :disabled="historyCarouselIndex === 0"
+            aria-label="Previous events"
+          >
+            ‹
+          </button>
+          
+          <div class="carousel-wrapper" ref="historyCarouselWrapper">
+            <div class="events-carousel" :style="{ transform: historyCarouselTransform }">
+              <div
+                v-for="event in visibleHistoryEvents"
+                :key="event.id"
+                class="event-card"
+                :style="historyCardStyle"
+                role="button"
+                tabindex="0"
+                @click="openEventModal(event)"
+                @keyup.enter.prevent="openEventModal(event)"
+                @keyup.space.prevent="openEventModal(event)"
+              >
+                <div class="event-image" @click.stop="openImageModal(event)">
+                  <img :src="eventImageSrc(event)" :alt="event.title" class="event-img" @error="handleEventImageError" />
+                  <div class="event-price-tag" :class="{ 'price-free': event.price === 'FREE' }">
+                    {{ event.price }}
+                  </div>
+                  <div class="attended-badge">✓ Attended</div>
+                </div>
+
+                <div class="event-content">
+                  <div class="event-header">
+                    <span
+                      class="event-category"
+                      :style="categoryColorMap[event.category] ? { backgroundColor: categoryColorMap[event.category], color: '#fff' } : {}"
+                    >{{ event.category }}</span>
+                  </div>
+
+                  <h3 class="event-title">{{ event.title }}</h3>
+
+                  <div class="event-details">
+                    <div class="event-organiser">
+                      <span>By {{ event.organiser }}</span>
+                    </div>
+                    <div class="event-datetime">
+                      <span>{{ formatDate(event.date) }} | {{ event.time }}</span>
+                    </div>
+                    <div class="event-location">
+                      <span>📍 {{ event.location }}</span>
+                    </div>
+                    <div class="event-attendees">
+                      <span>👥 {{ formatAttendees(event) }} attended</span>
+                    </div>
+                  </div>
+
+                  <div class="event-tags">
+                    <span
+                      v-for="tag in getVisibleTags(event.tags)"
+                      :key="tag"
+                      class="tag-badge"
+                      @click.stop="handleTagClick(tag)"
+                    >
+                      #{{ tag }}
+                    </span>
+                    <span
+                      v-if="hasMoreTags(event.tags)"
+                      class="tag-badge tag-more"
+                      @click.stop="openTagsModal(event)"
+                    >
+                      ...
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <button 
+            class="carousel-btn carousel-btn--next" 
+            @click="nextHistory"
+            :disabled="historyCarouselIndex >= historyCarouselMaxIndex"
+            aria-label="Next events"
+          >
+            ›
+          </button>
+        </div>
+      </section>
+
+  <!-- Recommended Events Section -->
+  <section class="dashboard-section" ref="recommendedSectionRef">
+        <div class="section-header">
+          <h2 class="section-title">Recommended for You <span class="section-count">({{ topRecommendedEvents.length }})</span></h2>
+        </div>
+
+        <!-- Empty State -->
+        <div v-if="topRecommendedEvents.length === 0" class="empty-state">
+          <p class="empty-message">No recommendations available yet</p>
+          <router-link to="/preferences" class="btn btn--primary">Update Preferences</router-link>
+        </div>
+
+        <!-- Events Carousel -->
+        <div v-else class="carousel-container">
+          <button 
+            class="carousel-btn carousel-btn--prev" 
+            @click="prevRecommended"
+            :disabled="recommendedCarouselIndex === 0"
+            aria-label="Previous events"
+          >
+            ‹
+          </button>
+          
+          <div class="carousel-wrapper" ref="recommendedCarouselWrapper">
+            <div class="events-carousel" :style="{ transform: recommendedCarouselTransform }">
+              <div
+                v-for="event in visibleRecommendedEvents"
+                :key="event.id"
+                class="event-card"
+                :style="recommendedCardStyle"
+                role="button"
+                tabindex="0"
+                @click="openEventModal(event)"
+                @keyup.enter.prevent="openEventModal(event)"
+                @keyup.space.prevent="openEventModal(event)"
+              >
+                <div class="event-image" @click.stop="openImageModal(event)">
+                  <img :src="eventImageSrc(event)" :alt="event.title" class="event-img" @error="handleEventImageError" />
+                  <div class="event-price-tag" :class="{ 'price-free': event.price === 'FREE' }">
+                    {{ event.price }}
+                  </div>
+                  <div class="recommended-badge">⭐ Recommended</div>
+                </div>
+
+                <div class="event-content">
+                  <div class="event-header">
+                    <span
+                      class="event-category"
+                      :style="categoryColorMap[event.category] ? { backgroundColor: categoryColorMap[event.category], color: '#fff' } : {}"
+                    >{{ event.category }}</span>
+                  </div>
+
+                  <h3 class="event-title">{{ event.title }}</h3>
+
+                  <div class="event-details">
+                    <div class="event-organiser">
+                      <span>By {{ event.organiser }}</span>
+                    </div>
+                    <div class="event-datetime">
+                      <span>{{ formatDate(event.date) }} | {{ event.time }}</span>
+                    </div>
+                    <div class="event-location">
+                      <span>📍 {{ event.location }}</span>
+                    </div>
+                    <div class="event-attendees">
+                      <span>👥 {{ formatAttendees(event) }} attending</span>
+                    </div>
+                  </div>
+
+                  <div class="event-tags">
+                    <span
+                      v-for="tag in getVisibleTags(event.tags)"
+                      :key="tag"
+                      class="tag-badge"
+                      @click.stop="handleTagClick(tag)"
+                    >
+                      #{{ tag }}
+                    </span>
+                    <span
+                      v-if="hasMoreTags(event.tags)"
+                      class="tag-badge tag-more"
+                      @click.stop="openTagsModal(event)"
+                    >
+                      ...
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <button 
+            class="carousel-btn carousel-btn--next" 
+            @click="nextRecommended"
+            :disabled="recommendedCarouselIndex >= recommendedCarouselMaxIndex"
             aria-label="Next events"
           >
             ›
@@ -1160,7 +1577,9 @@ watch(savedEvents, () => {
 
 /* RSVP and Saved Badges */
 .rsvp-badge,
-.saved-badge {
+.saved-badge,
+.attended-badge,
+.recommended-badge {
   position: absolute;
   top: var(--space-12);
   left: var(--space-12);
@@ -1176,6 +1595,14 @@ watch(savedEvents, () => {
 
 .saved-badge {
   background-color: var(--color-success);
+}
+
+.attended-badge {
+  background-color: var(--color-info);
+}
+
+.recommended-badge {
+  background-color: var(--color-warning);
 }
 
 /* Carousel Styles */

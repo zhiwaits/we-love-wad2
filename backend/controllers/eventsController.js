@@ -2,6 +2,7 @@ const pool = require('../db');
 const table = "events";
 const fs = require('fs');
 const path = require('path');
+const { sendEventCancellationEmail } = require('../notification/notification');
 
 function ensureDir(p) {
   try {
@@ -86,6 +87,111 @@ function convertToSGTime(isoString) {
   if (!isoString) return null;
   const date = new Date(isoString);
   return date.toLocaleString('sv-SE', { timeZone: 'Asia/Singapore' }).replace(',', '');
+}
+
+function clamp(value, min, max) {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(Math.max(value, min), max);
+}
+
+function computeEventProgress(createdAt, startAt) {
+  const createdMs = createdAt ? new Date(createdAt).getTime() : NaN;
+  const startMs = startAt ? new Date(startAt).getTime() : NaN;
+
+  if (!Number.isFinite(createdMs) || !Number.isFinite(startMs)) {
+    return 0;
+  }
+
+  if (startMs <= createdMs) {
+    return clamp(Date.now() >= startMs ? 1 : 0, 0, 1);
+  }
+
+  const ratio = (Date.now() - createdMs) / (startMs - createdMs);
+  return clamp(ratio, 0, 1);
+}
+
+function classifyProgressStage(progressRatio) {
+  const ratio = Number.isFinite(progressRatio) ? progressRatio : 0;
+  if (ratio <= 0.33) return 'early';
+  if (ratio <= 0.66) return 'mid';
+  return 'late';
+}
+
+function determineInsight(stageKey, capacityFillPercentage) {
+  if (!Number.isFinite(capacityFillPercentage)) {
+    return {
+      label: 'Capacity not set',
+      color: 'gray',
+      description: 'Set an event capacity to unlock fill rate insights.'
+    };
+  }
+
+  const fill = capacityFillPercentage;
+
+  if (stageKey === 'early') {
+    if (fill < 20) {
+      return {
+        label: 'Normal',
+        color: 'yellow',
+        description: 'Normal for early promotion; consider an awareness push.'
+      };
+    }
+    if (fill <= 60) {
+      return {
+        label: 'Strong early interest',
+        color: 'green',
+        description: 'Promising demand; continue current marketing.'
+      };
+    }
+    return {
+      label: 'Exceptional early fill',
+      color: 'blue',
+      description: 'Demand is very high; consider premium pricing or scaling capacity.'
+    };
+  }
+
+  if (stageKey === 'mid') {
+    if (fill < 40) {
+      return {
+        label: 'Lagging sign-ups',
+        color: 'orange',
+        description: 'Behind expected fill; review marketing or pricing.'
+      };
+    }
+    if (fill <= 80) {
+      return {
+        label: 'On track',
+        color: 'yellow',
+        description: 'Healthy fill rate relative to the time left.'
+      };
+    }
+    return {
+      label: 'Ahead of schedule',
+      color: 'green',
+      description: 'Demand is strong; prepare for a near-full event early.'
+    };
+  }
+
+  // Late stage
+  if (fill < 60) {
+    return {
+      label: 'Underperforming',
+      color: 'red',
+      description: 'Low registrations close to start; trigger a last-minute push or discount.'
+    };
+  }
+  if (fill <= 90) {
+    return {
+      label: 'Decent Fill',
+      color: 'yellow',
+      description: 'Tracking well; maintain final-stage promotion.'
+    };
+  }
+  return {
+    label: 'At/near capacity',
+    color: 'green',
+    description: 'Great job; prepare for a full house.'
+  };
 }
 
 exports.getAllEvents = async (req, res) => {
@@ -218,8 +324,10 @@ exports.getAllEvents = async (req, res) => {
         e.owner_id,
         e.price,
         e.venue,
-        e.latitude,
-        e.altitude,
+  e.latitude,
+  e.altitude,
+  e.created_at,
+  NULL::timestamp AS updated_at,
         p.name AS organiser_name,
         p.club_category_id AS club_category_id,
         cc.name AS club_category_name,
@@ -229,7 +337,7 @@ exports.getAllEvents = async (req, res) => {
       LEFT JOIN club_categories cc ON cc.id = p.club_category_id
       LEFT JOIN rsvps r ON r.event_id = e.id AND r.status = 'confirmed'
       ${whereClause}
-      GROUP BY e.id, e.title, e.description, e.datetime, e.enddatetime, e.location, e.category, e.capacity, e.image_url, e.owner_id, e.price, e.venue, e.latitude, e.altitude, p.name, p.club_category_id, cc.name
+  GROUP BY e.id, e.title, e.description, e.datetime, e.enddatetime, e.location, e.category, e.capacity, e.image_url, e.owner_id, e.price, e.venue, e.latitude, e.altitude, e.created_at, p.name, p.club_category_id, cc.name
       ORDER BY e.datetime ASC
     `;
 
@@ -270,6 +378,8 @@ exports.getAllEvents = async (req, res) => {
         latitude: row.latitude,
         altitude: row.altitude,
         ownerId: row.owner_id,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
         clubCategoryId: row.club_category_id != null ? Number(row.club_category_id) : null,
         clubCategoryName: row.club_category_name || ''
       };
@@ -319,15 +429,17 @@ exports.getEventById = async (req, res) => {
         e.owner_id,
         e.price,
         e.venue,
-        e.latitude,
-        e.altitude,
+  e.latitude,
+  e.altitude,
+  e.created_at,
+  NULL::timestamp AS updated_at,
         p.name AS organiser_name,
         COUNT(CASE WHEN r.status = 'confirmed' THEN 1 END) as confirmed_attendees
       FROM ${table} e
       LEFT JOIN profiles p ON p.id = e.owner_id
       LEFT JOIN rsvps r ON r.event_id = e.id AND r.status = 'confirmed'
       WHERE e.id = $1
-      GROUP BY e.id, e.title, e.description, e.datetime, e.enddatetime, e.location, e.category, e.capacity, e.image_url, e.owner_id, e.price, e.venue, e.latitude, e.altitude, p.name
+  GROUP BY e.id, e.title, e.description, e.datetime, e.enddatetime, e.location, e.category, e.capacity, e.image_url, e.owner_id, e.price, e.venue, e.latitude, e.altitude, e.created_at, p.name
       LIMIT 1
     `;
     const result = await pool.query(query, [req.params.id]);
@@ -351,7 +463,9 @@ exports.getEventById = async (req, res) => {
       image: row.image_url || '',
       latitude: row.latitude,
       altitude: row.altitude,
-      ownerId: row.owner_id
+        ownerId: row.owner_id,
+        created_at: row.created_at,
+        updated_at: row.updated_at
     };
     res.json(shaped);
   } catch (err) {
@@ -630,6 +744,32 @@ exports.deleteEvent = async (req, res) => {
     await client.query('BEGIN');
 
     const eventId = req.params.id;
+    const cancellationReasonRaw = (req.body && typeof req.body.cancellationReason === 'string')
+      ? req.body.cancellationReason
+      : '';
+    const cancellationReason = cancellationReasonRaw.trim();
+
+    const eventResult = await client.query(
+      `SELECT id, title, datetime, location, venue FROM ${table} WHERE id = $1 LIMIT 1`,
+      [eventId]
+    );
+
+    if (eventResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    const eventDetails = eventResult.rows[0];
+
+    const confirmedRsvpsResult = await client.query(
+      `SELECT r.user_id, p.email, p.name
+       FROM rsvps r
+       INNER JOIN profiles p ON p.id = r.user_id
+       WHERE r.event_id = $1 AND r.status = 'confirmed'`,
+      [eventId]
+    );
+
+    const confirmedRecipients = (confirmedRsvpsResult.rows || []).filter((row) => row?.email);
 
     // Delete all RSVPs for this event
     await client.query('DELETE FROM rsvps WHERE event_id = $1', [eventId]);
@@ -648,12 +788,317 @@ exports.deleteEvent = async (req, res) => {
     }
 
     await client.query('COMMIT');
-    res.json({ message: 'Event and all related data deleted successfully', event: result.rows[0] });
+
+    const emailNotifications = {
+      attempted: confirmedRecipients.length,
+      sent: 0
+    };
+
+    if (confirmedRecipients.length > 0) {
+      try {
+        const sendResults = await Promise.allSettled(
+          confirmedRecipients.map(({ email, name }) =>
+            sendEventCancellationEmail(
+              email,
+              name,
+              eventDetails.title,
+              eventDetails.datetime,
+              eventDetails.location,
+              eventDetails.venue,
+              cancellationReason
+            )
+          )
+        );
+
+        emailNotifications.sent = sendResults.filter((result) => result.status === 'fulfilled').length;
+
+        sendResults
+          .filter((result) => result.status === 'rejected')
+          .forEach((failure) => {
+            console.error('Failed to send cancellation email:', failure.reason);
+          });
+      } catch (emailError) {
+        console.error('Error sending cancellation emails:', emailError);
+      }
+    }
+
+    res.json({
+      message: 'Event and all related data deleted successfully',
+      event: result.rows[0],
+      emailNotifications
+    });
   } catch (err) {
     await client.query('ROLLBACK');
     res.status(500).json({ error: err.message });
   } finally {
     client.release();
+  }
+};
+
+exports.getClubEventAnalytics = async (req, res) => {
+  const clubId = Number(req.params.clubId);
+
+  if (!Number.isFinite(clubId)) {
+    return res.status(400).json({ error: 'Invalid club ID' });
+  }
+
+  const toDateKey = (value) => {
+    if (!value) {
+      return null;
+    }
+    const date = value instanceof Date ? new Date(value.getTime()) : new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+    date.setUTCHours(0, 0, 0, 0);
+    return date.toISOString().slice(0, 10);
+  };
+
+  const DAYS_IN_YEAR = 365;
+
+  try {
+    const eventsQuery = `
+      SELECT
+        e.id,
+        e.title,
+        e.datetime,
+        e.created_at,
+        e.capacity,
+        COUNT(CASE WHEN r.status = 'confirmed' THEN 1 END) AS confirmed_attendees
+      FROM ${table} e
+      LEFT JOIN rsvps r ON r.event_id = e.id AND r.status = 'confirmed'
+      WHERE e.owner_id = $1
+        AND e.datetime > NOW()
+      GROUP BY e.id
+      ORDER BY e.datetime ASC
+    `;
+
+    const followerTotalQuery = `
+      SELECT COUNT(*)::int AS total
+      FROM user_follows
+      WHERE followed_club_id = $1
+    `;
+
+    const followerTimelineQuery = `
+      SELECT
+        DATE_TRUNC('day', COALESCE(uf.followed_at, NOW()))::date AS follower_date,
+        COUNT(*)::int AS new_followers
+      FROM user_follows uf
+      WHERE uf.followed_club_id = $1
+        AND COALESCE(uf.followed_at, NOW()) >= NOW() - INTERVAL '365 days'
+      GROUP BY follower_date
+      ORDER BY follower_date ASC
+    `;
+
+    const categoryPreferenceQuery = `
+      SELECT
+        LOWER(cp.category) AS category_key,
+        COALESCE(ec.name, cp.category) AS category_name,
+        COUNT(DISTINCT cp.userid)::int AS follower_count
+      FROM user_follows uf
+      JOIN category_preference cp ON cp.userid = uf.follower_id
+      LEFT JOIN event_categories ec ON LOWER(ec.name) = LOWER(cp.category)
+      WHERE uf.followed_club_id = $1
+      GROUP BY category_key, category_name
+      ORDER BY follower_count DESC, category_name ASC
+      LIMIT 5
+    `;
+
+    const tagPreferenceQuery = `
+      SELECT
+        et.id AS tag_id,
+        et.tag_name,
+        COUNT(DISTINCT tp.userid)::int AS follower_count
+      FROM user_follows uf
+      JOIN tag_preference tp ON tp.userid = uf.follower_id
+      JOIN event_tags et ON et.id = tp.tagid
+      WHERE uf.followed_club_id = $1
+      GROUP BY et.id, et.tag_name
+      ORDER BY follower_count DESC, et.tag_name ASC
+      LIMIT 10
+    `;
+
+    const [
+      eventsResult,
+      followerTotalResult,
+      followerTimelineResult,
+      categoryPreferenceResult,
+      tagPreferenceResult
+    ] = await Promise.all([
+      pool.query(eventsQuery, [clubId]),
+      pool.query(followerTotalQuery, [clubId]),
+      pool.query(followerTimelineQuery, [clubId]),
+      pool.query(categoryPreferenceQuery, [clubId]),
+      pool.query(tagPreferenceQuery, [clubId])
+    ]);
+
+    const events = eventsResult.rows.map((row) => {
+      const capacity = row.capacity != null ? Number(row.capacity) : null;
+      const confirmed = Number(row.confirmed_attendees) || 0;
+
+      const capacityRatio = capacity && capacity > 0 ? confirmed / capacity : null;
+      const capacityFillPercentage = capacityRatio != null
+        ? Number(clamp(capacityRatio * 100, 0, 200).toFixed(1))
+        : null;
+
+      const progressRatioRaw = computeEventProgress(row.created_at, row.datetime);
+      const progressRatio = Number(progressRatioRaw.toFixed(4));
+      const progressPercent = Number((progressRatio * 100).toFixed(1));
+      const stageKey = classifyProgressStage(progressRatio);
+      const stageLabel =
+        stageKey === 'early' ? 'Early stage' : stageKey === 'mid' ? 'Mid stage' : 'Late stage';
+      const insight = determineInsight(stageKey, capacityFillPercentage);
+
+      return {
+        eventId: row.id,
+        title: row.title,
+        startDateTime: row.datetime,
+        createdAt: row.created_at,
+        capacity: capacity,
+        confirmedAttendees: confirmed,
+        capacityFillRatio: capacityRatio != null ? Number(clamp(capacityRatio, 0, 1).toFixed(4)) : null,
+        capacityFillPercentage,
+        progressRatio,
+        progressPercent,
+        progressStage: stageKey,
+        progressStageLabel: stageLabel,
+        insightLabel: insight.label,
+        insightColor: insight.color,
+        insightDescription: insight.description
+      };
+    });
+
+    const totalFollowers = Number(followerTotalResult.rows[0]?.total) || 0;
+
+    const timelineMap = new Map();
+    followerTimelineResult.rows.forEach((row) => {
+      const dateKey = toDateKey(row.follower_date);
+      if (!dateKey) {
+        return;
+      }
+      const newFollowers = Number(row.new_followers) || 0;
+      const currentTotal = timelineMap.get(dateKey) || 0;
+      timelineMap.set(dateKey, currentTotal + newFollowers);
+    });
+
+    const totalNewInWindow = Array.from(timelineMap.values()).reduce((sum, value) => sum + value, 0);
+    const baselineFollowers = Math.max(totalFollowers - totalNewInWindow, 0);
+
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const startDate = new Date(today.getTime());
+    startDate.setUTCDate(startDate.getUTCDate() - (DAYS_IN_YEAR - 1));
+
+    const buildTimeline = () => {
+      if (timelineMap.size === 0 && totalFollowers === 0) {
+        return [];
+      }
+
+      const timeline = [];
+      let runningTotal = baselineFollowers;
+      const cursor = new Date(startDate.getTime());
+
+      while (cursor <= today) {
+        const key = toDateKey(cursor);
+        const newFollowers = timelineMap.get(key) || 0;
+        runningTotal += newFollowers;
+        timeline.push({
+          date: key,
+          newFollowers,
+          totalFollowers: runningTotal
+        });
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+
+      return timeline;
+    };
+
+    const timeline = buildTimeline();
+
+    const computeRangeSummary = (rangeDays) => {
+      if (!Array.isArray(timeline) || timeline.length === 0) {
+        return {
+          startDate: null,
+          endDate: null,
+          newFollowers: 0,
+          netChange: 0,
+          averagePerDay: 0
+        };
+      }
+
+      const sliceStart = Math.max(timeline.length - rangeDays, 0);
+      const windowSlice = timeline.slice(sliceStart);
+
+      if (windowSlice.length === 0) {
+        return {
+          startDate: null,
+          endDate: null,
+          newFollowers: 0,
+          netChange: 0,
+          averagePerDay: 0
+        };
+      }
+
+      const newFollowers = windowSlice.reduce((sum, day) => sum + day.newFollowers, 0);
+      const firstEntry = windowSlice[0];
+      const lastEntry = windowSlice[windowSlice.length - 1];
+      const startTotal = firstEntry.totalFollowers - firstEntry.newFollowers;
+      const netChange = lastEntry.totalFollowers - startTotal;
+
+      return {
+        startDate: firstEntry.date,
+        endDate: lastEntry.date,
+        newFollowers,
+        netChange,
+        averagePerDay: windowSlice.length > 0 ? Number((newFollowers / windowSlice.length).toFixed(2)) : 0
+      };
+    };
+
+    const followerRanges = {
+      '30': computeRangeSummary(30),
+      '180': computeRangeSummary(180),
+      '365': computeRangeSummary(365)
+    };
+
+    const followersPayload = {
+      totalFollowers,
+      totalNewFollowers: totalNewInWindow,
+      baselineFollowers,
+      timeline,
+      ranges: followerRanges,
+      generatedAt: new Date().toISOString()
+    };
+
+    const topCategories = categoryPreferenceResult.rows.map((row) => ({
+      key: row.category_key,
+      name: row.category_name || row.category_key || 'Unspecified',
+      followerCount: Number(row.follower_count) || 0
+    }));
+
+    const topTags = tagPreferenceResult.rows.map((row) => ({
+      id: row.tag_id,
+      name: row.tag_name || 'Unspecified',
+      followerCount: Number(row.follower_count) || 0
+    }));
+
+    const preferencesPayload = {
+      totalFollowers,
+      topCategories,
+      topTags,
+      maxCategoryCount: topCategories.reduce((max, item) => Math.max(max, item.followerCount), 0),
+      maxTagCount: topTags.reduce((max, item) => Math.max(max, item.followerCount), 0)
+    };
+
+    res.json({
+      clubId,
+      generatedAt: new Date().toISOString(),
+      events,
+      followers: followersPayload,
+      preferences: preferencesPayload
+    });
+  } catch (error) {
+    console.error('getClubEventAnalytics error:', error);
+    res.status(500).json({ error: 'Failed to load club event analytics' });
   }
 };
 

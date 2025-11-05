@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useStore } from 'vuex';
 import StatCard from './StatCard.vue';
@@ -9,6 +9,7 @@ import ClubCalendar from './ClubCalendar.vue';
 import ClubRSVPsModal from './ClubRSVPsModal.vue';
 import ClubFollowersModal from './ClubFollowersModal.vue';
 import ClubDetailModal from './ClubDetailModal.vue';
+import ClubAnalyticsSection from './ClubAnalyticsSection.vue';
 import { deleteRsvp } from '../services/rsvpService';
 
 const store = useStore();
@@ -42,6 +43,143 @@ const showFollowersModal = ref(false);
 const showProfileModal = ref(false);
 const showPreviewModal = ref(false);
 const rsvpActionKey = ref(null);
+
+const analyticsTabs = [
+  { id: 'event', label: 'Events' },
+  { id: 'audience', label: 'Followers' },
+  { id: 'engagement', label: 'Preferences' }
+];
+const activeAnalyticsTab = ref('event');
+const analyticsLoading = ref(false);
+const analyticsError = ref(null);
+
+const createEmptyRange = () => ({
+  startDate: null,
+  endDate: null,
+  newFollowers: 0,
+  netChange: 0,
+  averagePerDay: 0
+});
+
+const defaultFollowerAnalytics = Object.freeze({
+  totalFollowers: 0,
+  totalNewFollowers: 0,
+  baselineFollowers: 0,
+  timeline: [],
+  ranges: {
+    '30': createEmptyRange(),
+    '180': createEmptyRange(),
+    '365': createEmptyRange()
+  },
+  generatedAt: null
+});
+
+const defaultPreferenceAnalytics = Object.freeze({
+  totalFollowers: 0,
+  topCategories: [],
+  topTags: [],
+  maxCategoryCount: 0,
+  maxTagCount: 0
+});
+
+const clampRatio = (value, min = 0, max = 1) => {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+  return Math.min(Math.max(value, min), max);
+};
+
+const analyticsOwnerId = computed(() => {
+  if (!isMounted.value) {
+    return null;
+  }
+  const user = store.getters['auth/currentUser'];
+  if (!user || user.id == null) {
+    return null;
+  }
+  const numericId = Number(user.id);
+  return Number.isFinite(numericId) ? numericId : null;
+});
+
+const analyticsPayload = computed(() => {
+  if (!isMounted.value) {
+    return null;
+  }
+  const analytics = store.getters.clubEventAnalytics;
+  return analytics && typeof analytics === 'object' ? analytics : null;
+});
+
+const rawAnalyticsEvents = computed(() => {
+  const analytics = analyticsPayload.value;
+  return Array.isArray(analytics?.events) ? analytics.events : [];
+});
+
+const followerAnalytics = computed(() => {
+  const analytics = analyticsPayload.value;
+  const followers = analytics?.followers;
+  if (followers && typeof followers === 'object') {
+    return followers;
+  }
+  return defaultFollowerAnalytics;
+});
+
+const preferenceAnalytics = computed(() => {
+  const analytics = analyticsPayload.value;
+  const preferences = analytics?.preferences;
+  if (preferences && typeof preferences === 'object') {
+    return preferences;
+  }
+  return defaultPreferenceAnalytics;
+});
+
+const eventAnalytics = computed(() => {
+  return rawAnalyticsEvents.value.map((event) => {
+    const fillPercentRaw = Number(event.capacityFillPercentage);
+    const hasFillPercent = Number.isFinite(fillPercentRaw);
+    const fillRatioRaw = Number(event.capacityFillRatio);
+    const resolvedFillRatio = Number.isFinite(fillRatioRaw)
+      ? clampRatio(fillRatioRaw)
+      : hasFillPercent
+        ? clampRatio(fillPercentRaw / 100)
+        : 0;
+    const capacityFillWidth = Math.round(resolvedFillRatio * 100);
+
+    let resolvedProgressPercent = Number(event.progressPercent);
+    if (!Number.isFinite(resolvedProgressPercent)) {
+      const ratio = Number(event.progressRatio);
+      resolvedProgressPercent = Number.isFinite(ratio) ? Number((ratio * 100).toFixed(1)) : 0;
+    }
+    const normalizedProgress = Number.isFinite(resolvedProgressPercent) ? resolvedProgressPercent : 0;
+    const progressPercentText = `${normalizedProgress.toFixed(1)}%`;
+
+    const stageLabel = event.progressStageLabel
+      ? event.progressStageLabel
+      : event.progressStage
+        ? `${event.progressStage.charAt(0).toUpperCase()}${event.progressStage.slice(1)} stage`
+        : 'Stage unavailable';
+
+    const isFull = resolvedFillRatio >= 0.999 || (hasFillPercent && fillPercentRaw >= 99.9);
+    const insightLabel = isFull ? 'FULL' : event.insightLabel;
+    const insightColor = isFull ? 'blue' : event.insightColor;
+
+    const startDateSource = event.startDateTime || event.start_datetime || event.start_time || event.startTime || event.date || event.datetime;
+    const startDateTimeText = formatDateTime(startDateSource);
+
+    return {
+      ...event,
+      capacityFillPercentage: hasFillPercent ? Number(fillPercentRaw.toFixed(1)) : null,
+      capacityFillPercentText: hasFillPercent ? `${fillPercentRaw.toFixed(1)}%` : 'Not available',
+      capacityFillRatio: resolvedFillRatio,
+      capacityFillWidth,
+      progressPercent: Number(normalizedProgress.toFixed(1)),
+      progressPercentText,
+      progressStageLabel: stageLabel,
+      insightLabel,
+      insightColor,
+      startDateTimeText
+    };
+  });
+});
 
 // Image modal state
 const showImageModal = ref(false);
@@ -154,19 +292,62 @@ const currentClubCategory = computed(() => {
 });
 
 const refreshClubRsvps = async () => {
-  const ownerId = currentUser.value?.id;
-  if (!ownerId) {
+  const ownerId = analyticsOwnerId.value;
+  if (!Number.isFinite(ownerId)) {
     return;
   }
   await store.dispatch('fetchClubRSVPs', ownerId);
 };
 
 const refreshClubFollowers = async () => {
-  const ownerId = currentUser.value?.id;
-  if (!ownerId) {
+  const ownerId = analyticsOwnerId.value;
+  if (!Number.isFinite(ownerId)) {
     return;
   }
   await store.dispatch('fetchClubFollowers', ownerId);
+};
+
+const loadClubAnalytics = async (ownerId) => {
+  const numericOwnerId = Number(ownerId);
+  if (!Number.isFinite(numericOwnerId)) {
+    return;
+  }
+
+  analyticsLoading.value = true;
+  analyticsError.value = null;
+
+  try {
+    await store.dispatch('fetchClubEventAnalytics', numericOwnerId);
+  } catch (error) {
+    console.error('Failed to load club analytics:', error);
+    analyticsError.value = 'Failed to load event analytics.';
+  } finally {
+    analyticsLoading.value = false;
+  }
+};
+
+const retryAnalytics = () => {
+  if (analyticsOwnerId.value == null) {
+    return;
+  }
+  loadClubAnalytics(analyticsOwnerId.value);
+};
+
+const formatDateTime = (value) => {
+  if (!value) {
+    return 'TBD';
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return 'TBD';
+  }
+  return parsed.toLocaleString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  });
 };
 
 const navigateToClubEvents = async (status = 'both') => {
@@ -247,16 +428,41 @@ const handleRemoveAllRsvps = async ({ eventId, rsvps }) => {
   }
 };
 
+watch(
+  () => analyticsOwnerId.value,
+  async (newOwnerId, oldOwnerId) => {
+    if (Number.isFinite(newOwnerId)) {
+      if (newOwnerId === oldOwnerId) {
+        return;
+      }
+      await loadClubAnalytics(newOwnerId);
+      try {
+        await refreshClubRsvps();
+      } catch (error) {
+        console.error('Failed to refresh club RSVPs:', error);
+      }
+      try {
+        await refreshClubFollowers();
+      } catch (error) {
+        console.error('Failed to refresh club followers:', error);
+      }
+      try {
+        await store.dispatch('fetchClubStats', newOwnerId);
+      } catch (error) {
+        console.error('Failed to refresh club stats:', error);
+      }
+    } else if (Number.isFinite(oldOwnerId)) {
+      store.commit('SET_CLUB_ANALYTICS', []);
+    }
+  },
+  { immediate: true }
+);
+
 // Fetch data on mount
 onMounted(async () => {
-  const userId = currentUser.value.id;
-  
   // Fetch all data
   await store.dispatch('fetchAllEvents');
   await store.dispatch('fetchClubOwnedEvents', { force: true });
-  await store.dispatch('fetchClubStats', userId);
-  await refreshClubRsvps();
-  await refreshClubFollowers();
 });
 
 const handleProfileUpdated = () => {
@@ -344,6 +550,18 @@ const closeImageModal = () => {
       <section class="calendar-section">
         <ClubCalendar />
       </section>
+
+      <ClubAnalyticsSection
+        :tabs="analyticsTabs"
+        :active-tab="activeAnalyticsTab"
+        :event-analytics="eventAnalytics"
+        :follower-analytics="followerAnalytics"
+        :preference-analytics="preferenceAnalytics"
+        :loading="analyticsLoading"
+        :error="analyticsError"
+        @update:activeTab="activeAnalyticsTab = $event"
+        @retry="retryAnalytics"
+      />
     </div>
 
     <ClubRSVPsModal
