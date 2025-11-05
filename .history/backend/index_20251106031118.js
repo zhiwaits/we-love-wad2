@@ -38,7 +38,7 @@ const ALLOWED_ORIGIN_PATTERNS = [
   /^https:\/\/testwad2-tglu(?:-[a-z0-9-]+)?\.vercel\.app$/i
 ];
 
-const ALLOWED_HEADERS = ['Origin', 'Content-Type', 'Authorization', 'token', 'X-Requested-With', 'Accept'];
+const ALLOWED_HEADERS = ['Content-Type', 'Authorization', 'token', 'X-Requested-With', 'Accept'];
 
 const corsOptionsDelegate = (req, callback) => {
   const requestOrigin = req.header('Origin');
