@@ -1849,6 +1849,14 @@ export default createStore({
           dispatch('fetchUserPreferences', { userId: currentUser?.id, force }),
           dispatch('fetchAllEvents', { force })
         ]);
+
+        // Load user-specific data if user is authenticated
+        if (currentUser?.id && currentUser?.role !== 'club') {
+          await Promise.all([
+            dispatch('fetchUserRSVPs', currentUser.id),
+            dispatch('loadSavedEvents')
+          ]);
+        }
       } catch (error) {
         console.error('initializeAppData - error:', error);
       }
