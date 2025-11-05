@@ -33,6 +33,28 @@ const transporter = nodemailer.createTransport({
 // Create Supabase client
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+const sanitizeInput = (value) => {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  return String(value).replace(/[<>]/g, '').trim();
+};
+
+const formatEventDateTime = (value) => {
+  if (!value) {
+    return 'Unknown date';
+  }
+  try {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return 'Unknown date';
+    }
+    return date.toLocaleString('en-SG', { timeZone: 'Asia/Singapore' });
+  } catch (error) {
+    return 'Unknown date';
+  }
+};
+
 // Email test
 // async function sendEmail() {
 //   const info = await transporter.sendMail({
@@ -214,7 +236,7 @@ async function sendRsvpConfirmationEmail(userEmail, userName, eventTitle, confir
 
   const info = await transporter.sendMail({
 
-    from: "\"SMU Events Hub\" <${SMTP_USER}>",
+    from: `"SMU Events Hub" <${SMTP_USER}>`,
 
     to: userEmail,
 
@@ -250,6 +272,36 @@ async function sendRsvpConfirmationEmail(userEmail, userName, eventTitle, confir
 
 
 
+async function sendEventCancellationEmail(userEmail, userName, eventTitle, eventDatetime, eventLocation, eventVenue, cancellationReason) {
+  const safeReason = sanitizeInput(cancellationReason);
+  const reasonHtml = safeReason
+    ? `<p><strong>Reason provided:</strong><br>${safeReason.replace(/\r?\n/g, '<br>')}</p>`
+    : '<p>The organiser did not provide a specific reason for the cancellation.</p>';
+
+  const info = await transporter.sendMail({
+    from: `"SMU Events Hub" <${SMTP_USER}>`,
+    to: userEmail,
+    subject: `Event Cancelled: ${eventTitle}`,
+    html: `
+      <h2>Event Cancelled</h2>
+      <p>Hi ${userName},</p>
+      <p>We regret to inform you that the event <strong>${eventTitle}</strong> has been cancelled.</p>
+      <p><strong>Originally scheduled for:</strong> ${formatEventDateTime(eventDatetime)}</p>
+      ${eventLocation ? `<p><strong>Location:</strong> ${eventLocation}</p>` : ''}
+      ${eventVenue ? `<p><strong>Venue:</strong> ${eventVenue}</p>` : ''}
+      ${reasonHtml}
+      <p>We apologise for any inconvenience caused.</p>
+      <br>
+      <p>Best regards,<br>SMU Events Hub</p>
+    `
+  });
+
+  console.log('Cancellation email sent to:', userEmail);
+  return info;
+}
+
+
+
 if (require.main === module) {
 
   sendRemindersFor24HourEvents().catch(console.error);
@@ -268,7 +320,9 @@ module.exports = {
 
     sendRemindersFor24HourEvents,
 
-    sendRsvpConfirmationEmail
+  sendRsvpConfirmationEmail,
+
+  sendEventCancellationEmail
 
 };
 

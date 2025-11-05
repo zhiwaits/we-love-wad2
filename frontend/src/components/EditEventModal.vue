@@ -200,7 +200,7 @@ export default {
             default: false
         }
     },
-    emits: ['close', 'updated'],
+    emits: ['close', 'updated', 'deleted'],
     data() {
         return {
             MAX_TAGS,
@@ -474,13 +474,46 @@ export default {
             );
             if (!confirmed) return;
 
+            let cancellationReason = '';
+            if (this.confirmedAttendeeCount > 0) {
+                const attendeeLabel = this.confirmedAttendeeCount === 1
+                    ? '1 confirmed RSVP'
+                    : `${this.confirmedAttendeeCount} confirmed RSVPs`;
+                const promptMessage = [
+                    `This event currently has ${attendeeLabel}.`,
+                    'Please provide a cancellation reason to notify attendees (optional).',
+                    'Leave blank for a generic message.'
+                ].join('\n');
+                const userInput = window.prompt(promptMessage, '');
+                if (userInput === null) {
+                    return;
+                }
+                cancellationReason = userInput;
+            }
+
             this.error = '';
             this.success = '';
             this.submitting = true;
 
             try {
-                await deleteEvent(this.event.id);
-                this.success = 'Event deleted successfully!';
+                const response = await deleteEvent(this.event.id, { cancellationReason });
+
+                const notifications = response?.data?.emailNotifications;
+                let successMessage = 'Event deleted successfully!';
+                if (notifications && typeof notifications.attempted === 'number') {
+                    const { attempted, sent } = notifications;
+                    const attendeeWord = attempted === 1 ? 'attendee' : 'attendees';
+                    if (attempted > 0) {
+                        if (sent === attempted) {
+                            successMessage = `Event deleted successfully. Notified ${sent} ${attendeeWord}.`;
+                        } else if (sent > 0) {
+                            successMessage = `Event deleted. Email notifications were delivered to ${sent} of ${attempted} ${attendeeWord}.`;
+                        } else {
+                            successMessage = `Event deleted. Unable to deliver cancellation emails to the ${attendeeWord}.`;
+                        }
+                    }
+                }
+                this.success = successMessage;
                 
                 // Refresh the events list
                 await Promise.all([

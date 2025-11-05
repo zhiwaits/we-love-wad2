@@ -2,6 +2,7 @@ const pool = require('../db');
 const table = "events";
 const fs = require('fs');
 const path = require('path');
+const { sendEventCancellationEmail } = require('../notification/notification');
 
 function ensureDir(p) {
   try {
@@ -638,6 +639,32 @@ exports.deleteEvent = async (req, res) => {
     await client.query('BEGIN');
 
     const eventId = req.params.id;
+    const cancellationReasonRaw = (req.body && typeof req.body.cancellationReason === 'string')
+      ? req.body.cancellationReason
+      : '';
+    const cancellationReason = cancellationReasonRaw.trim();
+
+    const eventResult = await client.query(
+      `SELECT id, title, datetime, location, venue FROM ${table} WHERE id = $1 LIMIT 1`,
+      [eventId]
+    );
+
+    if (eventResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    const eventDetails = eventResult.rows[0];
+
+    const confirmedRsvpsResult = await client.query(
+      `SELECT r.user_id, p.email, p.name
+       FROM rsvps r
+       INNER JOIN profiles p ON p.id = r.user_id
+       WHERE r.event_id = $1 AND r.status = 'confirmed'`,
+      [eventId]
+    );
+
+    const confirmedRecipients = (confirmedRsvpsResult.rows || []).filter((row) => row?.email);
 
     // Delete all RSVPs for this event
     await client.query('DELETE FROM rsvps WHERE event_id = $1', [eventId]);
@@ -656,7 +683,45 @@ exports.deleteEvent = async (req, res) => {
     }
 
     await client.query('COMMIT');
-    res.json({ message: 'Event and all related data deleted successfully', event: result.rows[0] });
+
+    const emailNotifications = {
+      attempted: confirmedRecipients.length,
+      sent: 0
+    };
+
+    if (confirmedRecipients.length > 0) {
+      try {
+        const sendResults = await Promise.allSettled(
+          confirmedRecipients.map(({ email, name }) =>
+            sendEventCancellationEmail(
+              email,
+              name,
+              eventDetails.title,
+              eventDetails.datetime,
+              eventDetails.location,
+              eventDetails.venue,
+              cancellationReason
+            )
+          )
+        );
+
+        emailNotifications.sent = sendResults.filter((result) => result.status === 'fulfilled').length;
+
+        sendResults
+          .filter((result) => result.status === 'rejected')
+          .forEach((failure) => {
+            console.error('Failed to send cancellation email:', failure.reason);
+          });
+      } catch (emailError) {
+        console.error('Error sending cancellation emails:', emailError);
+      }
+    }
+
+    res.json({
+      message: 'Event and all related data deleted successfully',
+      event: result.rows[0],
+      emailNotifications
+    });
   } catch (err) {
     await client.query('ROLLBACK');
     res.status(500).json({ error: err.message });
