@@ -293,6 +293,7 @@ const createEmptyRangeSummary = () => ({
 
 const createDefaultClubAnalytics = () => ({
   events: [],
+  attendance: [],
   followers: {
     totalFollowers: 0,
     totalNewFollowers: 0,
@@ -331,6 +332,29 @@ const sanitizeClubAnalytics = (analytics) => {
 
   if (Array.isArray(analytics.events)) {
     base.events = analytics.events.map((event) => ({ ...event }));
+  }
+
+  if (Array.isArray(analytics.attendance)) {
+    base.attendance = analytics.attendance.map((item) => {
+      const capacityValue = Number(item?.capacity);
+      const normalizedCapacity = Number.isFinite(capacityValue) ? capacityValue : null;
+      const confirmed = Number(item?.confirmedAttendees) || 0;
+      const ratioValue = Number(item?.attendanceRatio);
+      const percentageValue = Number(item?.attendancePercentage);
+
+      return {
+        eventId: item?.eventId ?? item?.id ?? null,
+        title: item?.title || 'Untitled event',
+        startDateTime: item?.startDateTime || item?.start_datetime || null,
+        capacity: normalizedCapacity,
+        confirmedAttendees: confirmed,
+        attendanceRatio: Number.isFinite(ratioValue) ? ratioValue : null,
+        attendancePercentage: Number.isFinite(percentageValue) ? percentageValue : null,
+        insightLabel: item?.insightLabel || null,
+        insightColor: item?.insightColor || 'gray',
+        insightDescription: item?.insightDescription || ''
+      };
+    });
   }
 
   if (analytics.followers && typeof analytics.followers === 'object') {

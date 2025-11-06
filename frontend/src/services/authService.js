@@ -1,7 +1,6 @@
+import axios, { API_BASE_URL } from './config';
 
-import axios from 'axios';
-
-const BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const BASE_URL = API_BASE_URL;
 
 // ============================================
 // MOCK DATA - Remove when backend is ready
@@ -119,6 +118,12 @@ export const getCurrentUser = async () => {
     });
     return { data: response.data };
   } catch (error) {
+    // Handle 401 Unauthorized specifically - token is invalid/expired
+    if (error.response?.status === 401) {
+      // Clear invalid token
+      localStorage.removeItem('token');
+      throw new Error('Invalid or expired token');
+    }
     throw new Error(error.response?.data?.error || error.message || 'Failed to get user');
   }
 };

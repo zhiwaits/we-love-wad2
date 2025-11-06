@@ -3,14 +3,18 @@
     <div class="calendar-header">
       <h3>My Event Calendar</h3>
       <div class="calendar-header-actions">
-        <div class="calendar-legend" v-show="!showAllEvents">
-          <span class="legend-item rsvp">
+        <div class="calendar-legend">
+          <span v-if="!showAllEvents" class="legend-item rsvp">
             <span class="legend-dot"></span>
             RSVP'd Events
           </span>
-          <span class="legend-item saved">
+          <span v-if="!showAllEvents" class="legend-item saved">
             <span class="legend-dot"></span>
             Saved Events
+          </span>
+          <span v-if="showAllEvents" class="legend-item category">
+            <span class="legend-dot category-colors"></span>
+            Events by Category
           </span>
         </div>
         <label class="all-events-toggle">
@@ -90,138 +94,87 @@ const resolveEventStartDate = (event) => {
   );
 };
 
-const calendarEvents = computed(() => {
-  if (showAllEvents.value) {
-    const normalizedColors = normalizedCategoryColors.value;
-    const events = [];
-    allEvents.value.forEach((event) => {
-      if (!event) {
-        return;
-      }
-      const eventId = event.id != null ? event.id : event.event_id;
-      const startDate = resolveEventStartDate(event);
-      if (eventId == null || !startDate) {
-        return;
-      }
-      const categoryName = typeof event.category === 'string' ? event.category : '';
-      const colorKey = categoryName ? categoryName.toLowerCase() : '';
-      const color = normalizedColors[colorKey] || '#2563eb';
-      events.push({
-        id: `all-${eventId}`,
-        title: event.title,
-        start: startDate,
-        className: 'event-category',
-        backgroundColor: color,
-        borderColor: color,
-        textColor: '#ffffff',
-        extendedProps: {
-          eventId,
-          eventType: 'all',
-          description: event.description,
-          venue: event.venue || event.location,
-          category: event.category,
-          time: event.time,
-          imageUrl: event.image,
-          organiser: event.organiser
-        }
-      });
-    });
-    return events;
+// Helper to build event extended props
+const buildEventProps = (event) => ({
+  eventId: event.id,
+  description: event.description,
+  venue: event.venue || event.location,
+  category: event.category,
+  time: event.time,
+  imageUrl: event.image,
+  organiser: event.organiser
+});
+
+// Helper to build calendar event object
+const buildCalendarEvent = (event, eventType, className, color = null) => {
+  const baseEvent = {
+    id: `${eventType}-${event.id}`,
+    title: event.title,
+    start: resolveEventStartDate(event),
+    className,
+    extendedProps: {
+      ...buildEventProps(event),
+      eventType
+    }
+  };
+
+  if (color) {
+    baseEvent.backgroundColor = color;
+    baseEvent.borderColor = color;
+    baseEvent.textColor = '#ffffff';
   }
 
-  const events = [];
-  console.log('=== CALENDAR DEBUG ===');
-  console.log('All Events:', allEvents.value.length);
-  console.log('User RSVPs:', userRSVPs.value);
-  console.log('Saved Events:', savedEvents.value);
+  return baseEvent;
+};
 
-  // Add events that are both saved and RSVP'd (special gradient styling)
-  allEvents.value.forEach(event => {
-    const eventId = Number(event.id);
-    const isRsvp = userRSVPs.value.some(rsvp => Number(rsvp.event_id || rsvp) === eventId);
-    const isSaved = savedEvents.value.some(saved => Number(saved.event_id || saved) === eventId);
-    const startDate = resolveEventStartDate(event);
+const calendarEvents = computed(() => {
+  const rsvpIds = new Set(userRSVPs.value.map(r => Number(r.event_id || r)));
+  const savedIds = new Set(savedEvents.value.map(s => Number(s.event_id || s)));
 
-    if (isRsvp && isSaved && startDate) {
-      console.log('Found BOTH event:', eventId, event.title);
-      events.push({
-        id: `both-${event.id}`,
-        title: event.title,
-        start: startDate,
-        className: 'event-both',
-        extendedProps: {
-          eventId: event.id,
-          eventType: 'both',
-          description: event.description,
-          venue: event.venue || event.location,
-          category: event.category,
-          time: event.time,
-          imageUrl: event.image,
-          organiser: event.organiser
+  if (showAllEvents.value) {
+    return allEvents.value
+      .filter(event => event && resolveEventStartDate(event))
+      .map(event => {
+        const eventId = Number(event.id);
+        const isRsvp = rsvpIds.has(eventId);
+        const isSaved = savedIds.has(eventId);
+
+        // Maintain RSVP and Saved event colors even when showing all events
+        if (isRsvp && isSaved) {
+          return buildCalendarEvent(event, 'both', 'event-both');
         }
-      });
-    }
-  });
-
-  // Add RSVP'd events (only those not already added as both)
-  allEvents.value.forEach(event => {
-    const eventId = Number(event.id);
-    const isRsvp = userRSVPs.value.some(rsvp => Number(rsvp.event_id || rsvp) === eventId);
-    const isSaved = savedEvents.value.some(saved => Number(saved.event_id || saved) === eventId);
-    const startDate = resolveEventStartDate(event);
-
-    if (isRsvp && !isSaved && startDate) {
-      console.log('Found RSVP-only event:', eventId, event.title);
-      events.push({
-        id: `rsvp-${event.id}`,
-        title: event.title,
-        start: startDate,
-        className: 'event-rsvp',
-        extendedProps: {
-          eventId: event.id,
-          eventType: 'rsvp',
-          description: event.description,
-          venue: event.venue || event.location,
-          category: event.category,
-          time: event.time,
-          imageUrl: event.image,
-          organiser: event.organiser
+        if (isRsvp) {
+          return buildCalendarEvent(event, 'rsvp', 'event-rsvp');
         }
-      });
-    }
-  });
-
-  // Add saved events (only those not already added as both or RSVP'd)
-  allEvents.value.forEach(event => {
-    const eventId = Number(event.id);
-    const isRsvp = userRSVPs.value.some(rsvp => Number(rsvp.event_id || rsvp) === eventId);
-    const isSaved = savedEvents.value.some(saved => Number(saved.event_id || saved) === eventId);
-    const startDate = resolveEventStartDate(event);
-
-    if (isSaved && !isRsvp && startDate) {
-      console.log('Found SAVED-only event:', eventId, event.title);
-      events.push({
-        id: `saved-${event.id}`,
-        title: event.title,
-        start: startDate,
-        className: 'event-saved',
-        extendedProps: {
-          eventId: event.id,
-          eventType: 'saved',
-          description: event.description,
-          venue: event.venue || event.location,
-          category: event.category,
-          time: event.time,
-          imageUrl: event.image,
-          organiser: event.organiser
+        if (isSaved) {
+          return buildCalendarEvent(event, 'saved', 'event-saved');
         }
+        // Other events get color-coded by category
+        const categoryName = event.category?.toLowerCase();
+        const categoryColor = categoryName ? normalizedCategoryColors.value[categoryName] : null;
+        return buildCalendarEvent(event, 'category', 'event-category', categoryColor);
       });
-    }
-  });
+  }
 
-  console.log('Final calendar events:', events.length);
-  console.log('=== END CALENDAR DEBUG ===');
-  return events;
+  return allEvents.value
+    .filter(event => event && resolveEventStartDate(event))
+    .map(event => {
+      const eventId = Number(event.id);
+      const isRsvp = rsvpIds.has(eventId);
+      const isSaved = savedIds.has(eventId);
+
+      if (isRsvp && isSaved) {
+        return buildCalendarEvent(event, 'both', 'event-both');
+      }
+      if (isRsvp) {
+        return buildCalendarEvent(event, 'rsvp', 'event-rsvp');
+      }
+      if (isSaved) {
+        return buildCalendarEvent(event, 'saved', 'event-saved');
+      }
+      return null;
+    })
+    .filter(Boolean);
 });
 
 // Calendar configuration
@@ -447,6 +400,11 @@ function formatEventDate(date) {
   background-color: #fb923c;
 }
 
+.legend-item.category .legend-dot.category-colors {
+  background: linear-gradient(45deg, #10b981 25%, #f59e0b 25%, #f59e0b 50%, #ef4444 50%, #ef4444 75%, #8b5cf6 75%);
+  border: 1px solid #d1d5db;
+}
+
 /* FullCalendar Overrides */
 :deep(.fc) {
   font-family: inherit;
@@ -529,6 +487,12 @@ function formatEventDate(date) {
 :deep(.fc-event.event-saved:focus) {
   background-color: #fb923c !important;
   border-color: #f97316 !important;
+  color: #ffffff !important;
+}
+
+:deep(.fc-event.event-category),
+:deep(.fc-event.event-category:hover),
+:deep(.fc-event.event-category:focus) {
   color: #ffffff !important;
 }
 
@@ -701,6 +665,132 @@ function formatEventDate(date) {
 .modal-fade-enter-from,
 .modal-fade-leave-to {
   opacity: 0;
+}
+
+/* Dark Mode Styles - Google Calendar Theme */
+@media (prefers-color-scheme: dark) {
+  .user-calendar {
+    background: #202124;
+    color: #e8eaed;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  .calendar-header h3 {
+    color: #e8eaed;
+  }
+
+
+  .legend-item {
+    color: #9aa0a6;
+  }
+
+  :deep(.fc) {
+    color: #e8eaed;
+    background-color: #202124;
+  }
+
+  :deep(.fc .fc-toolbar-title) {
+    color: #e8eaed;
+    font-weight: 600;
+  }
+
+  :deep(.fc .fc-button-primary) {
+    background-color: #1f5aa0;
+    border-color: #1f5aa0;
+    color: #ffffff;
+  }
+
+  :deep(.fc .fc-button-primary:hover) {
+    background-color: #1547a0;
+    border-color: #1547a0;
+  }
+
+  :deep(.fc .fc-button-primary:not(:disabled).fc-button-active) {
+    background-color: #1f5aa0;
+    border-color: #1f5aa0;
+  }
+
+  :deep(.fc-theme-standard) {
+    --fc-border-color: #3c4043;
+    --fc-button-text-color: #e8eaed;
+    --fc-button-border-color: #3c4043;
+    --fc-button-bg-color: #3c4043;
+  }
+
+  :deep(.fc-theme-standard td),
+  :deep(.fc-theme-standard th) {
+    border-color: #3c4043;
+    background-color: #202124;
+    color: #e8eaed;
+  }
+
+  :deep(.fc-daygrid-day) {
+    background-color: #202124;
+  }
+
+  :deep(.fc-daygrid-day-number) {
+    color: #e8eaed;
+    font-weight: 500;
+  }
+
+  :deep(.fc-day-today) {
+    background-color: #1f5aa0 !important;
+  }
+
+  :deep(.fc-day-today .fc-daygrid-day-number) {
+    color: #ffffff !important;
+    background-color: #1f5aa0 !important;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  :deep(.fc-col-header-cell) {
+    background-color: #292a2d;
+    color: #e8eaed;
+    border-color: #3c4043;
+    font-weight: 600;
+  }
+
+  :deep(.fc-list-event-title) {
+    color: #e8eaed;
+  }
+
+  :deep(.fc-event) {
+    background-color: #1f5aa0 !important;
+    border-color: #1f5aa0 !important;
+    color: #ffffff !important;
+  }
+
+  :deep(.fc-event:hover) {
+    background-color: #1547a0 !important;
+    border-color: #1547a0 !important;
+  }
+
+  .event-modal {
+    background: #202124;
+    color: #e8eaed;
+  }
+
+  .modal-close-btn {
+    background: rgba(255, 255, 255, 0.1);
+    color: #e8eaed;
+  }
+
+  .modal-close-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .all-events-toggle {
+    color: #e8eaed;
+  }
+
+  .toggle-label {
+    color: #e8eaed;
+  }
 }
 
 /* Responsive */

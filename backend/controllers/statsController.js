@@ -5,11 +5,11 @@ exports.getUserStats = async (req, res) => {
   try {
     const userId = req.params.id;
     
-    // Get upcoming RSVPs count
+    // Get upcoming RSVPs count (only confirmed RSVPs)
     const upcomingRSVPs = await pool.query(
       `SELECT COUNT(*) FROM rsvps r
        JOIN events e ON r.event_id = e.id
-       WHERE r.user_id = $1 AND e.datetime > NOW()`,
+       WHERE r.user_id = $1 AND e.datetime > NOW() AND r.status = 'confirmed'`,
       [userId]
     );
     
