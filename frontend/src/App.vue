@@ -171,6 +171,56 @@ onMounted(async () => {
   }
 }
 
+/* Primary button - filled style for main actions */
+.btn.btn-primary {
+  color: var(--color-white);
+  background-color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-full);
+  padding: 8px 16px;
+  font-weight: var(--font-weight-semibold);
+  transition:
+    background-color var(--duration-fast),
+    border-color var(--duration-fast),
+    box-shadow var(--duration-fast),
+    transform var(--duration-fast);
+}
+
+.btn.btn-primary:hover {
+  background-color: var(--color-primary-hover, var(--color-primary));
+  border-color: var(--color-primary-hover, var(--color-primary));
+  box-shadow: 0 4px 12px rgba(var(--color-primary-rgb, 33, 128, 141), 0.3);
+  transform: translateY(-1px);
+}
+
+.btn.btn-primary:active {
+  background-color: var(--color-primary-hover, var(--color-primary));
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(var(--color-primary-rgb, 33, 128, 141), 0.3);
+}
+
+.btn.btn-primary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb, 33, 128, 141), 0.4);
+}
+
+.btn.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .btn.btn-primary {
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+  }
+  .btn.btn-primary:hover {
+    background-color: var(--color-primary-hover, var(--color-primary));
+    box-shadow: 0 4px 12px rgba(var(--color-primary-rgb, 33, 128, 141), 0.4);
+  }
+}
+
 /* FullCalendar list view global fallback */
 .fc-theme-standard td,
 .fc-theme-standard th {

@@ -379,7 +379,7 @@ defineExpose({
             </button>
             <button
               type="submit"
-              class="btn btn-outline"
+              class="btn btn-primary"
               :disabled="profileLoading"
             >
               {{ profileLoading ? 'Updating...' : 'Update Profile' }}
