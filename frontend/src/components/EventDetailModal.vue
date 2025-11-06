@@ -22,7 +22,12 @@
                     <header class="modal-header">
                         <h2 class="event-title">{{ event.title }}</h2>
                         <p class="event-organiser" v-if="event.organiser">
-                            By {{ event.organiser }}
+                            By <router-link 
+                              :to="{ name: 'ClubDetail', params: { id: event.ownerId } }"
+                              class="organiser-link"
+                            >
+                              {{ event.organiser }}
+                            </router-link>
                         </p>
                     </header>
 
@@ -1334,6 +1339,18 @@ async handleCancelRsvp() {
     align-items: center;
 }
 
+.organiser-link {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.2s ease;
+}
+
+.organiser-link:hover {
+    color: var(--color-primary-hover);
+    text-decoration: underline;
+}
+
 .icon {
     font-size: 18px;
 }
@@ -1537,6 +1554,18 @@ async handleCancelRsvp() {
 .attendees-toggle:hover {
     background: var(--color-secondary);
     border-color: var(--color-primary);
+}
+
+.toggle-icon {
+    font-weight: var(--font-weight-bold);
+    font-size: 1.25rem;
+    color: var(--color-text);
+}
+
+@media (prefers-color-scheme: dark) {
+    .toggle-icon {
+        color: #000000;
+    }
 }
 
 .attendees-panel {

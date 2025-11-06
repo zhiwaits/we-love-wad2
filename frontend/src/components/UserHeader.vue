@@ -7,9 +7,9 @@
           <p class="tagline">Discover amazing events</p>
         </div>
         <nav class="nav">
-          <router-link to="/" class="nav-link">Browse Events</router-link>
-          <router-link to="/clubs" class="nav-link">Browse Clubs</router-link>
-          <router-link to="/dashboard" class="nav-link">My Dashboard</router-link>
+          <router-link to="/" class="nav-link" :class="{ active: isActiveRoute('/') }">Browse Events</router-link>
+          <router-link to="/clubs" class="nav-link" :class="{ active: isActiveRoute('/clubs') }">Browse Clubs</router-link>
+          <router-link to="/dashboard" class="nav-link" :class="{ active: isActiveRoute('/dashboard') }">My Dashboard</router-link>
         </nav>
         <button class="btn btn--primary sign-out-btn" @click="handleAuthClick">
           {{ isAuthenticated ? 'Sign Out' : 'Sign In' }}
@@ -35,6 +35,9 @@ export default {
       } else {
         this.$router.push('/login');
       }
+    },
+    isActiveRoute(path) {
+      return this.$route.path === path;
     }
   }
 }
@@ -86,10 +89,17 @@ export default {
   text-decoration: none;
   font-weight: var(--font-weight-medium);
   transition: color var(--duration-fast) var(--ease-standard);
+  position: relative;
+  padding-bottom: 8px;
 }
 
 .nav-link:hover {
   color: var(--color-primary);
+}
+
+.nav-link.active {
+  color: var(--color-primary);
+  border-bottom: 3px solid var(--color-primary);
 }
 
 .sign-out-btn {

@@ -394,6 +394,13 @@ export default {
     border-bottom: 1px solid var(--color-border);
 }
 
+@media (prefers-color-scheme: dark) {
+    .search-filters {
+        box-shadow: 0 0 25px rgba(20, 184, 166, 0.12);
+        border-bottom-color: rgba(20, 184, 166, 0.15);
+    }
+}
+
 .search-bar {
     margin-bottom: var(--space-24);
     position: relative;
@@ -413,6 +420,24 @@ export default {
     border-radius: var(--radius-lg);
     border: 2px solid var(--color-border);
     transition: border-color 0.2s ease;
+    color: var(--color-text);
+}
+
+@media (prefers-color-scheme: dark) {
+    .search-input {
+        box-shadow: 0 0 20px rgba(20, 184, 166, 0.15);
+        border-color: rgba(20, 184, 166, 0.2);
+    }
+}
+
+.search-input::placeholder {
+    color: var(--color-text-secondary);
+}
+
+@media (prefers-color-scheme: dark) {
+    .search-input::placeholder {
+        color: #9ca3af;
+    }
 }
 
 .search-input:focus {
@@ -428,7 +453,7 @@ export default {
     transform: translateY(-50%);
     background: none;
     border: none;
-    color: #6c757d;
+    color: var(--color-primary);
     font-size: 1.5rem;
     font-weight: bold;
     cursor: pointer;
@@ -443,8 +468,8 @@ export default {
 }
 
 .filters-toggle-btn:hover {
-    background-color: var(--color-bg-2, #e9ecef);
-    color: var(--color-text);
+    background-color: rgba(20, 184, 166, 0.1);
+    color: var(--color-primary);
 }
 
 .filters-toggle {
@@ -651,22 +676,23 @@ export default {
     padding: var(--space-8) var(--space-16);
     border-radius: var(--radius-base);
     font-size: var(--font-size-sm);
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--color-primary);
     background-color: transparent;
-    color: var(--color-text);
+    color: var(--color-primary);
     cursor: pointer;
     transition: all 0.2s ease;
+    font-weight: var(--font-weight-semibold);
 }
 
 .reset-btn:hover:not(:disabled) {
-    background-color: var(--color-bg-1);
-    border-color: var(--color-text-secondary);
+    background-color: var(--color-primary);
+    color: white;
 }
 
 .reset-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-    background-color: #f8f9fa;
+    background-color: transparent;
 }
 
 .results-count {
