@@ -248,221 +248,223 @@ defineExpose({
 </script>
 
 <template>
-  <div v-if="visible" class="modal-overlay" @click="closeModal">
-    <div class="modal-content profile-modal" @click.stop>
-      <div class="modal-header">
-        <h3>Edit Club Profile</h3>
-      </div>
-
-      <div class="modal-body">
-        <form @submit.prevent="submitProfileUpdate" class="profile-edit-form">
-          <!-- Basic Information Section -->
-          <div class="form-section">
-            <h3 class="form-section-title">Basic Information</h3>
-            <div class="form-grid">
-              <div class="form-group">
-                <label for="name" class="form-label">Club Name</label>
-                <input
-                  id="name"
-                  v-model="profileForm.name"
-                  type="text"
-                  class="form-input"
-                  required
-                />
-              </div>
-
-              <div class="form-group">
-                <label for="username" class="form-label">Username</label>
-                <input
-                  id="username"
-                  v-model="profileForm.username"
-                  type="text"
-                  class="form-input"
-                  required
-                />
-              </div>
-
-              <div class="form-group form-group--full">
-                <label for="email" class="form-label">Email Address</label>
-                <input
-                  id="email"
-                  v-model="profileForm.email"
-                  type="email"
-                  class="form-input"
-                  required
-                />
-              </div>
-            </div>
+  <Teleport to="body">
+    <Transition name="modal">
+      <div v-if="visible" class="modal-overlay" @click.self="$emit('close')">
+        <div class="modal-container">
+          <div class="modal-header">
+            <h2 class="modal-title">Edit Club Profile</h2>
+            <button type="button" class="modal-close" @click="$emit('close')" aria-label="Close">
+              ×
+            </button>
           </div>
 
-          <!-- Security Section -->
-          <div class="form-section">
-            <h3 class="form-section-title">Change Password</h3>
-            <p class="form-section-desc">Leave blank to keep your current password</p>
-            <div class="form-grid">
-              <div class="form-group">
-                <label for="password" class="form-label">New Password</label>
-                <input
-                  id="password"
-                  v-model="profileForm.password"
-                  type="password"
-                  class="form-input"
-                />
-              </div>
+          <div class="modal-body">
+            <form @submit.prevent="submitProfileUpdate" class="profile-edit-form">
+              <!-- Basic Information Section -->
+              <div class="form-section">
+                <h3 class="form-section-title">Basic Information</h3>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label for="name" class="form-label">Club Name</label>
+                    <input
+                      id="name"
+                      v-model="profileForm.name"
+                      type="text"
+                      class="form-input"
+                      required
+                    />
+                  </div>
 
-              <div class="form-group">
-                <label for="confirmPassword" class="form-label">Confirm New Password</label>
-                <input
-                  id="confirmPassword"
-                  v-model="profileForm.confirmPassword"
-                  type="password"
-                  class="form-input"
-                />
-              </div>
-            </div>
-          </div>
+                  <div class="form-group">
+                    <label for="username" class="form-label">Username</label>
+                    <input
+                      id="username"
+                      v-model="profileForm.username"
+                      type="text"
+                      class="form-input"
+                      required
+                    />
+                  </div>
 
-          <!-- Club Details Section -->
-          <div class="form-section">
-            <h3 class="form-section-title">Club Details</h3>
-            <div class="form-grid">
-              <div class="form-group form-group--full">
-                <label for="club_description" class="form-label">Club Description</label>
-                <textarea
-                  id="club_description"
-                  v-model="profileForm.club_description"
-                  class="form-textarea"
-                  rows="4"
-                  placeholder="Tell people about your club..."
-                  required
-                ></textarea>
-              </div>
-
-              <div class="form-group">
-                <label for="club_category_id" class="form-label">Club Category</label>
-                <select
-                  id="club_category_id"
-                  v-model="profileForm.club_category_id"
-                  class="form-select"
-                  :disabled="isCategoriesLoading"
-                  required
-                >
-                  <option value="">
-                    {{ isCategoriesLoading ? 'Loading categories...' : 'Select a category' }}
-                  </option>
-                  <option
-                    v-for="category in clubCategories"
-                    :key="category.id"
-                    :value="String(category.id)"
-                  >
-                    {{ category.name }}
-                  </option>
-                </select>
-                <small v-if="categoriesError" class="form-error">
-                  Error loading categories: {{ categoriesError }}
-                  <button type="button" @click="refreshCategories" class="retry-btn">Retry</button>
-                </small>
-              </div>
-
-              <div class="form-group">
-                <label for="image" class="form-label">Club Image</label>
-                <!-- Current Image Preview -->
-                <div v-if="currentImageSrc" class="image-preview">
-                  <img :src="currentImageSrc" alt="Current club image" class="preview-image" />
-                  <p class="preview-label">Current Image</p>
+                  <div class="form-group form-group--full">
+                    <label for="email" class="form-label">Email Address</label>
+                    <input
+                      id="email"
+                      v-model="profileForm.email"
+                      type="email"
+                      class="form-input"
+                      required
+                    />
+                  </div>
                 </div>
-                <input
-                  id="image"
-                  type="file"
-                  accept="image/*"
-                  class="form-input"
-                  @change="handleImageUpload"
-                />
-                <small class="form-help">Upload a new image to replace the current one. Recommended: 1200x400px</small>
               </div>
-            </div>
+
+              <!-- Security Section -->
+              <div class="form-section">
+                <h3 class="form-section-title">Change Password</h3>
+                <p class="form-section-desc">Leave blank to keep your current password</p>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label for="password" class="form-label">New Password</label>
+                    <input
+                      id="password"
+                      v-model="profileForm.password"
+                      type="password"
+                      class="form-input"
+                    />
+                  </div>
+
+                  <div class="form-group">
+                    <label for="confirmPassword" class="form-label">Confirm New Password</label>
+                    <input
+                      id="confirmPassword"
+                      v-model="profileForm.confirmPassword"
+                      type="password"
+                      class="form-input"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Club Details Section -->
+              <div class="form-section">
+                <h3 class="form-section-title">Club Details</h3>
+                <div class="form-grid">
+                  <div class="form-group form-group--full">
+                    <label for="club_description" class="form-label">Club Description</label>
+                    <textarea
+                      id="club_description"
+                      v-model="profileForm.club_description"
+                      class="form-textarea"
+                      rows="4"
+                      placeholder="Tell people about your club..."
+                      required
+                    ></textarea>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="club_category_id" class="form-label">Club Category</label>
+                    <select
+                      id="club_category_id"
+                      v-model="profileForm.club_category_id"
+                      class="form-select"
+                      :disabled="isCategoriesLoading"
+                      required
+                    >
+                      <option value="">
+                        {{ isCategoriesLoading ? 'Loading categories...' : 'Select a category' }}
+                      </option>
+                      <option
+                        v-for="category in clubCategories"
+                        :key="category.id"
+                        :value="String(category.id)"
+                      >
+                        {{ category.name }}
+                      </option>
+                    </select>
+                    <small v-if="categoriesError" class="form-error">
+                      Error loading categories: {{ categoriesError }}
+                      <button type="button" @click="refreshCategories" class="retry-btn">Retry</button>
+                    </small>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="image" class="form-label">Club Image</label>
+                    <!-- Current Image Preview -->
+                    <div v-if="currentImageSrc" class="image-preview">
+                      <img :src="currentImageSrc" alt="Current club image" class="preview-image" />
+                      <p class="preview-label">Current Image</p>
+                    </div>
+                    <input
+                      id="image"
+                      type="file"
+                      accept="image/*"
+                      class="form-input"
+                      @change="handleImageUpload"
+                    />
+                    <small class="form-help">Upload a new image to replace the current one. Recommended: 1200x400px</small>
+                  </div>
+                </div>
+              </div>
+            </form>
           </div>
 
-          <!-- Form Actions -->
-          <div class="form-actions">
-            <button
-              type="button"
-              class="btn btn-outline"
-              @click="closeModal"
-            >
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline" @click="$emit('close')">
               Cancel
             </button>
-            <button
-              type="submit"
-              class="btn btn-primary"
-              :disabled="profileLoading"
-            >
-              {{ profileLoading ? 'Updating...' : 'Update Profile' }}
+            <button type="button" class="btn btn-primary" @click="submitProfileUpdate" :disabled="profileLoading">
+              {{ profileLoading ? 'Saving...' : 'Save Changes' }}
             </button>
           </div>
-        </form>
+        </div>
       </div>
-    </div>
-  </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <style scoped>
+/* Modal overlay and container */
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
   display: flex;
-  justify-content: center;
   align-items: center;
-  z-index: 1000;
+  justify-content: center;
+  z-index: 9999;
+  padding: var(--space-20);
+  backdrop-filter: blur(2px);
 }
 
-.modal-content {
+.modal-container {
   background-color: var(--color-surface);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--color-border);
   max-width: 800px;
-  width: 90%;
+  width: 100%;
   max-height: 90vh;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-xl);
 }
 
-.profile-modal .modal-content {
-  max-width: 900px;
-}
-
+/* Modal header */
 .modal-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: var(--space-20);
+  justify-content: space-between;
+  padding: var(--space-24) var(--space-28);
   border-bottom: 1px solid var(--color-border);
+  background-color: var(--color-surface);
 }
 
-.modal-header h3 {
+.modal-title {
   margin: 0;
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
   color: var(--color-text);
 }
 
 .modal-close {
-  background: none;
+  background: transparent;
   border: none;
-  font-size: 24px;
-  cursor: pointer;
+  font-size: 32px;
+  line-height: 1;
   color: var(--color-text-secondary);
+  cursor: pointer;
   padding: 0;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-sm);
-  transition: all 0.2s ease;
+  border-radius: var(--radius-md);
+  transition: all var(--duration-fast);
 }
 
 .modal-close:hover {
@@ -470,8 +472,12 @@ defineExpose({
   color: var(--color-text);
 }
 
+/* Modal body */
 .modal-body {
-  padding: var(--space-20);
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-28);
+  background-color: var(--color-background);
 }
 
 /* Profile Edit Form */
@@ -483,15 +489,15 @@ defineExpose({
 }
 
 .form-section {
-  margin-bottom: var(--space-32);
-  padding-bottom: var(--space-32);
-  border-bottom: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-24);
+  margin-bottom: var(--space-24);
 }
 
-.form-section:last-of-type {
-  border-bottom: none;
-  margin-bottom: var(--space-24);
-  padding-bottom: 0;
+.form-section:last-child {
+  margin-bottom: 0;
 }
 
 .form-section-title {
@@ -504,9 +510,11 @@ defineExpose({
 .form-section-desc {
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
-  margin: 0 0 var(--space-16) 0;
+  margin: 0 0 var(--space-20) 0;
+  line-height: 1.5;
 }
 
+/* Form grid */
 .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -529,30 +537,24 @@ defineExpose({
   color: var(--color-text);
 }
 
+/* Form inputs */
 .form-input,
 .form-select,
 .form-textarea {
   padding: var(--space-12) var(--space-16);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background-color: var(--color-background);
+  background-color: var(--color-bg-2);
   color: var(--color-text);
   font-size: var(--font-size-base);
-  transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
+  font-family: inherit;
+  transition: all var(--duration-fast);
 }
 
-.form-input::placeholder,
-.form-select::placeholder,
-.form-textarea::placeholder {
-  color: var(--color-text-secondary);
-}
-
-@media (prefers-color-scheme: dark) {
-  .form-input::placeholder,
-  .form-select::placeholder,
-  .form-textarea::placeholder {
-    color: #9ca3af;
-  }
+.form-input:hover,
+.form-select:hover,
+.form-textarea:hover {
+  border-color: var(--color-primary);
 }
 
 .form-input:focus,
@@ -560,111 +562,225 @@ defineExpose({
 .form-textarea:focus {
   outline: none;
   border-color: var(--color-primary);
+  background-color: var(--color-surface);
   box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb, 33, 128, 141), 0.1);
 }
 
 .form-textarea {
   resize: vertical;
   min-height: 100px;
-}
-
-.form-textarea::placeholder {
-  color: var(--color-text-secondary);
-  opacity: 0.7;
-}
-
-@media (prefers-color-scheme: dark) {
-  .form-textarea::placeholder {
-    color: #9ca3af;
-  }
+  line-height: 1.5;
 }
 
 .form-help {
   font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
   margin-top: var(--space-4);
+  line-height: 1.4;
 }
 
-.form-error {
-  font-size: var(--font-size-xs);
-  color: var(--color-error, #e74c3c);
-  margin-top: var(--space-4);
+/* Preferences panel styling */
+.preferences-panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-24);
+  margin-bottom: var(--space-24);
+}
+
+.preferences-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-12);
+}
+
+.preferences-title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+
+.preferences-desc {
+  margin: 0 0 var(--space-20) 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.preferences-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-20);
+  background: transparent;
+}
+
+.preferences-group {
+  background: var(--color-bg-1);
+  padding: var(--space-16);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.group-label {
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-12);
+  display: block;
+}
+
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--space-8);
 }
 
-.retry-btn {
-  background: none;
-  border: 1px solid var(--color-error, #e74c3c);
-  color: var(--color-error, #e74c3c);
-  padding: var(--space-4) var(--space-8);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-xs);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.retry-btn:hover {
-  background-color: var(--color-error, #e74c3c);
-  color: white;
-}
-
-.image-preview {
-  margin-bottom: var(--space-12);
-  text-align: center;
-}
-
-.preview-image {
-  max-width: 200px;
-  max-height: 150px;
-  border-radius: var(--radius-md);
+/* Chip styling matching site design */
+:deep(.category-chip),
+:deep(.tag-chip),
+:deep(.preferences-chip) {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: 8px 14px;
+  border-radius: var(--radius-full);
   border: 1px solid var(--color-border);
-  object-fit: cover;
-}
-
-.preview-label {
+  background: var(--color-bg-2);
+  color: var(--color-text);
   font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-  margin: var(--space-8) 0 0 0;
   font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  user-select: none;
+  transition: all var(--duration-fast);
 }
 
-.form-actions {
+:deep(.category-chip input[type="checkbox"]),
+:deep(.tag-chip input[type="checkbox"]),
+:deep(.preferences-chip input[type="checkbox"]) {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+:deep(.category-chip:hover),
+:deep(.tag-chip:hover),
+:deep(.preferences-chip:hover) {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  background-color: rgba(var(--color-primary-rgb, 33, 128, 141), 0.12);
+  transform: translateY(-1px);
+}
+
+:deep(.category-chip:has(> input:checked)),
+:deep(.tag-chip:has(> input:checked)),
+:deep(.preferences-chip:has(> input:checked)) {
+  color: var(--color-white);
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  font-weight: var(--font-weight-semibold);
+  box-shadow: 0 2px 8px rgba(var(--color-primary-rgb, 33, 128, 141), 0.3);
+}
+
+/* Modal footer */
+.modal-footer {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-12);
-  margin-top: var(--space-24);
-  padding-top: var(--space-24);
+  padding: var(--space-20) var(--space-28);
   border-top: 1px solid var(--color-border);
+  background-color: var(--color-surface);
 }
 
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  .modal-overlay {
+    background-color: rgba(0, 0, 0, 0.75);
+  }
+
+  .modal-container {
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .form-section,
+  .preferences-panel {
+    background-color: var(--color-surface);
+    border-color: var(--color-border);
+  }
+
+  .preferences-group {
+    background: color-mix(in srgb, var(--color-surface) 80%, transparent);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  :deep(.category-chip),
+  :deep(.tag-chip),
+  :deep(.preferences-chip) {
+    background: color-mix(in srgb, var(--color-surface) 90%, transparent);
+    border-color: rgba(255, 255, 255, 0.16);
+  }
+
+  :deep(.category-chip:hover),
+  :deep(.tag-chip:hover),
+  :deep(.preferences-chip:hover) {
+    background-color: rgba(var(--color-primary-rgb, 33, 128, 141), 0.20);
+  }
+
+  :deep(.category-chip:has(> input:checked)),
+  :deep(.tag-chip:has(> input:checked)),
+  :deep(.preferences-chip:has(> input:checked)) {
+    background-color: var(--color-primary);
+    color: var(--color-white);
+  }
 }
 
+/* Modal transitions */
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity var(--duration-normal);
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+
+.modal-enter-active .modal-container,
+.modal-leave-active .modal-container {
+  transition: transform var(--duration-normal), opacity var(--duration-normal);
+}
+
+.modal-enter-from .modal-container,
+.modal-leave-to .modal-container {
+  transform: scale(0.95);
+  opacity: 0;
+}
+
+/* Responsive adjustments */
 @media (max-width: 768px) {
-  .modal-content {
-    width: 95%;
-    max-height: 95vh;
+  .modal-container {
+    max-width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .modal-header,
+  .modal-body,
+  .modal-footer {
+    padding-left: var(--space-20);
+    padding-right: var(--space-20);
   }
 
   .form-grid {
     grid-template-columns: 1fr;
   }
 
-  .form-section {
-    margin-bottom: var(--space-24);
-    padding-bottom: var(--space-24);
-  }
-
-  .form-actions {
-    flex-direction: column;
-  }
-
-  .btn {
-    width: 100%;
+  .preferences-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

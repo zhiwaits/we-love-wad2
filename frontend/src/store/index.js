@@ -885,7 +885,7 @@ export default createStore({
               score += 0.3 + 0.1 * preferredTagCounter;
               preferredTagCounter += 1;
             } else if (preferredTagNames.size > 0) {
-              score -= 0.02;
+              score -= 0.05;
             }
           });
 

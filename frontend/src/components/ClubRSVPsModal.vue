@@ -161,6 +161,11 @@ const handleClose = () => emit('close');
             </div>
           </article>
         </section>
+
+        <div class="modal-footer">
+          <button class="btn btn-outline" type="button" @click="$emit('refresh')">Refresh</button>
+          <button class="btn btn-outline" type="button" @click="$emit('close')">Close</button>
+        </div>
       </div>
     </div>
   </transition>
@@ -301,6 +306,14 @@ const handleClose = () => emit('close');
 
 .rsvp-table__actions {
   text-align: right;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1.5rem 2rem;
+  border-top: 1px solid var(--color-border, #e2e8f0);
 }
 
 @media (max-width: 768px) {
