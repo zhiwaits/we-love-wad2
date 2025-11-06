@@ -1,5 +1,6 @@
 <script setup>
 import { computed, defineEmits, defineProps } from 'vue';
+import { formatSingaporeDate, formatSingaporeDateTime } from '../utils/dateTime';
 
 const props = defineProps({
   visible: {
@@ -23,9 +24,9 @@ const hasGroups = computed(() => Array.isArray(props.groups) && props.groups.len
 const formatEventMeta = (dateValue, timeValue, venueValue) => {
   const parts = [];
   if (dateValue) {
-    const parsed = new Date(dateValue);
-    if (!Number.isNaN(parsed.getTime())) {
-      parts.push(parsed.toLocaleString('en-SG', { dateStyle: 'medium' }));
+    const formattedDate = formatSingaporeDate(dateValue, { dateStyle: 'medium' });
+    if (formattedDate) {
+      parts.push(formattedDate);
     }
   }
   if (timeValue) {
@@ -39,9 +40,8 @@ const formatEventMeta = (dateValue, timeValue, venueValue) => {
 
 const formatRsvpTimestamp = (timestamp) => {
   if (!timestamp) return '';
-  const parsed = new Date(timestamp);
-  if (Number.isNaN(parsed.getTime())) return timestamp;
-  return parsed.toLocaleString('en-SG', { dateStyle: 'medium', timeStyle: 'short' });
+  const formatted = formatSingaporeDateTime(timestamp, { dateStyle: 'medium', timeStyle: 'short' });
+  return formatted || timestamp;
 };
 
 const rowBusy = (eventId, userId) => props.busyKey === `single:${eventId}:${userId}`;

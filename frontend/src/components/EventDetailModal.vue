@@ -247,6 +247,7 @@
 <script>
 import { createRsvp, deleteRsvp, getRsvpsByEventId } from '@/services/rsvpService';
 import { mapState, mapGetters } from 'vuex';
+import { formatSingaporeDate } from '@/utils/dateTime';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 const FALLBACK_PLACEHOLDER = 'https://placehold.co/900x400?text=Event';
@@ -619,16 +620,13 @@ export default {
         },
         formatDateLong(isoDate) {
             if (!isoDate) return '';
-            try {
-                return new Date(isoDate).toLocaleDateString('en-US', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                });
-            } catch (e) {
-                return isoDate;
-            }
+            const formatted = formatSingaporeDate(isoDate, {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+            return formatted || isoDate;
         },
 
         isPastDateTime(dateStr, timeStr) {

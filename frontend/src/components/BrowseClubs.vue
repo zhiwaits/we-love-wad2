@@ -11,6 +11,7 @@ import ClubFollowersModal from './ClubFollowersModal.vue';
 import ClubDetailModal from './ClubDetailModal.vue';
 import ClubAnalyticsSection from './ClubAnalyticsSection.vue';
 import { deleteRsvp } from '../services/rsvpService';
+import { formatSingaporeDateTime } from '../utils/dateTime';
 
 const store = useStore();
 const router = useRouter();
@@ -337,17 +338,14 @@ const formatDateTime = (value) => {
   if (!value) {
     return 'TBD';
   }
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return 'TBD';
-  }
-  return parsed.toLocaleString(undefined, {
+  const formatted = formatSingaporeDateTime(value, {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit'
   });
+  return formatted || 'TBD';
 };
 
 const navigateToClubEvents = async (status = 'both') => {

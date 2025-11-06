@@ -106,10 +106,24 @@ const submitProfileUpdate = async () => {
       updateData.password = profileForm.value.password;
     }
 
-    await updateUserProfile(props.currentUser.id, updateData);
+    const response = await updateUserProfile(props.currentUser.id, updateData);
+    const updatedProfile = response?.data || {};
 
-    // Update the store with new data
-    await store.dispatch('auth/checkAuth');
+    // Keep the active session in sync with recently updated profile fields
+    const normalizedUser = {
+      ...props.currentUser,
+      ...updatedProfile,
+      role: updatedProfile?.role || updatedProfile?.account_type || props.currentUser.role
+    };
+    delete normalizedUser.password;
+
+    store.commit('auth/SET_USER', normalizedUser);
+
+    try {
+      await store.dispatch('initializeAppData', { force: true });
+    } catch (initializationError) {
+      console.warn('Failed to refresh app data after profile update:', initializationError);
+    }
 
     store.dispatch('showToast', { message: 'Profile updated successfully!', type: 'success' });
     emit('profile-updated');
