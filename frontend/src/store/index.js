@@ -540,7 +540,7 @@ export default createStore({
       return state.allEvents;
     },
     // Get filtered events based on current filters
-    filteredEvents: (state, getters, rootState) => {
+  filteredEvents: (state, getters, rootState, rootGetters) => {
       const baseEvents = state.showRecommended ? state.recommendedEvents : state.browseEvents;
       let filtered = Array.isArray(baseEvents) ? [...baseEvents] : [];
 
@@ -714,6 +714,16 @@ export default createStore({
       };
 
       const user = rootState.auth?.user || null;
+      const followingClubIdsRaw = rootGetters?.['clubs/followingClubIds'] ?? [];
+      const followedClubIdSet = new Set();
+      if (Array.isArray(followingClubIdsRaw)) {
+        followingClubIdsRaw.forEach((value) => {
+          const numeric = Number(value);
+          if (Number.isFinite(numeric)) {
+            followedClubIdSet.add(numeric);
+          }
+        });
+      }
       const explicitPreferences = state.userPreferences || null;
 
       const buildPreferenceScorer = () => {
@@ -740,7 +750,7 @@ export default createStore({
           clubCategoryPrefsSource.length > 0 ||
           tagPreferencesSource.length > 0;
 
-        if (!hasAnyPrefs) return null;
+  if (!hasAnyPrefs && followedClubIdSet.size === 0) return null;
 
         const categoryPrefs = categoryPrefsSource;
         const clubCategoryPrefs = clubCategoryPrefsSource;
@@ -865,7 +875,7 @@ export default createStore({
           preferredClubCategoryNames.size > 0 ||
           preferredTagNames.size > 0;
 
-        if (!hasPrefs) return null;
+  if (!hasPrefs && followedClubIdSet.size === 0) return null;
 
         return (event) => {
           let score = 0;
@@ -901,8 +911,19 @@ export default createStore({
             appliedMultiplier = true;
           }
 
-          if (appliedMultiplier) {
+          const ownerId = getNumericOwnerId(event);
+          const isFollowedClub = Number.isFinite(ownerId) && followedClubIdSet.has(ownerId);
+
+          if (appliedMultiplier && score > 0) {
             score *= 1.25;
+          }
+
+          if (isFollowedClub && score > 0) {
+            score *= 1.5;
+          }
+
+          if (isFollowedClub && score < 0.5) {
+            score = 0.5;
           }
 
           return score;

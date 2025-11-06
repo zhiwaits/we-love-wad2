@@ -144,7 +144,7 @@ function determineInsight(stageKey, capacityFillPercentage) {
   if (fill <= 80) {
     return {
       label: 'Underperforming',
-      color: 'yellow',
+      color: 'orange',
       description: 'Tracking well; maintain final-stage promotion.'
     };
   }
