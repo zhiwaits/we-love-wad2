@@ -4,8 +4,7 @@ import axios from 'axios';
 
 const LOCAL_FALLBACK = 'http://localhost:3000';
 const KNOWN_VERCEL_BACKENDS = [
-  'https://wad2groupprojectbackend.vercel.app',
-  'https://wad2groupprojectbackend-ndq8wavhy-terry-yeos-projects.vercel.app'
+  'https://we-love-wad2.vercel.app'
 ];
 
 const envBaseUrl = (import.meta.env?.VITE_API_BASE_URL || '').trim();
