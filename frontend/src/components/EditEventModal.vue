@@ -37,7 +37,7 @@
 
                             <div class="form-group">
                                 <label for="edit-end">End Date &amp; Time <span class="optional">(Optional)</span></label>
-                                <input id="edit-end" type="datetime-local" v-model="form.end" />
+                                <input id="edit-end" type="datetime-local" v-model="form.end" :min="form.start" />
                             </div>
                         </div>
 
@@ -316,6 +316,11 @@ export default {
         'form.venue'(newVenue) {
             if (newVenue) {
                 this.handleVenueSelected(newVenue);
+            }
+        },
+        'form.start'(newStart) {
+            if (newStart && this.form.end && new Date(newStart) > new Date(this.form.end)) {
+                this.form.end = '';
             }
         }
     },
@@ -810,6 +815,14 @@ export default {
             // Check if event date is in the past
             if (this.form.start && this.isPastDateTime(this.form.start)) {
                 this.error = 'Cannot edit an event with a past date. Please select a future date.';
+                this.success = '';
+                scrollModalToTop(this.$el);
+                return;
+            }
+
+            // Check if end datetime is before start datetime
+            if (this.form.start && this.form.end && new Date(this.form.start) > new Date(this.form.end)) {
+                this.error = 'End date and time cannot be before start date and time.';
                 this.success = '';
                 scrollModalToTop(this.$el);
                 return;
