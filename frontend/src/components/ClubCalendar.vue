@@ -325,9 +325,43 @@ async function handleShare() {
   color: #1f2937;
 }
 
+/* FullCalendar list view theming */
+/* Use app tokens so borders/backgrounds match light/dark modes */
 :deep(.fc-theme-standard td),
 :deep(.fc-theme-standard th) {
-  border-color: #e5e7eb;
+  border-color: var(--color-border);
+}
+
+:deep(.fc .fc-scrollgrid) {
+  border-color: var(--color-border);
+}
+
+:deep(.fc .fc-list),
+:deep(.fc .fc-list-table) {
+  background-color: var(--color-surface);
+}
+
+:deep(.fc .fc-list-day) {
+  border-color: var(--color-border);
+}
+
+:deep(.fc .fc-list-day-cushion) {
+  background-color: var(--color-surface);
+  color: var(--color-text-secondary);
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+
+:deep(.fc .fc-list-event td) {
+  border-color: var(--color-border);
+}
+
+:deep(.fc .fc-list-event:hover td) {
+  background-color: rgba(var(--color-primary-rgb, 33, 128, 141), 0.08);
+}
+
+:deep(.fc .fc-list-event-title a) {
+  color: var(--color-text);
 }
 
 :deep(.fc-daygrid-day-number) {

@@ -170,4 +170,34 @@ onMounted(async () => {
     --btn-bg-active: rgba(var(--color-primary-rgb, 33, 128, 141), 0.28);
   }
 }
+
+/* FullCalendar list view global fallback */
+.fc-theme-standard td,
+.fc-theme-standard th {
+  border-color: var(--color-border);
+}
+
+.fc .fc-scrollgrid {
+  border-color: var(--color-border);
+}
+
+.fc .fc-list,
+.fc .fc-list-table {
+  background-color: var(--color-surface);
+}
+
+.fc .fc-list-day-cushion {
+  background-color: var(--color-surface);
+  color: var(--color-text-secondary);
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.fc .fc-list-event td {
+  border-color: var(--color-border);
+}
+
+.fc .fc-list-event:hover td {
+  background-color: rgba(var(--color-primary-rgb, 33, 128, 141), 0.08);
+}
 </style>
