@@ -253,6 +253,45 @@ exports.createClubProfile = async (req, res) => {
 };
 
 
+exports.updateUserProfile = async (req, res) => {
+  const { id } = req.params;
+  const { name, username, email, password } = req.body || {};
+
+  if (!name || !username || !email) {
+    return res.status(400).json({ error: 'name, username, and email are required' });
+  }
+
+  try {
+    let passwordValue = null;
+
+    if (password) {
+      passwordValue = crypto.createHash('sha256').update(String(password)).digest('hex');
+    }
+
+    let query;
+    let params;
+
+    if (passwordValue) {
+      query = `UPDATE ${table} SET name = $1, username = $2, email = $3, password = $4 WHERE id = $5 AND account_type = 'user' RETURNING *`;
+      params = [name, username, email, passwordValue, id];
+    } else {
+      query = `UPDATE ${table} SET name = $1, username = $2, email = $3 WHERE id = $4 AND account_type = 'user' RETURNING *`;
+      params = [name, username, email, id];
+    }
+
+    const result = await pool.query(query, params);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User profile not found' });
+    }
+
+    return res.json(result.rows[0]);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+
 exports.updateClubProfile = async (req, res) => {
   const { id } = req.params;
   const {
