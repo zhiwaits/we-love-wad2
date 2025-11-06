@@ -1,6 +1,18 @@
 <script>
 import { mapState, mapGetters, mapActions } from 'vuex';
 
+const normalizeTagValue = (raw) => {
+  if (typeof raw !== 'string') {
+    return '';
+  }
+  const trimmed = raw.trim().toLowerCase();
+  if (!trimmed) {
+    return '';
+  }
+  const hyphenated = trimmed.replace(/\s+/g, '-').replace(/-+/g, '-');
+  return hyphenated.slice(0, 40);
+};
+
 export default {
   name: 'FilterPanel',
   
@@ -29,8 +41,8 @@ export default {
     
     // Check if a tag is selected
     isTagSelected() {
-      const selectedSet = new Set((this.selectedTags || []).map(tag => (tag || '').toLowerCase()));
-      return (tag) => selectedSet.has((tag || '').toLowerCase());
+      const selectedSet = new Set((this.selectedTags || []).map(tag => normalizeTagValue(tag)));
+      return (tag) => selectedSet.has(normalizeTagValue(tag));
     },
     
     // Count selected filters
@@ -53,17 +65,26 @@ export default {
     },
 
     filteredTagSuggestions() {
-      const input = this.tagSearchQuery.trim().toLowerCase();
-      if (!input) return [];
-      const selectedSet = new Set((this.selectedTags || []).map(tag => tag.toLowerCase()));
-      return this.allTags
-        .filter(tag => {
-          if (!tag) return false;
-          const lower = tag.toLowerCase();
-          if (selectedSet.has(lower)) return false;
-          return lower.includes(input);
-        })
-        .slice(0, 5);
+      const normalizedInput = normalizeTagValue(this.tagSearchQuery);
+      if (!normalizedInput) return [];
+      const selectedSet = new Set((this.selectedTags || []).map(tag => normalizeTagValue(tag)));
+      const unique = new Set();
+      const suggestions = [];
+      for (const rawTag of this.allTags) {
+        const normalizedTag = normalizeTagValue(rawTag);
+        if (!normalizedTag || unique.has(normalizedTag) || selectedSet.has(normalizedTag)) {
+          continue;
+        }
+        if (!normalizedTag.includes(normalizedInput)) {
+          continue;
+        }
+        unique.add(normalizedTag);
+        suggestions.push(normalizedTag);
+        if (suggestions.length >= 5) {
+          break;
+        }
+      }
+      return suggestions;
     }
   },
   
@@ -77,8 +98,10 @@ export default {
     
     // Handle tag click
     handleTagClick(tag) {
-      if (!this.isTagSelected(tag)) {
-        this.toggleTag(tag);
+      const normalized = normalizeTagValue(tag);
+      if (!normalized) return;
+      if (!this.isTagSelected(normalized)) {
+        this.toggleTag(normalized);
       }
       this.clearTagInput();
     },
@@ -134,12 +157,16 @@ export default {
         this.handleTagSubmit();
       } else if (event.key === 'Backspace' && !this.tagSearchQuery && this.selectedTags.length) {
         event.preventDefault();
-        this.toggleTag(this.selectedTags[this.selectedTags.length - 1]);
+        const lastTag = this.selectedTags[this.selectedTags.length - 1];
+        const normalizedLast = normalizeTagValue(lastTag);
+        if (normalizedLast) {
+          this.toggleTag(normalizedLast);
+        }
       }
     },
 
     handleTagSubmit() {
-      const normalized = this.normalizeTagValue(this.tagSearchQuery);
+      const normalized = normalizeTagValue(this.tagSearchQuery);
       if (!normalized) {
         this.tagFeedback = 'Enter a tag name to add.';
         return;
@@ -153,29 +180,24 @@ export default {
     },
 
     handleSuggestionSelect(tag) {
-      if (!tag) return;
-      if (!this.isTagSelected(tag)) {
-        this.toggleTag(tag);
+      const normalized = normalizeTagValue(tag);
+      if (!normalized) return;
+      if (!this.isTagSelected(normalized)) {
+        this.toggleTag(normalized);
       }
       this.clearTagInput();
     },
 
     removeTag(tag) {
-      if (this.isTagSelected(tag)) {
-        this.toggleTag(tag);
+      const normalized = normalizeTagValue(tag);
+      if (this.isTagSelected(normalized)) {
+        this.toggleTag(normalized);
       }
     },
 
     clearTagInput() {
       this.tagSearchQuery = '';
       this.tagFeedback = '';
-    },
-
-    normalizeTagValue(raw) {
-      if (typeof raw !== 'string') {
-        return '';
-      }
-      return raw.trim().replace(/\s+/g, ' ').slice(0, 40);
     }
   },
 

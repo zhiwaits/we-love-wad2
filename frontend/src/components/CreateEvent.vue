@@ -10,6 +10,14 @@ const router = useRouter();
 
 const MAX_TAGS = 10;
 
+const normalizeTagValue = (raw) => {
+	if (typeof raw !== 'string') return '';
+	const trimmed = raw.trim().toLowerCase();
+	if (!trimmed) return '';
+	const hyphenated = trimmed.replace(/\s+/g, '-').replace(/-+/g, '-');
+	return hyphenated.slice(0, 40);
+};
+
 // Helper function to scroll to top of the page
 const scrollToTop = () => {
 	nextTick(() => {
@@ -56,16 +64,20 @@ const availableTags = computed(() => (store.state.availableTags || []).map(t => 
 const selectedTags = computed(() => Array.isArray(form.value.tags) ? form.value.tags : []);
 const isTagLimitReached = computed(() => selectedTags.value.length >= MAX_TAGS);
 const filteredTagSuggestions = computed(() => {
-	const input = tagInput.value.trim().toLowerCase();
-	const existing = new Set(selectedTags.value.map((tag) => tag.toLowerCase()));
-	const pool = availableTags.value.filter((tag) => {
-		if (!tag) return false;
-		const lower = tag.toLowerCase();
-		if (existing.has(lower)) return false;
-		if (!input) return false;
-		return lower.includes(input);
-	});
-	return pool.slice(0, 8);
+	const normalizedInput = normalizeTagValue(tagInput.value);
+	if (!normalizedInput) return [];
+	const existing = new Set(selectedTags.value.map((tag) => normalizeTagValue(tag)));
+	const seen = new Set();
+	const suggestions = [];
+	for (const rawTag of availableTags.value) {
+		const normalizedTag = normalizeTagValue(rawTag);
+		if (!normalizedTag || seen.has(normalizedTag) || existing.has(normalizedTag)) continue;
+		if (!normalizedTag.includes(normalizedInput)) continue;
+		seen.add(normalizedTag);
+		suggestions.push(normalizedTag);
+		if (suggestions.length >= 8) break;
+	}
+	return suggestions;
 });
 
 const currentUser = computed(() => store.getters['auth/currentUser']);
@@ -189,11 +201,6 @@ const readFileAsDataURL = (file) => {
   });
 };
 
-const normalizeTagValue = (raw) => {
-	if (typeof raw !== 'string') return '';
-	return raw.trim().replace(/\s+/g, ' ').slice(0, 40);
-};
-
 const addTag = (raw) => {
 	const normalized = normalizeTagValue(raw);
 	if (!normalized) {
@@ -203,8 +210,7 @@ const addTag = (raw) => {
 	if (!Array.isArray(form.value.tags)) {
 		form.value.tags = [];
 	}
-	const lower = normalized.toLowerCase();
-	if (form.value.tags.some((tag) => tag.toLowerCase() === lower)) {
+	if (form.value.tags.includes(normalized)) {
 		tagFeedback.value = 'Tag already added.';
 		return false;
 	}
@@ -305,7 +311,7 @@ const handleSubmit = async () => {
 
 		// Check if end datetime is before start datetime
 		if (form.value.start && form.value.end && new Date(form.value.start) > new Date(form.value.end)) {
-			error.value = 'End date and time cannot be before start date and time.';
+			error.value = 'Start date and time must be before end date and time.';
 			scrollToTop();
 			submitting.value = false;
 			return;

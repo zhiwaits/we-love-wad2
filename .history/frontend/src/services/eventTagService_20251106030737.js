@@ -1,9 +1,0 @@
-import axios, { API_BASE_URL } from './config';
-
-const BASE_URL = API_BASE_URL;
-
-export const getAllEventTags = () => axios.get(`${BASE_URL}/eventTags`);
-export const getEventTagsByEventId = (eventId) => axios.get(`${BASE_URL}/eventTags/event/${eventId}`);
-export const getEventTagsByEventTag = (tagId) => axios.get(`${BASE_URL}/eventTags/tag/${tagId}`);
-export const createEventTag = (event_id, tag_id) => axios.post(`${BASE_URL}/eventTags`, { event_id, tag_id });
-export const deleteEventTag = (event_id, tag_id) => axios.delete(`${BASE_URL}/eventTags/${event_id}/${tag_id}`);
