@@ -491,6 +491,16 @@ const handleRetry = () => {
         </div>
       </template>
     </div>
+
+    <div class="preferences-actions">
+      <button
+        type="button"
+        class="btn btn-outline"
+        @click="$emit('open-preferences')"
+      >
+        Update Preferences
+      </button>
+    </div>
   </section>
 </template>
 

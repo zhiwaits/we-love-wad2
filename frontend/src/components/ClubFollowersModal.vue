@@ -93,6 +93,11 @@ const handleClose = () => emit('close');
             </tbody>
           </table>
         </section>
+
+        <div class="modal-footer">
+          <button class="btn btn-outline" type="button" @click="$emit('refresh')">Refresh</button>
+          <button class="btn btn-outline" type="button" @click="$emit('close')">Close</button>
+        </div>
       </div>
     </div>
   </transition>
@@ -177,6 +182,14 @@ const handleClose = () => emit('close');
   text-align: left;
   font-size: 0.95rem;
   border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1.25rem 2rem;
+  border-top: 1px solid var(--color-border, #e2e8f0);
 }
 
 @media (max-width: 768px) {

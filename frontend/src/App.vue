@@ -121,4 +121,53 @@ onMounted(async () => {
 .fade-leave-to {
   opacity: 0;
 }
+
+/* Outline button: neutral chip -> primary-tinted hover/active (Browse Events style) */
+.btn.btn-outline {
+  --btn-bg: var(--color-bg-2, var(--color-bg-1));
+  --btn-border: var(--color-border);
+  --btn-fg: var(--color-text);
+  --btn-bg-hover: rgba(var(--color-primary-rgb, 33, 128, 141), 0.12);
+  --btn-bg-active: rgba(var(--color-primary-rgb, 33, 128, 141), 0.18);
+
+  color: var(--btn-fg);
+  background-color: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  border-radius: var(--radius-full);
+  padding: 8px 14px;
+  font-weight: var(--font-weight-medium);
+  transition:
+    color var(--duration-fast),
+    border-color var(--duration-fast),
+    background-color var(--duration-fast),
+    box-shadow var(--duration-fast),
+    transform var(--duration-fast);
+}
+
+.btn.btn-outline:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  background-color: var(--btn-bg-hover);
+}
+
+.btn.btn-outline:active {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  background-color: var(--btn-bg-active);
+  transform: translateY(0.5px);
+}
+
+.btn.btn-outline:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb, 33, 128, 141), 0.25);
+}
+
+@media (prefers-color-scheme: dark) {
+  .btn.btn-outline {
+    --btn-bg: color-mix(in srgb, var(--color-surface) 86%, transparent);
+    --btn-border: rgba(255, 255, 255, 0.16);
+    --btn-bg-hover: rgba(var(--color-primary-rgb, 33, 128, 141), 0.20);
+    --btn-bg-active: rgba(var(--color-primary-rgb, 33, 128, 141), 0.28);
+  }
+}
 </style>
