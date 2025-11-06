@@ -2,6 +2,9 @@
 
 A comprehensive event and club management platform designed for Singapore Management University (SMU). This full-stack application enables students to discover events, manage clubs, and organize campus activities seamlessly.
 
+-----------------------------HOSTED ON CLOUD--------------------------------
+link : https://we-love-wad2-qqzk.vercel.app
+user/pass in .csv file
 ## 📋 Table of Contents
 
 - [Features](#features)
