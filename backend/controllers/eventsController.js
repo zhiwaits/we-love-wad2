@@ -1,46 +1,7 @@
+const { uploadImageToSupabase, deleteImageFromSupabase } = require('../utils/supabaseStorage');
 const pool = require('../db');
 const table = "events";
-const fs = require('fs');
-const path = require('path');
 const { sendEventCancellationEmail } = require('../notification/notification');
-
-function ensureDir(p) {
-  try {
-    fs.mkdirSync(p, { recursive: true });
-  } catch {}
-}
-
-function guessExtFromBase64(dataUrl) {
-  if (typeof dataUrl !== 'string') return '';
-  const m = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,/);
-  if (!m) return '';
-  const mime = m[1].toLowerCase();
-  if (mime === 'image/jpeg' || mime === 'image/jpg') return '.jpg';
-  if (mime === 'image/png') return '.png';
-  if (mime === 'image/webp') return '.webp';
-  if (mime === 'image/gif') return '.gif';
-  return '';
-}
-
-function pickImageExtension(imageBase64, originalName) {
-  const whitelist = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
-  const normalize = (ext) => {
-    if (!ext) return '';
-    const e = ext.toLowerCase();
-    if (e === '.jpeg') return '.jpg';
-    if (e === '.jfif') return '.jpg';
-    return whitelist.has(e) ? e : '';
-  };
-
-  const fromName = normalize(path.extname(originalName || ''));
-  if (fromName) return fromName;
-
-  const fromMime = guessExtFromBase64(imageBase64);
-  const normalizedMime = normalize(fromMime);
-  if (normalizedMime) return normalizedMime;
-
-  return '.png';
-}
 
 function formatDateISO(date) {
   if (!date) return null;
@@ -517,7 +478,6 @@ exports.getEventById = async (req, res) => {
 
 exports.createEvent = async (req, res) => {
   const client = await pool.connect();
-  let savedFilePath = null;
   try {
     const {
       title, description, datetime, location, category, capacity, owner_id, venue, enddatetime, price,
@@ -535,6 +495,8 @@ exports.createEvent = async (req, res) => {
     }
 
     await client.query('BEGIN');
+    
+    // Insert event first without image_url
     const insertResult = await client.query(
       `INSERT INTO ${table} (title, description, datetime, location, category, capacity, owner_id, venue, enddatetime, price, latitude, altitude)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
@@ -543,39 +505,36 @@ exports.createEvent = async (req, res) => {
     let event = insertResult.rows[0];
     console.log('[createEvent] Inserted event id:', event.id);
 
-    const uploadsDir = path.resolve(__dirname, '../uploads/event');
-    ensureDir(uploadsDir);
-
-    const ext = pickImageExtension(imageBase64, imageOriginalName) || '.png';
-    const timestamp = Date.now(); // Add timestamp for consistency
-    const finalFilename = `${event.id}_${timestamp}${ext}`;
-    const finalPath = path.join(uploadsDir, finalFilename);
-
-    try { fs.unlinkSync(finalPath); } catch {}
-
-    const base64PayloadRaw = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
-    const base64Payload = (base64PayloadRaw || '').replace(/\s+/g, '');
-    if (!base64Payload || /[^A-Za-z0-9+/=]/.test(base64Payload)) {
+    // Upload image to Supabase Storage
+    let imageUrl = null;
+    try {
+      imageUrl = await uploadImageToSupabase(imageBase64, imageOriginalName, 'events');
+      console.log('[createEvent] Uploaded image to Supabase:', imageUrl);
+    } catch (uploadError) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'Invalid image data' });
+      console.error('[createEvent] Image upload failed:', uploadError);
+      return res.status(500).json({ error: 'Failed to upload image' });
     }
-    fs.writeFileSync(finalPath, Buffer.from(base64Payload, 'base64'));
-    console.log('[createEvent] Saved image file to:', finalPath);
-    savedFilePath = finalPath;
 
-    const imageUrl = `/uploads/event/${finalFilename}`;
+    // Update event with Supabase image URL
     const updateResult = await client.query(
       `UPDATE ${table} SET image_url = $1 WHERE id = $2 RETURNING *`,
       [imageUrl, event.id]
     );
     if (!updateResult.rows.length) {
       await client.query('ROLLBACK');
-      try { fs.unlinkSync(savedFilePath); } catch {}
+      // Try to clean up uploaded image
+      try {
+        await deleteImageFromSupabase(imageUrl);
+      } catch (deleteError) {
+        console.error('[createEvent] Failed to cleanup image after DB error:', deleteError);
+      }
       return res.status(500).json({ error: 'Failed to update image_url in database' });
     }
     event = updateResult.rows[0];
     console.log('[createEvent] Updated image_url:', event.image_url);
 
+    // Handle tags (your existing tag logic)
     const normalizedTags = [];
     const seenTags = new Set();
     if (Array.isArray(tags)) {
@@ -668,9 +627,6 @@ exports.createEvent = async (req, res) => {
     res.status(201).json(responsePayload);
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch {}
-    if (savedFilePath) {
-      try { fs.unlinkSync(savedFilePath); } catch {}
-    }
     console.error('Create event failed:', err);
     res.status(500).json({ error: 'Failed to create event' });
   } finally {
@@ -688,6 +644,7 @@ exports.updateEvent = async (req, res) => {
 
   const sgDatetime = convertToSGTime(datetime);
   const sgEnddatetime = convertToSGTime(enddatetime);
+  
   try {
     const normalizedCapacity = capacity === null || capacity === '' || typeof capacity === 'undefined'
       ? null
@@ -714,18 +671,36 @@ exports.updateEvent = async (req, res) => {
       }
     }
 
-    let finalImageUrl = image_url;
+    let finalImageUrl = image_url; // Keep existing image URL by default
 
+    // If new image is provided, upload to Supabase and delete old one
     if (imageBase64 && imageOriginalName) {
-      const eventDir = path.join(__dirname, '..', 'uploads', 'event');
-      ensureDir(eventDir);
-      const ext = pickImageExtension(imageBase64, imageOriginalName);
-      const timestamp = Date.now(); // Add timestamp to ensure unique filename
-      const filename = `${id}_${timestamp}${ext}`;
-      const filepath = path.join(eventDir, filename);
-      const base64Data = imageBase64.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, '');
-      fs.writeFileSync(filepath, base64Data, 'base64');
-      finalImageUrl = `/uploads/event/${filename}`;
+      try {
+        // Get current image URL before updating
+        const currentEventResult = await pool.query(
+          `SELECT image_url FROM ${table} WHERE id = $1`,
+          [id]
+        );
+        const currentImageUrl = currentEventResult.rows[0]?.image_url;
+
+        // Upload new image to Supabase
+        finalImageUrl = await uploadImageToSupabase(imageBase64, imageOriginalName, 'events');
+        console.log('[updateEvent] Uploaded new image to Supabase:', finalImageUrl);
+
+        // Delete old image from Supabase if it exists and is different
+        if (currentImageUrl && currentImageUrl !== finalImageUrl && currentImageUrl.includes('supabase')) {
+          try {
+            await deleteImageFromSupabase(currentImageUrl);
+            console.log('[updateEvent] Deleted old image from Supabase:', currentImageUrl);
+          } catch (deleteError) {
+            console.error('[updateEvent] Failed to delete old image:', deleteError);
+            // Don't fail the whole operation if old image deletion fails
+          }
+        }
+      } catch (uploadError) {
+        console.error('[updateEvent] Image upload failed:', uploadError);
+        return res.status(500).json({ error: 'Failed to upload new image' });
+      }
     }
 
     const result = await pool.query(
@@ -733,6 +708,7 @@ exports.updateEvent = async (req, res) => {
        category=$5, capacity=$6, image_url=$7, owner_id=$8, venue=$9, enddatetime=$10, price=$11, latitude=$12, altitude=$13 WHERE id=$14 RETURNING *`,
       [title, description, sgDatetime, location, category, normalizedCapacity, finalImageUrl, owner_id, venue, sgEnddatetime, price, latitude, altitude, id]
     );
+    
     if (result.rows.length === 0) return res.status(404).json({ error: 'Event not found' });
 
     // Get the updated event with organiser info and attendee count
