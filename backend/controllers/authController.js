@@ -1,8 +1,27 @@
 const pool = require('../db');
 const crypto = require('crypto');
 
-const activeTokens = new Map(); // Fallback in-memory storage
+// const activeTokens = new Map(); // Removed in-memory storage
 const TOKEN_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
+
+// Create sessions table if it doesn't exist
+const createSessionsTable = async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS sessions (
+        token VARCHAR(64) PRIMARY KEY,
+        user_id INTEGER REFERENCES profiles(id) ON DELETE CASCADE,
+        expires_at TIMESTAMP NOT NULL
+      )
+    `);
+    console.log('Sessions table ensured');
+  } catch (error) {
+    console.error('Error creating sessions table:', error);
+  }
+};
+
+// Initialize table creation
+createSessionsTable();
 
 const sanitizeProfile = (profile) => {
   if (!profile) return null;
@@ -17,8 +36,11 @@ const issueToken = async (userId) => {
   const token = crypto.randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + TOKEN_TTL_MS);
   
-  // Store in-memory
-  activeTokens.set(token, { userId, expiresAt });
+  // Store in database
+  await pool.query(
+    'INSERT INTO sessions (token, user_id, expires_at) VALUES ($1, $2, $3)',
+    [token, userId, expiresAt]
+  );
   
   return token;
 };
@@ -34,17 +56,28 @@ const extractToken = (req) => {
 const resolveSession = async (token) => {
   if (!token) return null;
   
-  // Check in-memory storage
-  const session = activeTokens.get(token);
-  if (!session) return null;
-  
-  // Check if token is expired
-  if (Date.now() > session.expiresAt.getTime()) {
-    activeTokens.delete(token);
+  try {
+    const result = await pool.query(
+      'SELECT user_id, expires_at FROM sessions WHERE token = $1',
+      [token]
+    );
+    
+    if (result.rows.length === 0) return null;
+    
+    const { user_id, expires_at } = result.rows[0];
+    
+    // Check if token is expired
+    if (Date.now() > new Date(expires_at).getTime()) {
+      // Delete expired token
+      await pool.query('DELETE FROM sessions WHERE token = $1', [token]);
+      return null;
+    }
+    
+    return { userId: user_id, expiresAt: expires_at };
+  } catch (error) {
+    console.error('Error resolving session:', error);
     return null;
   }
-  
-  return session;
 };
 
 exports.login = async (req, res) => {
@@ -79,9 +112,13 @@ exports.login = async (req, res) => {
 exports.logout = async (req, res) => {
   const token = extractToken(req);
   
-  // Remove from in-memory storage
+  // Remove from database
   if (token) {
-    activeTokens.delete(token);
+    try {
+      await pool.query('DELETE FROM sessions WHERE token = $1', [token]);
+    } catch (error) {
+      console.error('Error deleting session:', error);
+    }
   }
   
   return res.json({ success: true });

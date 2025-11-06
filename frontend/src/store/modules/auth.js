@@ -223,10 +223,8 @@ const actions = {
         console.error('Authentication check failed:', error);
       }
       
-      // Don't clear token on 401, just set user to null to avoid automatic logout
-      state.user = null;
-      state.isAuthenticated = false;
-      state.error = null;
+      // Token is invalid, clear everything
+      commit('LOGOUT');
       await dispatch('resetAppState', null, { root: true });
       commit('SET_LOADING', false);
       
