@@ -25,6 +25,24 @@ const upcomingEvents = computed(() => store.getters.upcomingUserEvents);
 const recommendedEvents = computed(() => store.getters.recommendedEvents);
 const savedEvents = computed(() => store.getters.userSavedEvents);
 const allEvents = computed(() => store.getters.allEvents);
+const followingClubIds = computed(() => store.getters['clubs/followingClubIds'] || []);
+
+const getNumericOwnerId = (event) => {
+  if (!event) return null;
+  const candidates = [
+    event.ownerId,
+    event.owner_id,
+    event.ownerID,
+    event.owner?.id
+  ];
+  for (const candidate of candidates) {
+    const numeric = Number(candidate);
+    if (Number.isFinite(numeric)) {
+      return numeric;
+    }
+  }
+  return null;
+};
 
 // NEW - Past attended events (confirmed RSVPs that have passed)
 const pastAttendedEvents = computed(() => {
@@ -50,6 +68,15 @@ const topRecommendedEvents = computed(() => {
   const nowMs = Date.now();
   const savedEventIds = new Set(savedEvents.value.map(event => event.id));
   const rsvpdEventIds = new Set(upcomingEvents.value.map(event => event.id));
+  const followedClubIdSet = new Set();
+  if (Array.isArray(followingClubIds.value)) {
+    followingClubIds.value.forEach((value) => {
+      const numeric = Number(value);
+      if (Number.isFinite(numeric)) {
+        followedClubIdSet.add(numeric);
+      }
+    });
+  }
   
   // Get user preferences for scoring
   const userPrefs = store.state.userPreferences;
@@ -66,9 +93,9 @@ const topRecommendedEvents = computed(() => {
       ? userPrefs.tagPreferences
       : [];
     
-    const hasAnyPrefs = categoryPrefsSource.length > 0 || tagPreferencesSource.length > 0;
+  const hasAnyPrefs = categoryPrefsSource.length > 0 || tagPreferencesSource.length > 0;
     
-    if (!hasAnyPrefs) return null;
+  if (!hasAnyPrefs && followedClubIdSet.size === 0) return null;
     
     const categoryPrefs = categoryPrefsSource;
     const tagPreferences = tagPreferencesSource;
@@ -119,16 +146,16 @@ const topRecommendedEvents = computed(() => {
     
     return (event) => {
       let score = 0;
-      
+
       const category = event?.category?.toString().trim().toLowerCase();
       if (category && preferredCategories.has(category)) {
         score += 1;
       }
-      
+
       const eventTags = Array.isArray(event?.tags)
         ? event.tags.map((tag) => tag?.toString().trim().toLowerCase()).filter(Boolean)
         : [];
-      
+
       let preferredTagCounter = 0;
       eventTags.forEach((tagName) => {
         if (preferredTagNames.has(tagName)) {
@@ -136,7 +163,18 @@ const topRecommendedEvents = computed(() => {
           preferredTagCounter += 1;
         }
       });
-      
+
+      const ownerId = getNumericOwnerId(event);
+      const isFollowedClub = Number.isFinite(ownerId) && followedClubIdSet.has(ownerId);
+
+      if (isFollowedClub && score > 0) {
+        score *= 1.5;
+      }
+
+      if (isFollowedClub && score < 0.2) {
+        score = 0.2;
+      }
+
       return score;
     };
   };
@@ -328,6 +366,7 @@ onMounted(async () => {
   await store.dispatch('loadSavedEvents');
   await store.dispatch('fetchUserStats', userId);
   await store.dispatch('fetchUserRSVPs', userId);
+  await store.dispatch('clubs/loadFollowing');
 
   // Load user preferences
   try {
