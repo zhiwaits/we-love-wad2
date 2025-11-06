@@ -24,11 +24,11 @@ const STATIC_ALLOWED_ORIGINS = new Set([
   'http://localhost:3000',
   'http://127.0.0.1:5173',
   'https://we-love-wad2-qqzk.vercel.app',
+  'https://we-love-wad2-qqzk-zhiweis-projects-e735ca14.vercel.app',
   'https://we-love-wad2-qqzk-git-main-zhiweis-projects-e735ca14.vercel.app',
-  'https://we-love-wad2-qqzk-7jk5m0crs-zhiweis-projects-e735ca14.vercel.app',
+  'https://we-love-wad2-qqzk-8u9u7hpqj-zhiweis-projects-e735ca14.vercel.app',
   'https://we-love-wad2.vercel.app',
-  'https://we-love-wad2-git-main-zhiweis-projects-e735ca14.vercel.app',
-  'https://we-love-wad2-d8qxex7tm-zhiweis-projects-e735ca14.vercel.app'
+  'https://we-love-wad2-h267l61rk-zhiweis-projects-e735ca14.vercel.app'
 ]);
 
 const DYNAMIC_ALLOWED_ORIGINS = (process.env.CORS_ALLOWED_ORIGINS || '')
