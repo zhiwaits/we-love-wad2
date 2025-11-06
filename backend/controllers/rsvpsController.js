@@ -133,7 +133,8 @@ exports.createRsvp = async (req, res) => {
         if (userResult.rows.length > 0 && eventResult.rows.length > 0) {
             const user = userResult.rows[0];
             const eventData = eventResult.rows[0];
-            const confirmationLink = `http://localhost:5173/confirm-rsvp/${confirmation_token}`;
+            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+            const confirmationLink = `${frontendUrl}/confirm-rsvp/${confirmation_token}`;
 
             await sendRsvpConfirmationEmail(user.email, user.name, eventData.title, confirmationLink);
         }

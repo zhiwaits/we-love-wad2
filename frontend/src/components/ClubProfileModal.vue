@@ -252,7 +252,6 @@ defineExpose({
     <div class="modal-content profile-modal" @click.stop>
       <div class="modal-header">
         <h3>Edit Club Profile</h3>
-        <button class="modal-close" @click="closeModal">&times;</button>
       </div>
 
       <div class="modal-body">

@@ -244,7 +244,12 @@ export default {
         closeTagsModal() {
             this.showTagsModal = false;
             this.tagsModalEvent = null;
-        }
+        },
+
+        isEventPast(event) {
+            if (!event.start) return false;
+            return new Date(event.start) < new Date();
+        },
     },
     watch: {
         events() {
@@ -339,7 +344,7 @@ export default {
 
                         <!-- Action Buttons -->
                         <div class="event-actions">
-                            <button class="btn btn--primary" @click.stop="handleEdit(event)">
+                            <button class="btn btn--primary" :disabled="isEventPast(event)" :class="{ 'btn--disabled': isEventPast(event) }" @click.stop="handleEdit(event)">
                                 Edit Event
                             </button>
                             <button class="btn btn--secondary" @click.stop="openEventModal(event)">
@@ -770,6 +775,17 @@ export default {
     background-color: var(--color-primary-hover);
     transform: translateY(-1px);
     box-shadow: var(--shadow-sm);
+}
+
+.btn--disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn--disabled:hover {
+    transform: none;
+    box-shadow: none;
+    background-color: var(--color-primary);
 }
 
 .btn--secondary {

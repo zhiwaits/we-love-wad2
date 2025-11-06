@@ -282,6 +282,13 @@ watch(() => form.value.venue, (newVenue) => {
 	}
 });
 
+// Watch start datetime changes and reset end if invalid
+watch(() => form.value.start, (newStart) => {
+    if (newStart && form.value.end && new Date(newStart) > new Date(form.value.end)) {
+        form.value.end = '';
+    }
+});
+
 const handleSubmit = async () => {
 	if (!isValid.value) return;
 	resetMessages();
@@ -291,6 +298,14 @@ const handleSubmit = async () => {
 		// Check if event date is in the past
 		if (form.value.start && isPastDateTime(form.value.start)) {
 			error.value = 'Cannot create an event with a past date. Please select a future date.';
+			scrollToTop();
+			submitting.value = false;
+			return;
+		}
+
+		// Check if end datetime is before start datetime
+		if (form.value.start && form.value.end && new Date(form.value.start) > new Date(form.value.end)) {
+			error.value = 'End date and time cannot be before start date and time.';
 			scrollToTop();
 			submitting.value = false;
 			return;
@@ -398,7 +413,7 @@ const handleSubmit = async () => {
 
 						<div class="form-group">
 							<label for="event-end">End Date &amp; Time <span class="hint">(Optional)</span></label>
-							<input id="event-end" type="datetime-local" v-model="form.end" lang="en-GB" />
+							<input id="event-end" type="datetime-local" v-model="form.end" :min="form.start" lang="en-GB" />
 						</div>
 					</div>
 
