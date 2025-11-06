@@ -1,7 +1,6 @@
+const { uploadImageToSupabase, deleteImageFromSupabase } = require('../utils/supabaseStorage');
 const pool = require('../db');
 const table = "profiles";
-const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
 
 exports.checkAvailability = async (req, res) => {
@@ -221,28 +220,22 @@ exports.createUserProfile = async (req, res) => {
 exports.createClubProfile = async (req, res) => {
   try {
     const { name, username, email, password, club_description, club_category_id, imageBase64, imageOriginalName } = req.body;
+    
     if (!username || !email || !password || !club_description || !club_category_id) {
       return res.status(400).json({ error: 'Missing required fields for club profile' });
     }
 
     let storedImageUrl = null;
+    
+    // Upload image to Supabase if provided
     if (imageBase64 && imageOriginalName) {
-      const uploadDir = path.resolve(__dirname, '../uploads/club');
-      try { fs.mkdirSync(uploadDir, { recursive: true }); } catch {}
-
-      const safeUsername = (username || 'club')
-        .toString()
-        .toLowerCase()
-        .replace(/[^a-z0-9_-]/gi, '_')
-        .replace(/_+/g, '_')
-        .replace(/^_+|_+$/g, '') || 'club';
-
-      const fileName = `${safeUsername}.png`;
-      const filePath = path.join(uploadDir, fileName);
-      try { fs.unlinkSync(filePath); } catch {}
-      const data = imageBase64.split(',')[1] || imageBase64;
-      fs.writeFileSync(filePath, Buffer.from(data, 'base64'));
-      storedImageUrl = `/uploads/club/${fileName}`;
+      try {
+        storedImageUrl = await uploadImageToSupabase(imageBase64, imageOriginalName, 'clubs');
+        console.log('[createClubProfile] Uploaded image to Supabase:', storedImageUrl);
+      } catch (uploadError) {
+        console.error('[createClubProfile] Image upload failed:', uploadError);
+        return res.status(500).json({ error: 'Failed to upload club image' });
+      }
     }
 
     const passwordHash = crypto.createHash('sha256').update(String(password)).digest('hex');
@@ -252,42 +245,13 @@ exports.createClubProfile = async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, 'club') RETURNING *`,
       [name, username, email, passwordHash, club_description, club_category_id, storedImageUrl]
     );
+    
     res.status(201).json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
-
-exports.updateUserProfile = async (req, res) => {
-  const { id } = req.params;
-  const {
-    name, username, email, password
-  } = req.body;
-  try {
-    // Handle password - only hash if provided
-    let passwordValue = password;
-    if (password) {
-      passwordValue = crypto.createHash('sha256').update(String(password)).digest('hex');
-    }
-
-    // Build dynamic query based on whether password is being updated
-    let query, params;
-    if (passwordValue) {
-      query = `UPDATE ${table} SET name=$1, username=$2, email=$3, password=$4 WHERE id=$5 AND account_type='user' RETURNING *`;
-      params = [name, username, email, passwordValue, id];
-    } else {
-      query = `UPDATE ${table} SET name=$1, username=$2, email=$3 WHERE id=$4 AND account_type='user' RETURNING *`;
-      params = [name, username, email, id];
-    }
-
-    const result = await pool.query(query, params);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'User profile not found' });
-    res.json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
 
 exports.updateClubProfile = async (req, res) => {
   const { id } = req.params;
@@ -296,7 +260,7 @@ exports.updateClubProfile = async (req, res) => {
   } = req.body;
   
   try {
-    // First, get the current profile to check if username changed
+    // First, get the current profile
     const currentProfileResult = await pool.query(`SELECT * FROM ${table} WHERE id = $1 AND account_type = 'club'`, [id]);
     if (currentProfileResult.rows.length === 0) {
       return res.status(404).json({ error: 'Club profile not found' });
@@ -305,61 +269,29 @@ exports.updateClubProfile = async (req, res) => {
     
     let storedImageUrl = club_image; // Keep existing image by default
     
-    // Handle username change - rename existing image file if username changed and no new image provided
-    if (username && username !== currentProfile.username && !imageBase64) {
-      const uploadDir = path.resolve(__dirname, '../uploads/club');
-      
-      const oldSafeUsername = (currentProfile.username || 'club')
-        .toString()
-        .toLowerCase()
-        .replace(/[^a-z0-9_-]/gi, '_')
-        .replace(/_+/g, '_')
-        .replace(/^_+|_+$/g, '') || 'club';
-      
-      const newSafeUsername = (username || 'club')
-        .toString()
-        .toLowerCase()
-        .replace(/[^a-z0-9_-]/gi, '_')
-        .replace(/_+/g, '_')
-        .replace(/^_+|_+$/g, '') || 'club';
-      
-      if (oldSafeUsername !== newSafeUsername) {
-        const oldFileName = `${oldSafeUsername}.png`;
-        const newFileName = `${newSafeUsername}.png`;
-        const oldFilePath = path.join(uploadDir, oldFileName);
-        const newFilePath = path.join(uploadDir, newFileName);
-        
-        try {
-          // Check if old file exists and rename it
-          if (fs.existsSync(oldFilePath)) {
-            fs.renameSync(oldFilePath, newFilePath);
-            storedImageUrl = `/uploads/club/${newFileName}`;
-          }
-        } catch (error) {
-          console.error('Error renaming club image file:', error);
-          // Continue with update even if rename fails
-        }
-      }
-    }
-    
     // Handle new image upload if provided
     if (imageBase64 && imageOriginalName) {
-      const uploadDir = path.resolve(__dirname, '../uploads/club');
-      try { fs.mkdirSync(uploadDir, { recursive: true }); } catch {}
+      try {
+        // Upload new image to Supabase
+        storedImageUrl = await uploadImageToSupabase(imageBase64, imageOriginalName, 'clubs');
+        console.log('[updateClubProfile] Uploaded new image to Supabase:', storedImageUrl);
 
-      const safeUsername = (username || 'club')
-        .toString()
-        .toLowerCase()
-        .replace(/[^a-z0-9_-]/gi, '_')
-        .replace(/_+/g, '_')
-        .replace(/^_+|_+$/g, '') || 'club';
-
-      const fileName = `${safeUsername}.png`;
-      const filePath = path.join(uploadDir, fileName);
-      try { fs.unlinkSync(filePath); } catch {} // Remove old file
-      const data = imageBase64.split(',')[1] || imageBase64;
-      fs.writeFileSync(filePath, Buffer.from(data, 'base64'));
-      storedImageUrl = `/uploads/club/${fileName}`;
+        // Delete old image from Supabase if it exists and is different
+        if (currentProfile.club_image && 
+            currentProfile.club_image !== storedImageUrl && 
+            currentProfile.club_image.includes('supabase')) {
+          try {
+            await deleteImageFromSupabase(currentProfile.club_image);
+            console.log('[updateClubProfile] Deleted old image from Supabase:', currentProfile.club_image);
+          } catch (deleteError) {
+            console.error('[updateClubProfile] Failed to delete old image:', deleteError);
+            // Don't fail the whole operation if old image deletion fails
+          }
+        }
+      } catch (uploadError) {
+        console.error('[updateClubProfile] Image upload failed:', uploadError);
+        return res.status(500).json({ error: 'Failed to upload new club image' });
+      }
     }
 
     // Handle password - only hash if provided
@@ -380,6 +312,7 @@ exports.updateClubProfile = async (req, res) => {
 
     const result = await pool.query(query, params);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Club profile not found' });
+    
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
