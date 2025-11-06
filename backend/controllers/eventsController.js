@@ -3,38 +3,109 @@ const pool = require('../db');
 const table = "events";
 const { sendEventCancellationEmail } = require('../notification/notification');
 
-function formatDateISO(date) {
+const SINGAPORE_TIME_ZONE = 'Asia/Singapore';
+const SINGAPORE_ISO_OFFSET = '+08:00';
+const hasExplicitOffset = (value) => /[zZ]$/.test(value) || /[+\-]\d{2}:?\d{2}$/.test(value);
+
+const ensureSingaporeDate = (value) => {
+  if (!value) return null;
+
+  if (value instanceof Date) {
+    const time = value.getTime();
+    return Number.isNaN(time) ? null : new Date(time);
+  }
+
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    let normalized = trimmed.includes('T') ? trimmed : trimmed.replace(' ', 'T');
+    if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+      normalized = `${normalized}T00:00:00`;
+    }
+    if (!hasExplicitOffset(normalized)) {
+      normalized = `${normalized}${SINGAPORE_ISO_OFFSET}`;
+    }
+
+    const parsed = Date.parse(normalized);
+    if (Number.isNaN(parsed)) return null;
+    return new Date(parsed);
+  }
+
+  return null;
+};
+
+const buildPartsMap = (formatter, date) => {
+  return formatter.formatToParts(date).reduce((acc, part) => {
+    if (part.type !== 'literal') {
+      acc[part.type] = part.value;
+    }
+    return acc;
+  }, {});
+};
+
+const singaporeDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: SINGAPORE_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit'
+});
+
+const singaporeTimeFormatter = new Intl.DateTimeFormat('en-SG', {
+  timeZone: SINGAPORE_TIME_ZONE,
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true
+});
+
+const singaporeDateTimeFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: SINGAPORE_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false
+});
+
+const formatSingaporeDateTimeISO = (value) => {
+  const date = ensureSingaporeDate(value);
   if (!date) return null;
-  const d = new Date(date + '+08:00');
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  const parts = buildPartsMap(singaporeDateTimeFormatter, date);
+  const { year, month, day, hour, minute, second } = parts;
+  if (!year || !month || !day || !hour || !minute || !second) {
+    return null;
+  }
+  return `${year}-${month}-${day}T${hour}:${minute}:${second}${SINGAPORE_ISO_OFFSET}`;
+};
+
+function formatDateISO(date) {
+  const parsed = ensureSingaporeDate(date);
+  if (!parsed) return null;
+  return singaporeDateFormatter.format(parsed);
 }
 
 function formatTimeHM(date) {
-  if (!date) return null;
-  const d = new Date(date + '+08:00');
-  let hours = d.getHours();
-  const minutes = String(d.getMinutes()).padStart(2, '0');
-  const ampm = hours >= 12 ? 'PM' : 'AM';
-  hours = hours % 12;
-  hours = hours ? hours : 12;
-  return `${hours}:${minutes} ${ampm}`;
+  const parsed = ensureSingaporeDate(date);
+  if (!parsed) return null;
+  return singaporeTimeFormatter.format(parsed);
 }
 
 function formatTimeRange(start, end) {
-  if (!start) return '';
-  const startStr = formatTimeHM(start);
-  if (!end) return startStr;
-  const startD = new Date(start + '+08:00');
-  const endD = new Date(end + '+08:00');
-  const sameDay =
-    startD.getFullYear() === endD.getFullYear() &&
-    startD.getMonth() === endD.getMonth() &&
-    startD.getDate() === endD.getDate();
-  if (!sameDay) return startStr;
-  return `${startStr} - ${formatTimeHM(end)}`;
+  const startDate = ensureSingaporeDate(start);
+  if (!startDate) return '';
+  const startStr = singaporeTimeFormatter.format(startDate);
+  const endDate = ensureSingaporeDate(end);
+  if (!endDate) return startStr;
+  const sameDay = singaporeDateFormatter.format(startDate) === singaporeDateFormatter.format(endDate);
+  return sameDay ? `${startStr} - ${singaporeTimeFormatter.format(endDate)}` : startStr;
 }
 
 function formatPriceTag(price) {
@@ -44,10 +115,15 @@ function formatPriceTag(price) {
   return `$${str}`;
 }
 
-function convertToSGTime(isoString) {
-  if (!isoString) return null;
-  const date = new Date(isoString);
-  return date.toLocaleString('sv-SE', { timeZone: 'Asia/Singapore' }).replace(',', '');
+function convertToSGTime(value) {
+  const date = ensureSingaporeDate(value);
+  if (!date) return null;
+  const parts = buildPartsMap(singaporeDateTimeFormatter, date);
+  const { year, month, day, hour, minute, second } = parts;
+  if (!year || !month || !day || !hour || !minute || !second) {
+    return null;
+  }
+  return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
 }
 
 function clamp(value, min, max) {
@@ -370,7 +446,7 @@ exports.getAllEvents = async (req, res) => {
         price: formatPriceTag(row.price),
         priceValue: numericPrice,
         date: formatDateISO(row.datetime),
-        datetime: row.datetime, // Keep full datetime for frontend filtering
+        datetime: formatSingaporeDateTimeISO(row.datetime),
         time: formatTimeRange(row.datetime, row.enddatetime),
         location: row.location || '',
         venue: row.venue || '',
@@ -456,7 +532,7 @@ exports.getEventById = async (req, res) => {
       tags: [],
       price: formatPriceTag(row.price),
       date: formatDateISO(row.datetime),
-      datetime: row.datetime, // Keep full datetime for frontend filtering
+        datetime: formatSingaporeDateTimeISO(row.datetime), // Keep full datetime for frontend filtering
       time: formatTimeRange(row.datetime, row.enddatetime),
       location: row.location || '',
       venue: row.venue || '',
@@ -613,6 +689,7 @@ exports.createEvent = async (req, res) => {
       tags: finalTagNames,
       price: formatPriceTag(event.price),
       date: formatDateISO(event.datetime),
+      datetime: formatSingaporeDateTimeISO(event.datetime),
       time: formatTimeRange(event.datetime, event.enddatetime),
       location: event.location || '',
       venue: event.venue || '',
@@ -736,7 +813,7 @@ exports.updateEvent = async (req, res) => {
       tags: [], // Tags would need separate query, keeping empty for now
       price: formatPriceTag(row.price),
       date: formatDateISO(row.datetime),
-      datetime: row.datetime,
+      datetime: formatSingaporeDateTimeISO(row.datetime),
       time: formatTimeRange(row.datetime, row.enddatetime),
       location: row.location || '',
       venue: row.venue || '',
@@ -988,7 +1065,7 @@ exports.getClubEventAnalytics = async (req, res) => {
       return {
         eventId: row.id,
         title: row.title,
-        startDateTime: row.datetime,
+        startDateTime: formatSingaporeDateTimeISO(row.datetime),
         createdAt: row.created_at,
         capacity: capacity,
         confirmedAttendees: confirmed,
@@ -1016,7 +1093,7 @@ exports.getClubEventAnalytics = async (req, res) => {
       return {
         eventId: row.id,
         title: row.title,
-        startDateTime: row.datetime,
+        startDateTime: formatSingaporeDateTimeISO(row.datetime),
         capacity,
         confirmedAttendees: confirmed,
         attendanceRatio: attendanceRatioRaw != null ? Number(attendanceRatioRaw.toFixed(4)) : null,
@@ -1273,7 +1350,7 @@ exports.getRecommendedEvents = async (req, res) => {
         price: formatPriceTag(row.price),
         priceValue: numericPrice,
         date: formatDateISO(row.datetime),
-        datetime: row.datetime,
+        datetime: formatSingaporeDateTimeISO(row.datetime),
         time: formatTimeRange(row.datetime, row.enddatetime),
         location: row.location || '',
         venue: row.venue || '',

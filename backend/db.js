@@ -1,5 +1,29 @@
-const { Pool } = require('pg');
+process.env.TZ = process.env.TZ || 'Asia/Singapore';
+
+const { Pool, types } = require('pg');
 require('dotenv').config();
+
+const hasExplicitOffset = (value) => /[zZ]$/.test(value) || /[+\-]\d{2}:?\d{2}$/.test(value);
+
+const normalizeTimestampString = (value) => {
+    if (typeof value !== 'string') {
+        return value;
+    }
+
+    const trimmed = value.trim();
+    if (!trimmed) {
+        return trimmed;
+    }
+
+    const withT = trimmed.includes('T') ? trimmed : trimmed.replace(' ', 'T');
+    if (hasExplicitOffset(withT)) {
+        return withT;
+    }
+
+    return `${withT}+08:00`;
+};
+
+types.setTypeParser(1114, normalizeTimestampString);
 
 let pool;
 let isReconnecting = false;
