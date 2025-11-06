@@ -3,7 +3,7 @@
     <div class="calendar-header">
       <h3>My Event Calendar</h3>
       <div class="calendar-header-actions">
-        <div class="calendar-legend" v-show="!showAllEvents">
+        <div class="calendar-legend">
           <span class="legend-item rsvp">
             <span class="legend-dot"></span>
             RSVP'd Events
@@ -11,6 +11,10 @@
           <span class="legend-item saved">
             <span class="legend-dot"></span>
             Saved Events
+          </span>
+          <span v-if="showAllEvents" class="legend-item other">
+            <span class="legend-dot"></span>
+            Other Events
           </span>
         </div>
         <label class="all-events-toggle">
@@ -101,12 +105,63 @@ const buildEventProps = (event) => ({
   organiser: event.organiser
 });
 
+// Helper to convert 12-hour time to 24-hour format
+const convertTo24Hour = (timeStr) => {
+  if (!timeStr) return null;
+
+  // If already in 24-hour format (HH:MM or HH:MM:SS), return as-is
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(timeStr)) {
+    return timeStr;
+  }
+
+  // Handle 12-hour format with AM/PM
+  const match = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+  if (match) {
+    let hours = parseInt(match[1]);
+    const minutes = match[2];
+    const period = match[3].toUpperCase();
+
+    if (period === 'PM' && hours !== 12) {
+      hours += 12;
+    } else if (period === 'AM' && hours === 12) {
+      hours = 0;
+    }
+
+    return `${hours.toString().padStart(2, '0')}:${minutes}`;
+  }
+
+  return timeStr;
+};
+
+// Helper to combine date and time into proper datetime string
+const combineDateAndTime = (event) => {
+  const dateStr = resolveEventStartDate(event);
+  if (!dateStr) return null;
+
+  // If the date already includes time (has 'T'), use it as-is
+  if (dateStr.includes('T')) {
+    return dateStr;
+  }
+
+  // If event has a separate time field, combine date and time
+  if (event.time) {
+    const time24 = convertTo24Hour(event.time);
+    if (time24) {
+      return `${dateStr}T${time24}`;
+    }
+  }
+
+  // If no time specified, return just the date (will show as all-day event)
+  return dateStr;
+};
+
 // Helper to build calendar event object
 const buildCalendarEvent = (event, eventType, className, color = null) => {
   const baseEvent = {
     id: `${eventType}-${event.id}`,
     title: event.title,
-    start: resolveEventStartDate(event),
+    start: combineDateAndTime(event),
+    allDay: !event.time, // Mark as all-day only if no time is specified
     className,
     extendedProps: {
       ...buildEventProps(event),
@@ -189,7 +244,7 @@ const calendarOptions = ref({
   weekends: true,
   height: 'auto',
   eventDisplay: 'block',
-  displayEventTime: false,
+  displayEventTime: true, // Show event times
   eventTimeFormat: {
     hour: '2-digit',
     minute: '2-digit',
@@ -392,6 +447,10 @@ function formatEventDate(date) {
 
 .legend-item.saved .legend-dot {
   background-color: #fb923c;
+}
+
+.legend-item.other .legend-dot {
+  background-color: #8b5cf6;
 }
 
 /* FullCalendar Overrides */
@@ -750,15 +809,37 @@ function formatEventDate(date) {
     color: #e8eaed;
   }
 
-  :deep(.fc-event) {
-    background-color: #1f5aa0 !important;
-    border-color: #1f5aa0 !important;
+  /* Keep individual event class colors even in dark mode */
+  :deep(.fc-event.event-both),
+  :deep(.fc-event.event-both:hover),
+  :deep(.fc-event.event-both:focus) {
+    background: linear-gradient(45deg, #3788d8 50%, #fb923c 50%) !important;
+    border: 1px solid #2563eb !important;
     color: #ffffff !important;
   }
 
-  :deep(.fc-event:hover) {
-    background-color: #1547a0 !important;
-    border-color: #1547a0 !important;
+  :deep(.fc-event.event-rsvp),
+  :deep(.fc-event.event-rsvp:hover),
+  :deep(.fc-event.event-rsvp:focus) {
+    background-color: #3788d8 !important;
+    border-color: #2563eb !important;
+    color: #ffffff !important;
+  }
+
+  :deep(.fc-event.event-saved),
+  :deep(.fc-event.event-saved:hover),
+  :deep(.fc-event.event-saved:focus) {
+    background-color: #fb923c !important;
+    border-color: #f97316 !important;
+    color: #ffffff !important;
+  }
+
+  :deep(.fc-event.event-category),
+  :deep(.fc-event.event-category:hover),
+  :deep(.fc-event.event-category:focus) {
+    background-color: #8b5cf6 !important;
+    border-color: #7c3aed !important;
+    color: #ffffff !important;
   }
 
   .event-modal {
