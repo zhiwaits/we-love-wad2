@@ -194,6 +194,48 @@ function determineInsight(stageKey, capacityFillPercentage) {
   };
 }
 
+function determineAttendanceInsight(attendancePercentage) {
+  if (!Number.isFinite(attendancePercentage)) {
+    return {
+      label: 'Unknown attendance',
+      color: 'gray',
+      description: 'Provide a capacity to measure attendance performance.'
+    };
+  }
+
+  const percentage = clamp(attendancePercentage, 0, 100);
+
+  if (percentage >= 95) {
+    return {
+      label: 'Outstanding turnout',
+      color: 'blue',
+      description: 'The event reached near-total capacity.'
+    };
+  }
+
+  if (percentage >= 75) {
+    return {
+      label: 'Strong turnout',
+      color: 'green',
+      description: 'Attendance was healthy and on target.'
+    };
+  }
+
+  if (percentage >= 50) {
+    return {
+      label: 'Moderate turnout',
+      color: 'yellow',
+      description: 'Room for improvement.'
+    };
+  }
+
+  return {
+    label: 'Low turnout',
+    color: 'red',
+    description: 'Attendance lagged.'
+  };
+}
+
 exports.getAllEvents = async (req, res) => {
   try {
     // Pagination parameters
@@ -873,6 +915,22 @@ exports.getClubEventAnalytics = async (req, res) => {
       ORDER BY e.datetime ASC
     `;
 
+    const pastEventsQuery = `
+      SELECT
+        e.id,
+        e.title,
+        e.datetime,
+        e.capacity,
+        COUNT(CASE WHEN r.status = 'confirmed' THEN 1 END) AS confirmed_attendees
+      FROM ${table} e
+      LEFT JOIN rsvps r ON r.event_id = e.id AND r.status = 'confirmed'
+      WHERE e.owner_id = $1
+        AND e.datetime <= NOW()
+      GROUP BY e.id
+      ORDER BY e.datetime DESC
+      LIMIT 12
+    `;
+
     const followerTotalQuery = `
       SELECT COUNT(*)::int AS total
       FROM user_follows
@@ -920,12 +978,14 @@ exports.getClubEventAnalytics = async (req, res) => {
 
     const [
       eventsResult,
+      pastEventsResult,
       followerTotalResult,
       followerTimelineResult,
       categoryPreferenceResult,
       tagPreferenceResult
     ] = await Promise.all([
       pool.query(eventsQuery, [clubId]),
+      pool.query(pastEventsQuery, [clubId]),
       pool.query(followerTotalQuery, [clubId]),
       pool.query(followerTimelineQuery, [clubId]),
       pool.query(categoryPreferenceQuery, [clubId]),
@@ -962,6 +1022,29 @@ exports.getClubEventAnalytics = async (req, res) => {
         progressPercent,
         progressStage: stageKey,
         progressStageLabel: stageLabel,
+        insightLabel: insight.label,
+        insightColor: insight.color,
+        insightDescription: insight.description
+      };
+    });
+
+    const attendance = pastEventsResult.rows.map((row) => {
+      const capacity = row.capacity != null ? Number(row.capacity) : null;
+      const confirmed = Number(row.confirmed_attendees) || 0;
+      const attendanceRatioRaw = capacity && capacity > 0 ? clamp(confirmed / capacity, 0, 1) : null;
+      const attendancePercentage = attendanceRatioRaw != null
+        ? Number((attendanceRatioRaw * 100).toFixed(1))
+        : null;
+      const insight = determineAttendanceInsight(attendancePercentage);
+
+      return {
+        eventId: row.id,
+        title: row.title,
+        startDateTime: row.datetime,
+        capacity,
+        confirmedAttendees: confirmed,
+        attendanceRatio: attendanceRatioRaw != null ? Number(attendanceRatioRaw.toFixed(4)) : null,
+        attendancePercentage,
         insightLabel: insight.label,
         insightColor: insight.color,
         insightDescription: insight.description
@@ -1093,6 +1176,7 @@ exports.getClubEventAnalytics = async (req, res) => {
       clubId,
       generatedAt: new Date().toISOString(),
       events,
+      attendance,
       followers: followersPayload,
       preferences: preferencesPayload
     });

@@ -23,8 +23,10 @@ const STATIC_ALLOWED_ORIGINS = new Set([
   'http://localhost:5173',
   'http://localhost:3000',
   'http://127.0.0.1:5173',
-  'https://wad2groupproject-io8mqj3od-terry-yeos-projects.vercel.app',
-  'https://wad2groupproject.vercel.app'
+  'https://testwad2-tglu.vercel.app',
+  'https://testwad2-tglu-gwjbn2gka-jin-raes-projects.vercel.app',
+  'https://testwad2-a91n.vercel.app',
+  'https://testwad2-a91n-g02b5xnav-jin-raes-projects.vercel.app'
 ]);
 
 const DYNAMIC_ALLOWED_ORIGINS = (process.env.CORS_ALLOWED_ORIGINS || '')
@@ -33,8 +35,8 @@ const DYNAMIC_ALLOWED_ORIGINS = (process.env.CORS_ALLOWED_ORIGINS || '')
   .filter(Boolean);
 
 const ALLOWED_ORIGIN_PATTERNS = [
-  /^https:\/\/wad2groupproject(?:-[a-z0-9-]+)?\.vercel\.app$/i,
-  /^https:\/\/wad2groupproject-io8mqj3od-terry-yeos-projects(?:-[a-z0-9-]+)?\.vercel\.app$/i
+  /^https:\/\/testwad2-a91n(?:-[a-z0-9-]+)?\.vercel\.app$/i,
+  /^https:\/\/testwad2-tglu(?:-[a-z0-9-]+)?\.vercel\.app$/i
 ];
 
 const ALLOWED_HEADERS = ['Origin', 'Content-Type', 'Authorization', 'token', 'X-Requested-With', 'Accept'];

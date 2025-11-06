@@ -15,6 +15,8 @@ import { deleteRsvp } from '../services/rsvpService';
 const store = useStore();
 const router = useRouter();
 
+const numberFormatter = new Intl.NumberFormat();
+
 const isMounted = ref(false);
 
 onMounted(() => {
@@ -46,6 +48,7 @@ const rsvpActionKey = ref(null);
 
 const analyticsTabs = [
   { id: 'event', label: 'Events' },
+  { id: 'attendance', label: 'History' },
   { id: 'audience', label: 'Followers' },
   { id: 'engagement', label: 'Preferences' }
 ];
@@ -177,6 +180,70 @@ const eventAnalytics = computed(() => {
       insightLabel,
       insightColor,
       startDateTimeText
+    };
+  });
+});
+
+const attendanceAnalytics = computed(() => {
+  const records = analyticsPayload.value?.attendance;
+  if (!Array.isArray(records) || records.length === 0) {
+    return [];
+  }
+
+  const formatCount = (value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return '0';
+    }
+    return numberFormatter.format(numeric);
+  };
+
+  return records.map((record) => {
+    const capacityValue = Number(record.capacity);
+    const hasCapacity = Number.isFinite(capacityValue) && capacityValue > 0;
+
+    const ratioValue = Number(record.attendanceRatio);
+    const percentValue = Number(record.attendancePercentage);
+    const attendanceRatio = Number.isFinite(ratioValue)
+      ? clampRatio(ratioValue)
+      : Number.isFinite(percentValue)
+        ? clampRatio(percentValue / 100)
+        : null;
+
+    const attendancePercent = attendanceRatio != null
+      ? Number((attendanceRatio * 100).toFixed(1))
+      : Number.isFinite(percentValue)
+        ? Number(percentValue.toFixed(1))
+        : null;
+
+    const attendancePercentText = attendancePercent != null
+      ? `${attendancePercent.toFixed(1)}%`
+      : 'Unknown';
+
+    const attendanceWidth = attendanceRatio != null
+      ? Math.round(clampRatio(attendanceRatio) * 100)
+      : 0;
+
+    const confirmedCount = Number(record.confirmedAttendees) || 0;
+    const confirmedAttendeesLabel = formatCount(confirmedCount);
+    const capacityLabel = hasCapacity ? formatCount(capacityValue) : 'Unknown';
+
+    const startDateSource =
+      record.startDateTime || record.start_datetime || record.startTime || record.datetime;
+    const startDateTimeText = formatDateTime(startDateSource);
+
+    return {
+      ...record,
+      attendancePercent,
+      attendancePercentText,
+      attendanceWidth,
+      confirmedAttendees: confirmedCount,
+      confirmedAttendeesLabel,
+      capacityLabel,
+      startDateTimeText,
+      insightLabel: record.insightLabel || (attendancePercent != null ? 'Attendance insight' : 'Unknown'),
+      insightColor: record.insightColor || (attendancePercent != null ? 'blue' : 'gray'),
+      insightDescription: record.insightDescription || ''
     };
   });
 });
@@ -555,6 +622,7 @@ const closeImageModal = () => {
         :tabs="analyticsTabs"
         :active-tab="activeAnalyticsTab"
         :event-analytics="eventAnalytics"
+        :attendance-analytics="attendanceAnalytics"
         :follower-analytics="followerAnalytics"
         :preference-analytics="preferenceAnalytics"
         :loading="analyticsLoading"
@@ -931,6 +999,7 @@ const closeImageModal = () => {
   line-height: var(--line-height-tight);
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
