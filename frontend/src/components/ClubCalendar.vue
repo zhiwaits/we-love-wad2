@@ -63,6 +63,56 @@ const clubEvents = computed(() => {
   return clubOwnedEvents.value;
 });
 
+// Helper to convert 12-hour time to 24-hour format
+const convertTo24Hour = (timeStr) => {
+  if (!timeStr) return null;
+
+  // If already in 24-hour format (HH:MM or HH:MM:SS), return as-is
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(timeStr)) {
+    return timeStr;
+  }
+
+  // Handle 12-hour format with AM/PM
+  const match = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+  if (match) {
+    let hours = parseInt(match[1]);
+    const minutes = match[2];
+    const period = match[3].toUpperCase();
+
+    if (period === 'PM' && hours !== 12) {
+      hours += 12;
+    } else if (period === 'AM' && hours === 12) {
+      hours = 0;
+    }
+
+    return `${hours.toString().padStart(2, '0')}:${minutes}`;
+  }
+
+  return timeStr;
+};
+
+// Helper to combine date and time into proper datetime string
+const combineDateAndTime = (event) => {
+  const dateStr = event.datetime || event.date;
+  if (!dateStr) return null;
+
+  // If the date already includes time (has 'T'), use it as-is
+  if (dateStr.includes('T')) {
+    return dateStr;
+  }
+
+  // If event has a separate time field, combine date and time
+  if (event.time) {
+    const time24 = convertTo24Hour(event.time);
+    if (time24) {
+      return `${dateStr}T${time24}`;
+    }
+  }
+
+  // If no time specified, return just the date (will show as all-day event)
+  return dateStr;
+};
+
 // Transform events for FullCalendar
 const calendarEvents = computed(() => {
   const events = [];
@@ -72,7 +122,7 @@ const calendarEvents = computed(() => {
   clubEvents.value.forEach(event => {
     console.log('Processing club event:', event.id, event.title, event.date);
     const eventDate = new Date(event.datetime || event.date);
-    
+
     if (isNaN(eventDate.getTime())) {
       console.error('Invalid date for event:', event.id, event.date);
       return;
@@ -81,7 +131,8 @@ const calendarEvents = computed(() => {
     events.push({
       id: `club-${event.id}`,
       title: event.title,
-      start: event.date,
+      start: combineDateAndTime(event),
+      allDay: !event.time, // Mark as all-day only if no time is specified
       extendedProps: {
         eventId: event.id,
         eventType: 'club',
@@ -121,7 +172,7 @@ const calendarOptions = ref({
   weekends: true,
   height: 'auto',
   eventDisplay: 'block',
-  displayEventTime: false,
+  displayEventTime: true, // Show event times
   eventTimeFormat: {
     hour: '2-digit',
     minute: '2-digit',
@@ -274,9 +325,43 @@ async function handleShare() {
   color: #1f2937;
 }
 
+/* FullCalendar list view theming */
+/* Use app tokens so borders/backgrounds match light/dark modes */
 :deep(.fc-theme-standard td),
 :deep(.fc-theme-standard th) {
-  border-color: #e5e7eb;
+  border-color: var(--color-border);
+}
+
+:deep(.fc .fc-scrollgrid) {
+  border-color: var(--color-border);
+}
+
+:deep(.fc .fc-list),
+:deep(.fc .fc-list-table) {
+  background-color: var(--color-surface);
+}
+
+:deep(.fc .fc-list-day) {
+  border-color: var(--color-border);
+}
+
+:deep(.fc .fc-list-day-cushion) {
+  background-color: var(--color-surface);
+  color: var(--color-text-secondary);
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+
+:deep(.fc .fc-list-event td) {
+  border-color: var(--color-border);
+}
+
+:deep(.fc .fc-list-event:hover td) {
+  background-color: rgba(var(--color-primary-rgb, 33, 128, 141), 0.08);
+}
+
+:deep(.fc .fc-list-event-title a) {
+  color: var(--color-text);
 }
 
 :deep(.fc-daygrid-day-number) {
@@ -393,14 +478,14 @@ async function handleShare() {
   }
 
   :deep(.fc-event) {
-    background-color: #1f5aa0 !important;
-    border-color: #1f5aa0 !important;
+    background-color: #059669 !important;
+    border-color: #047857 !important;
     color: #ffffff !important;
   }
 
   :deep(.fc-event:hover) {
-    background-color: #1547a0 !important;
-    border-color: #1547a0 !important;
+    background-color: #047857 !important;
+    border-color: #065f46 !important;
   }
 }
 

@@ -487,7 +487,9 @@ export default {
     background-color: var(--color-surface);
     border-radius: var(--radius-lg);
     border: 1px solid var(--color-card-border);
-    box-shadow: var(--shadow-sm);
+    box-shadow: 
+        0 0 12px rgba(33, 128, 141, 0.15),
+        var(--shadow-sm);
     overflow: hidden;
     transition: transform var(--duration-normal) var(--ease-standard), box-shadow var(--duration-normal) var(--ease-standard), border-color var(--duration-normal) var(--ease-standard);
     display: flex;
@@ -497,6 +499,15 @@ export default {
     opacity: 0;
     transform: translateY(12px);
     animation: card-enter 0.45s var(--ease-standard) forwards;
+}
+
+@media (prefers-color-scheme: dark) {
+    .event-card {
+        box-shadow: 
+            0 0 16px rgba(50, 184, 198, 0.2),
+            var(--shadow-sm);
+        border-color: rgba(20, 184, 166, 0.2);
+    }
 }
 
 .event-card::before {
@@ -512,13 +523,25 @@ export default {
 }
 
 .event-card:hover {
-    box-shadow: var(--shadow-md);
     transform: translateY(-4px);
     border-color: var(--color-primary);
+    box-shadow: 
+        0 0 20px rgba(33, 128, 141, 0.4),
+        0 0 40px rgba(33, 128, 141, 0.25),
+        var(--shadow-md);
 }
 
 .event-card:hover::before {
     transform: scaleX(1);
+}
+
+@media (prefers-color-scheme: dark) {
+    .event-card:hover {
+        box-shadow: 
+            0 0 30px rgba(50, 184, 198, 0.6),
+            0 0 60px rgba(50, 184, 198, 0.3),
+            var(--shadow-md);
+    }
 }
 
 .event-image {
@@ -624,6 +647,7 @@ export default {
     line-height: var(--line-height-normal);
     margin: 0;
     display: -webkit-box;
+    line-clamp: 3;
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
