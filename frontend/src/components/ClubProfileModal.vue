@@ -93,12 +93,9 @@ const loadUserData = async () => {
   if (!props.visible) return;
 
   try {
-    // Fetch fresh user data from backend (this should include all profile fields)
-    const userResponse = await getCurrentUser();
-    console.log('Raw userResponse:', userResponse);
-    console.log('userResponse.data:', userResponse.data);
-    const userData = userResponse.data.user || userResponse.data;
-    console.log('userData:', userData);
+    // Use the currentUser prop data instead of making an API call
+    const userData = props.currentUser;
+    console.log('Using currentUser prop data:', userData);
     console.log('userData.club_category_id:', userData.club_category_id);
     console.log('userData.club_image:', userData.club_image);
     console.log('userData.club_description:', userData.club_description);
@@ -111,7 +108,7 @@ const loadUserData = async () => {
     const userCategory = clubCategories.value.find(cat => cat.id == userCategoryId);
     console.log('User category object:', userCategory);
 
-    // Load current profile data with fresh user data
+    // Load current profile data with user data from props
     console.log('User club_category_id:', userData?.club_category_id);
     console.log('User club_image:', userData?.club_image);
 
@@ -144,6 +141,25 @@ watch(() => props.visible, async (newVisible) => {
     await loadUserData();
   }
 });
+
+// Watch for currentUser prop changes to update form
+watch(() => props.currentUser, (newUser) => {
+  if (newUser && props.visible) {
+    console.log('Current user prop changed:', newUser);
+    freshUserData.value = newUser;
+    profileForm.value = {
+      name: newUser?.name || '',
+      username: newUser?.username || '',
+      email: newUser?.email || '',
+      password: '',
+      confirmPassword: '',
+      club_description: newUser?.club_description || '',
+      club_category_id: String(newUser?.club_category_id || newUser?.club_category || ''),
+      imageBase64: null, // Don't set this from existing data - it's for new uploads only
+      imageOriginalName: null
+    };
+  }
+}, { deep: true });
 
 // Computed property to check if categories are available
 const hasCategories = computed(() => clubCategories.value.length > 0);

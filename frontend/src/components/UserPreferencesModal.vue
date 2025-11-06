@@ -183,7 +183,7 @@ const loadCategoriesAndTags = async () => {
 const loadUserPreferences = async () => {
   if (!props.visible || !props.currentUser?.id) return;
 
-  loadingData.value = true;
+  // Note: loadingData is already set to true in the watch
   try {
     const response = await getUserPreferences(props.currentUser.id);
     const prefs = response.data;
@@ -208,11 +208,17 @@ const loadUserPreferences = async () => {
 // Watch for modal visibility
 watch(() => props.visible, async (newVisible) => {
   if (newVisible) {
+    // Set loading state immediately
+    loadingData.value = true;
+    
     // Load categories first, then preferences
     await loadCategoriesAndTags();
     // Small delay to ensure reactivity
     await nextTick();
     await loadUserPreferences();
+  } else {
+    // Reset loading state when modal closes
+    loadingData.value = false;
   }
 });
 
