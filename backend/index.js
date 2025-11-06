@@ -37,7 +37,8 @@ const DYNAMIC_ALLOWED_ORIGINS = (process.env.CORS_ALLOWED_ORIGINS || '')
   .filter(Boolean);
 
 const ALLOWED_ORIGIN_PATTERNS = [
-  /^https:\/\/we-love-wad2(?:-[a-z0-9-]+)?\.vercel\.app$/i
+  /^https:\/\/we-love-wad2(?:-[a-z0-9-]+)*\.vercel\.app$/i,
+  /^https:\/\/we-love-wad2-qqzk(?:-[a-z0-9-]+)*\.vercel\.app$/i
 ];
 
 const ALLOWED_HEADERS = ['Origin', 'Content-Type', 'Authorization', 'token', 'X-Requested-With', 'Accept'];
