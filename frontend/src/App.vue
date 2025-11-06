@@ -83,7 +83,11 @@ onMounted(async () => {
     </div>
     <template v-else>
       <component v-if="activeHeader" :is="activeHeader" />
-      <router-view v-if="canRenderRoute" />
+      <transition name="fade" mode="out-in">
+        <keep-alive v-if="canRenderRoute">
+          <router-view />
+        </keep-alive>
+      </transition>
     </template>
     <Toast />
   </div>
@@ -105,5 +109,16 @@ onMounted(async () => {
 .loading-text {
   font-size: 1.1rem;
   color: var(--color-text, #1f2933);
+}
+
+/* Route Transition */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>

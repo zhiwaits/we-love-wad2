@@ -622,7 +622,12 @@ export default {
 
                         <div class="event-details">
                             <div class="event-organiser">
-                                <span>By {{ event.organiser }}</span>
+                                <span>By <router-link 
+                                  :to="{ name: 'ClubDetail', params: { id: event.ownerId } }"
+                                  class="organiser-link"
+                                >
+                                  {{ event.organiser }}
+                                </router-link></span>
                             </div>
                             <div class="event-datetime">
                                 <span>{{ formatDate(event.date) }} | {{ event.time }}</span>
@@ -751,6 +756,13 @@ export default {
     animation: card-enter 0.45s var(--ease-standard) forwards;
 }
 
+@media (prefers-color-scheme: dark) {
+    .event-card {
+        box-shadow: 0 0 20px rgba(20, 184, 166, 0.15), var(--shadow-sm);
+        border-color: rgba(20, 184, 166, 0.2);
+    }
+}
+
 .event-card::before {
     content: '';
     position: absolute;
@@ -767,6 +779,12 @@ export default {
     box-shadow: var(--shadow-md);
     transform: translateY(-4px);
     border-color: var(--color-primary);
+}
+
+@media (prefers-color-scheme: dark) {
+    .event-card:hover {
+        box-shadow: 0 0 30px rgba(20, 184, 166, 0.25), var(--shadow-md);
+    }
 }
 
 .event-card:hover::before {
@@ -956,9 +974,21 @@ export default {
     font-size: var(--font-size-base);
 }
 
+.organiser-link {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.2s ease;
+}
+
+.organiser-link:hover {
+    color: var(--color-primary-hover);
+    text-decoration: underline;
+}
+
 .event-description {
     font-size: var(--font-size-base);
-    color: var(--color-text-secondary);
+    color: var(--color-text);
     line-height: var(--line-height-normal);
     margin: 0;
     display: -webkit-box;
@@ -1152,6 +1182,15 @@ export default {
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+@media (prefers-color-scheme: dark) {
+    .sort-select {
+        background-color: var(--color-surface);
+        color: var(--color-text);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+    }
+}
+
 .sort-select:focus {
     outline: none;
     border-color: #3b82f6;
@@ -1197,8 +1236,38 @@ export default {
     border-color: #2563eb;
 }
 
+/* Dark mode styles for recommended toggle */
+@media (prefers-color-scheme: dark) {
+    .recommended-toggle {
+        background: #2f3333;
+        color: #f5f5f5;
+        border-color: rgba(255, 255, 255, 0.2);
+        box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+    }
+
+    .recommended-toggle:hover {
+        border-color: rgba(255, 255, 255, 0.4);
+        background: #1a202c;
+        box-shadow: 0 0 20px rgba(255, 255, 255, 0.15);
+        transform: translateY(-2px);
+    }
+
+    .recommended-toggle.active {
+        background: #3b82f6;
+        color: white;
+        border-color: #3b82f6;
+        box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+    }
+
+    .recommended-toggle.active:hover {
+        background: #2563eb;
+        border-color: #2563eb;
+        box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+    }
+}
+
 .toggle-icon {
-    font-size: 1.2rem;
+    font-size: 1.25rem;
 }
 
 /* Responsive Design */

@@ -1,8 +1,10 @@
 
 import axios from 'axios';
 
-const BASE_URL = process.env.VUE_APP_API_BASE_URL;
-
+//console.log('API Base URL:', import.meta.env.VUE_APP_API_BASE_URL);
+//const BASE_URL = import.meta.env.VUE_APP_API_BASE_URL;
+//const BASE_URL = process.env.VUE_APP_API_BASE_URL||
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 // ============================================
 // MOCK DATA - Remove when backend is ready
 // ============================================
