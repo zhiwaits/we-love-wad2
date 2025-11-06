@@ -526,6 +526,20 @@ defineExpose({
   transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
 }
 
+.form-input::placeholder,
+.form-select::placeholder,
+.form-textarea::placeholder {
+  color: var(--color-text-secondary);
+}
+
+@media (prefers-color-scheme: dark) {
+  .form-input::placeholder,
+  .form-select::placeholder,
+  .form-textarea::placeholder {
+    color: #9ca3af;
+  }
+}
+
 .form-input:focus,
 .form-select:focus,
 .form-textarea:focus {
@@ -542,6 +556,12 @@ defineExpose({
 .form-textarea::placeholder {
   color: var(--color-text-secondary);
   opacity: 0.7;
+}
+
+@media (prefers-color-scheme: dark) {
+  .form-textarea::placeholder {
+    color: #9ca3af;
+  }
 }
 
 .form-help {

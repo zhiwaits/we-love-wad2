@@ -427,6 +427,13 @@ export default {
     border-bottom: 1px solid var(--color-border);
 }
 
+@media (prefers-color-scheme: dark) {
+    .search-filters {
+        box-shadow: 0 0 25px rgba(20, 184, 166, 0.12);
+        border-bottom-color: rgba(20, 184, 166, 0.15);
+    }
+}
+
 .search-bar {
     margin-bottom: var(--space-24);
     position: relative;
@@ -448,6 +455,13 @@ export default {
     transition: border-color 0.2s ease;
 }
 
+@media (prefers-color-scheme: dark) {
+    .search-input {
+        box-shadow: 0 0 20px rgba(20, 184, 166, 0.15);
+        border-color: rgba(20, 184, 166, 0.2);
+    }
+}
+
 .filters-toggle-btn {
     position: absolute;
     right: 0.75rem;
@@ -455,7 +469,7 @@ export default {
     transform: translateY(-50%);
     background: none;
     border: none;
-    color: #6c757d;
+    color: var(--color-primary);
     font-size: 1.5rem;
     font-weight: bold;
     cursor: pointer;
@@ -470,41 +484,18 @@ export default {
 }
 
 .filters-toggle-btn:hover {
-    background-color: var(--color-bg-2, #e9ecef);
-    color: var(--color-text);
+    background-color: rgba(20, 184, 166, 0.1);
+    color: var(--color-primary);
 }
 
-.filters-toggle {
-    margin-bottom: var(--space-16);
-    text-align: center;
+.search-input::placeholder {
+    color: var(--color-text-secondary);
 }
 
-.filters-toggle-btn {
-    color: var(--color-primary, #007bff);
-    text-decoration: none;
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    cursor: pointer;
-    transition: color 0.2s ease;
-}
-
-.filters-toggle-btn:hover {
-    color: var(--color-primary-hover, #0056b3);
-}
-
-.toggle-icon {
-    font-size: var(--font-size-base);
-    font-weight: bold;
-    margin-right: var(--space-4);
-}
-
-.search-input {
-    width: 100%;
-    font-size: var(--font-size-lg);
-    padding: var(--space-16);
-    border-radius: var(--radius-lg);
-    border: 2px solid var(--color-border);
-    transition: border-color 0.2s ease;
+@media (prefers-color-scheme: dark) {
+    .search-input::placeholder {
+        color: #9ca3af;
+    }
 }
 
 .search-input:focus {
@@ -529,8 +520,15 @@ export default {
 
 .filter-label {
   font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  opacity: 1;
+}
+
+@media (prefers-color-scheme: dark) {
+  .filter-label {
+    color: #e5e7eb;
+  }
 }
 
 .filter-select,
@@ -541,6 +539,19 @@ export default {
   border: 1px solid var(--color-border);
   transition: border-color 0.2s ease;
   background-color: var(--color-surface);
+  color: var(--color-text);
+}
+
+.filter-select::placeholder,
+.filter-input::placeholder {
+  color: var(--color-text-secondary);
+}
+
+@media (prefers-color-scheme: dark) {
+  .filter-select::placeholder,
+  .filter-input::placeholder {
+    color: #9ca3af;
+  }
 }
 
 .filter-select:focus,
@@ -729,22 +740,23 @@ export default {
     padding: var(--space-8) var(--space-16);
     font-size: var(--font-size-sm);
     border-radius: var(--radius-base);
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--color-primary);
     background-color: transparent;
-    color: var(--color-text);
+    color: var(--color-primary);
     cursor: pointer;
     transition: all 0.2s ease;
+    font-weight: var(--font-weight-semibold);
 }
 
 .reset-btn:hover:not(:disabled) {
-    background-color: var(--color-bg-1);
-    border-color: var(--color-text-secondary);
+    background-color: var(--color-primary);
+    color: white;
 }
 
 .reset-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-    background-color: #f8f9fa;
+    background-color: transparent;
 }
 
 .results-count {

@@ -306,6 +306,104 @@ async function handleShare() {
   color: #1f2937;
 }
 
+/* Dark Mode Styles - Google Calendar Theme */
+@media (prefers-color-scheme: dark) {
+  .club-calendar {
+    background: #202124;
+    color: #e8eaed;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  .calendar-header h3 {
+    color: #e8eaed;
+  }
+
+  .legend-item {
+    color: #9aa0a6;
+  }
+
+  :deep(.fc) {
+    color: #e8eaed;
+    background-color: #202124;
+  }
+
+  :deep(.fc .fc-toolbar-title) {
+    color: #e8eaed;
+    font-weight: 600;
+  }
+
+  :deep(.fc .fc-button-primary) {
+    background-color: #1f5aa0;
+    border-color: #1f5aa0;
+    color: #ffffff;
+  }
+
+  :deep(.fc .fc-button-primary:hover) {
+    background-color: #1547a0;
+    border-color: #1547a0;
+  }
+
+  :deep(.fc-theme-standard) {
+    --fc-border-color: #3c4043;
+    --fc-button-text-color: #e8eaed;
+    --fc-button-border-color: #3c4043;
+    --fc-button-bg-color: #3c4043;
+  }
+
+  :deep(.fc-theme-standard td),
+  :deep(.fc-theme-standard th) {
+    border-color: #3c4043;
+    background-color: #202124;
+    color: #e8eaed;
+  }
+
+  :deep(.fc-daygrid-day) {
+    background-color: #202124;
+  }
+
+  :deep(.fc-daygrid-day-number) {
+    color: #e8eaed;
+    font-weight: 500;
+  }
+
+  :deep(.fc-day-today) {
+    background-color: #1f5aa0 !important;
+  }
+
+  :deep(.fc-day-today .fc-daygrid-day-number) {
+    color: #ffffff !important;
+    background-color: #1f5aa0 !important;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  :deep(.fc-col-header-cell) {
+    background-color: #292a2d;
+    color: #e8eaed;
+    border-color: #3c4043;
+    font-weight: 600;
+  }
+
+  :deep(.fc-list-event-title) {
+    color: #e8eaed;
+  }
+
+  :deep(.fc-event) {
+    background-color: #1f5aa0 !important;
+    border-color: #1f5aa0 !important;
+    color: #ffffff !important;
+  }
+
+  :deep(.fc-event:hover) {
+    background-color: #1547a0 !important;
+    border-color: #1547a0 !important;
+  }
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .club-calendar {

@@ -465,6 +465,13 @@ export default {
     min-width: 160px;
 }
 
+@media (prefers-color-scheme: dark) {
+    .sort-select {
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+    }
+}
+
 .sort-select:focus {
     outline: none;
     border-color: var(--color-primary);
