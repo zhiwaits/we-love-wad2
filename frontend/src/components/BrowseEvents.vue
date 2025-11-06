@@ -721,38 +721,6 @@ const closeImageModal = () => {
   gap: var(--space-20);
 }
 
-/* Apply glow effect to stat cards via deep selector */
-:deep(.stat-card) {
-  position: relative;
-  transition: transform var(--duration-normal) var(--ease-standard),
-    box-shadow var(--duration-normal) var(--ease-standard),
-    border-color var(--duration-normal) var(--ease-standard);
-}
-
-:deep(.stat-card::before) {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: var(--color-primary);
-  transform: scaleX(0);
-  transition: transform var(--duration-normal) var(--ease-standard);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  z-index: 1;
-}
-
-:deep(.stat-card:hover) {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-4px);
-  border-color: var(--color-primary);
-}
-
-:deep(.stat-card:hover::before) {
-  transform: scaleX(1);
-}
-
 /* Calendar Section */
 .calendar-section {
   margin-bottom: var(--space-56);
@@ -939,37 +907,16 @@ const closeImageModal = () => {
   border: 1px solid var(--color-card-border);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
-  transition: transform var(--duration-normal) var(--ease-standard),
-    box-shadow var(--duration-normal) var(--ease-standard),
-    border-color var(--duration-normal) var(--ease-standard);
+  transition: all var(--duration-normal) var(--ease-standard);
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  position: relative;
-}
-
-/* Glow accent bar on hover */
-.event-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: var(--color-primary);
-  transform: scaleX(0);
-  transition: transform var(--duration-normal) var(--ease-standard);
-  z-index: 1;
 }
 
 .event-card:hover {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
   border-color: var(--color-primary);
-}
-
-.event-card:hover::before {
-  transform: scaleX(1);
 }
 
 .event-image {
@@ -1221,4 +1168,37 @@ const closeImageModal = () => {
   margin: 0 0 var(--space-24) 0;
 }
 
+/* View Recommended button matching outline button style and sort select size exactly */
+.view-recommended-btn {
+  padding: 8px 14px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  min-width: 160px;
+  height: 36px; /* Match select height exactly */
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Sort select matching clear filters button style */
+.sort-select {
+  padding: 8px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background-color: var(--color-bg-2);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+  min-width: 160px;
+  height: 36px; /* Explicit height for consistency */
+}
 </style>
