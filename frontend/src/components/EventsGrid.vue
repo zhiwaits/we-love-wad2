@@ -4,6 +4,7 @@ import EventDetailModal from './EventDetailModal.vue';
 import FullImageModal from './FullImageModal.vue';
 import Pagination from './Pagination.vue';
 import { shareEventLink } from '../utils/shareEvent';
+import { formatSingaporeDate } from '../utils/dateTime';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 const FALLBACK_PLACEHOLDER = 'https://placehold.co/600x400?text=Event';
@@ -330,9 +331,9 @@ export default {
         },
 
         formatDate(dateString) {
-            const date = new Date(dateString);
             const options = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' };
-            return date.toLocaleDateString('en-US', options);
+            const formatted = formatSingaporeDate(dateString, options);
+            return formatted || dateString || '';
         },
 
         handleTagClick(tag) {

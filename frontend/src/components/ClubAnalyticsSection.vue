@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
+import { formatSingaporeDate } from '../utils/dateTime';
 
 const numberFormatter = new Intl.NumberFormat();
 
@@ -23,15 +24,12 @@ const formatDateLabel = (value, includeYear) => {
   if (!value) {
     return 'N/A';
   }
-  const parsed = value instanceof Date ? new Date(value.getTime()) : new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return 'N/A';
-  }
   const options = { month: 'short', day: 'numeric' };
   if (includeYear) {
     options.year = 'numeric';
   }
-  return parsed.toLocaleDateString(undefined, options);
+  const formatted = formatSingaporeDate(value, options);
+  return formatted || 'N/A';
 };
 
 function createRangeDefaults() {

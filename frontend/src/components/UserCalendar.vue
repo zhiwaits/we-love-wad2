@@ -51,6 +51,7 @@ import interactionPlugin from '@fullcalendar/interaction';
 import listPlugin from '@fullcalendar/list';
 import EventDetailModal from './EventDetailModal.vue';
 import { shareEventLink } from '../utils/shareEvent';
+import { formatSingaporeDate } from '../utils/dateTime';
 
 const store = useStore();
 
@@ -327,13 +328,13 @@ async function handleShare() {
 // Format date for display
 function formatEventDate(date) {
   if (!date) return '';
-  const d = new Date(date);
-  return d.toLocaleDateString('en-US', {
+  const formatted = formatSingaporeDate(date, {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
     day: 'numeric'
   });
+  return formatted || date;
 }
 </script>
 

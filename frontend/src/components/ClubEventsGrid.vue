@@ -4,6 +4,7 @@ import EventDetailModal from './EventDetailModal.vue';
 import EditEventModal from './EditEventModal.vue';
 import FullImageModal from './FullImageModal.vue';
 import { shareEventLink } from '../utils/shareEvent';
+import { formatSingaporeDate, parseSingaporeDate } from '../utils/dateTime';
 import Pagination from './Pagination.vue';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
@@ -103,9 +104,9 @@ export default {
         },
 
         formatDate(dateString) {
-            const date = new Date(dateString);
             const options = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' };
-            return date.toLocaleDateString('en-US', options);
+            const formatted = formatSingaporeDate(dateString, options);
+            return formatted || dateString || '';
         },
 
         handleTagClick(tag) {
@@ -247,8 +248,10 @@ export default {
         },
 
         isEventPast(event) {
-            if (!event.start) return false;
-            return new Date(event.start) < new Date();
+            if (!event?.start) return false;
+            const eventDate = parseSingaporeDate(event.start);
+            if (!eventDate) return false;
+            return eventDate.getTime() < Date.now();
         },
     },
     watch: {

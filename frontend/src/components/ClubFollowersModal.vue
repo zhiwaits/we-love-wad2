@@ -1,5 +1,6 @@
 <script setup>
 import { computed, defineEmits, defineProps } from 'vue';
+import { formatSingaporeDateTime } from '../utils/dateTime';
 
 const props = defineProps({
   visible: {
@@ -20,11 +21,8 @@ const formatFollowedAt = (value) => {
   if (!value) {
     return '--';
   }
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-  return parsed.toLocaleString('en-SG', { dateStyle: 'medium', timeStyle: 'short' });
+  const formatted = formatSingaporeDateTime(value, { dateStyle: 'medium', timeStyle: 'short' });
+  return formatted || value;
 };
 
 const toCsvValue = (value) => {

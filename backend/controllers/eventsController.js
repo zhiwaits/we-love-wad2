@@ -112,16 +112,16 @@ function determineInsight(stageKey, capacityFillPercentage) {
   }
 
   if (stageKey === 'mid') {
-    if (fill < 40) {
+    if (fill < 30) {
       return {
         label: 'Lagging sign-ups',
         color: 'orange',
         description: 'Behind expected fill; review marketing or pricing.'
       };
     }
-    if (fill <= 80) {
+    if (fill <= 70) {
       return {
-        label: 'On track',
+        label: 'Normal',
         color: 'yellow',
         description: 'Healthy fill rate relative to the time left.'
       };
@@ -134,22 +134,22 @@ function determineInsight(stageKey, capacityFillPercentage) {
   }
 
   // Late stage
-  if (fill < 60) {
+  if (fill < 40) {
     return {
-      label: 'Underperforming',
+      label: 'At Risk',
       color: 'red',
       description: 'Low registrations close to start; trigger a last-minute push or discount.'
     };
   }
-  if (fill <= 90) {
+  if (fill <= 80) {
     return {
-      label: 'Decent Fill',
+      label: 'Underperforming',
       color: 'yellow',
       description: 'Tracking well; maintain final-stage promotion.'
     };
   }
   return {
-    label: 'At/near capacity',
+    label: 'Good Attendace',
     color: 'green',
     description: 'Great job; prepare for a full house.'
   };

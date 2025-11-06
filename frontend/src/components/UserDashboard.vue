@@ -10,6 +10,7 @@ import UserProfileModal from './UserProfileModal.vue';
 import UserPreferencesModal from './UserPreferencesModal.vue';
 import { shareEventLink } from '../utils/shareEvent';
 import { getUserPreferences } from '../services/preferenceService';
+import { formatSingaporeDate, parseSingaporeDate } from '../utils/dateTime';
 
 const store = useStore();
 const router = useRouter();
@@ -27,20 +28,26 @@ const allEvents = computed(() => store.getters.allEvents);
 
 // NEW - Past attended events (confirmed RSVPs that have passed)
 const pastAttendedEvents = computed(() => {
-  const allEvents = store.state.allEvents;
-  const userRSVPs = store.state.userRSVPs;
-  const pastEvents = allEvents.filter(event => {
-    const eventDate = new Date(event.datetime || event.date);
-    return eventDate < new Date();
+  const allEvents = Array.isArray(store.state.allEvents) ? store.state.allEvents : [];
+  const userRSVPs = Array.isArray(store.state.userRSVPs) ? store.state.userRSVPs : [];
+  const nowMs = Date.now();
+
+  const pastEvents = allEvents.filter((event) => {
+    const eventDate = parseSingaporeDate(event?.datetime || event?.date);
+    if (!eventDate) {
+      return false;
+    }
+    return eventDate.getTime() < nowMs;
   });
-  return pastEvents.filter(event => {
-    return userRSVPs.some(rsvp => Number(rsvp.event_id) === Number(event.id) && rsvp.status === 'confirmed');
-  });
+
+  return pastEvents.filter((event) =>
+    userRSVPs.some((rsvp) => Number(rsvp.event_id) === Number(event?.id) && rsvp.status === 'confirmed')
+  );
 });
 
 // NEW - Top 6 recommended events (upcoming only, highest preference scores, excluding saved and RSVP'd)
 const topRecommendedEvents = computed(() => {
-  const now = new Date();
+  const nowMs = Date.now();
   const savedEventIds = new Set(savedEvents.value.map(event => event.id));
   const rsvpdEventIds = new Set(upcomingEvents.value.map(event => event.id));
   
@@ -138,10 +145,10 @@ const topRecommendedEvents = computed(() => {
   
   // Filter and score events
   const scoredEvents = allEvents.value
-    .filter(event => {
+    .filter((event) => {
       // Must be upcoming
-      const eventDate = new Date(event.datetime || event.date);
-      if (eventDate <= now) return false;
+      const eventDate = parseSingaporeDate(event?.datetime || event?.date);
+      if (!eventDate || eventDate.getTime() <= nowMs) return false;
       
       // Must not be saved
       if (savedEventIds.has(event.id)) return false;
@@ -379,9 +386,9 @@ onBeforeUnmount(() => {
 
 // Format date for display
 const formatDate = (dateString) => {
-  const date = new Date(dateString);
   const options = { weekday: 'short', day: 'numeric', month: 'short' };
-  return date.toLocaleDateString('en-US', options);
+  const formatted = formatSingaporeDate(dateString, options);
+  return formatted || dateString || '';
 };
 
 // Format attendees display

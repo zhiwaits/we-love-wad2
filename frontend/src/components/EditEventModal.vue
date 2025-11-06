@@ -181,6 +181,7 @@ import { updateEvent, getEventById, deleteEvent } from '../services/eventService
 import { createEventTag, deleteEventTag, getEventTagsByEventId } from '../services/eventTagService';
 import { createTag, getAllTags } from '../services/tagService';
 import LocationPicker from './LocationPicker.vue';
+import { formatSingaporeTime, parseSingaporeDate } from '../utils/dateTime';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 const MAX_TAGS = 10;
@@ -722,7 +723,11 @@ export default {
         isPastDateTime(dateTimeStr) {
             if (!dateTimeStr) return false;
             try {
-                return new Date(dateTimeStr) < new Date();
+                const parsed = parseSingaporeDate(dateTimeStr);
+                if (!parsed) {
+                    return false;
+                }
+                return parsed.getTime() < Date.now();
             } catch (error) {
                 console.error('Error checking past datetime:', error);
                 return false;
@@ -755,21 +760,21 @@ export default {
         },
 
         formatTimeForDisplay(startDateTime, endDateTime) {
-            const startDate = new Date(startDateTime);
-            const startTimeStr = startDate.toLocaleTimeString('en-US', {
+            const baseOptions = {
                 hour: 'numeric',
                 minute: '2-digit',
                 hour12: true
-            });
+            };
+            const startTimeStr = formatSingaporeTime(startDateTime, baseOptions);
 
             if (endDateTime) {
-                const endDate = new Date(endDateTime);
-                const endTimeStr = endDate.toLocaleTimeString('en-US', {
-                    hour: 'numeric',
-                    minute: '2-digit',
-                    hour12: true
-                });
-                return `${startTimeStr} - ${endTimeStr}`;
+                const endTimeStr = formatSingaporeTime(endDateTime, baseOptions);
+                if (startTimeStr && endTimeStr) {
+                    return `${startTimeStr} - ${endTimeStr}`;
+                }
+                if (endTimeStr) {
+                    return endTimeStr;
+                }
             }
 
             return startTimeStr;

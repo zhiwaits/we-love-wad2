@@ -3,10 +3,6 @@
         <div v-if="visible && club" class="modal-overlay" @click.self="emitClose" role="dialog" aria-modal="true"
             :aria-label="`Details for ${club.name || club.username}`">
             <div class="modal-panel">
-                <button class="modal-close" type="button" @click="emitClose" aria-label="Close club details">
-                    <span aria-hidden="true">×</span>
-                </button>
-
                 <div class="modal-media" v-if="club">
                     <img :src="clubImageSrc(club)" :alt="`${club.name || club.username} hero`" @error="handleImageError" />
                     <div class="modal-chip category" v-if="clubCategory">{{ clubCategory }}</div>
