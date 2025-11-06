@@ -36,14 +36,11 @@ const loadUserData = async () => {
   if (!props.visible) return;
 
   try {
-    // Fetch fresh user data from backend
-    const userResponse = await getCurrentUser();
-    console.log('Raw userResponse:', userResponse);
-    console.log('userResponse.data:', userResponse.data);
-    const userData = userResponse.data.user || userResponse.data;
-    console.log('userData:', userData);
+    // Use the currentUser prop data instead of making an API call
+    const userData = props.currentUser;
+    console.log('Using currentUser prop data:', userData);
 
-    // Load current profile data with fresh user data
+    // Load current profile data with user data from props
     profileForm.value = {
       name: userData?.name || '',
       username: userData?.username || '',
@@ -66,6 +63,20 @@ watch(() => props.visible, async (newVisible) => {
     await loadUserData();
   }
 });
+
+// Watch for currentUser prop changes to update form
+watch(() => props.currentUser, (newUser) => {
+  if (newUser && props.visible) {
+    console.log('Current user prop changed:', newUser);
+    profileForm.value = {
+      name: newUser?.name || '',
+      username: newUser?.username || '',
+      email: newUser?.email || '',
+      password: '',
+      confirmPassword: ''
+    };
+  }
+}, { deep: true });
 
 const validateForm = () => {
   if (profileForm.value.password && profileForm.value.password !== profileForm.value.confirmPassword) {

@@ -189,10 +189,10 @@ const actions = {
     
     try {
       const response = await authService.getCurrentUser();
-  const { user } = response.data;
-  const normalizedUser = { ...user, role: user?.role || user?.account_type };
+      const { user } = response.data;
+      const normalizedUser = { ...user, role: user?.role || user?.account_type };
       
-  commit('SET_USER', normalizedUser);
+      commit('SET_USER', normalizedUser);
       try {
         await dispatch('resetAppState', null, { root: true });
         await dispatch('initializeAppData', { force: true }, { root: true });
@@ -216,6 +216,13 @@ const actions = {
       
       return { success: true, user };
     } catch (error) {
+      // Handle invalid/expired token gracefully
+      if (error.message === 'Invalid or expired token') {
+        console.log('Token expired, clearing authentication state');
+      } else {
+        console.error('Authentication check failed:', error);
+      }
+      
       // Token is invalid, clear everything
       commit('LOGOUT');
       await dispatch('resetAppState', null, { root: true });
@@ -223,9 +230,7 @@ const actions = {
       
       return { success: false };
     }
-  },
-  
-  /**
+  },  /**
    * Clear any auth errors
    */
   clearError({ commit }) {

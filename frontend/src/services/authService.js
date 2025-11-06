@@ -118,6 +118,12 @@ export const getCurrentUser = async () => {
     });
     return { data: response.data };
   } catch (error) {
+    // Handle 401 Unauthorized specifically - token is invalid/expired
+    if (error.response?.status === 401) {
+      // Clear invalid token
+      localStorage.removeItem('token');
+      throw new Error('Invalid or expired token');
+    }
     throw new Error(error.response?.data?.error || error.message || 'Failed to get user');
   }
 };
