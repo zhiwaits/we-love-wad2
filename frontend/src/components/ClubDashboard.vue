@@ -946,6 +946,16 @@ const closeImageModal = () => {
   display: flex;
   flex-direction: column;
   position: relative;
+  opacity: 0;
+  transform: translateY(12px);
+  animation: card-enter 0.45s var(--ease-standard) forwards;
+}
+
+@media (prefers-color-scheme: dark) {
+  .event-card {
+    box-shadow: 0 0 20px rgba(20, 184, 166, 0.15), var(--shadow-sm);
+    border-color: rgba(20, 184, 166, 0.2);
+  }
 }
 
 /* Glow accent bar on hover */
@@ -963,13 +973,38 @@ const closeImageModal = () => {
 }
 
 .event-card:hover {
-  box-shadow: var(--shadow-md);
   transform: translateY(-4px);
   border-color: var(--color-primary);
+  box-shadow: 
+    0 0 20px rgba(var(--color-primary-rgb, 33, 128, 141), 0.4),
+    0 0 40px rgba(var(--color-primary-rgb, 33, 128, 141), 0.25),
+    var(--shadow-md);
 }
 
 .event-card:hover::before {
   transform: scaleX(1);
+}
+
+/* Enhanced glow effect in dark mode on hover */
+@media (prefers-color-scheme: dark) {
+  .event-card:hover {
+    box-shadow: 
+      0 0 30px rgba(50, 184, 198, 0.6),
+      0 0 60px rgba(50, 184, 198, 0.3),
+      var(--shadow-md);
+  }
+}
+
+/* Smooth entrance animation */
+@keyframes card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .event-image {
@@ -1055,6 +1090,7 @@ const closeImageModal = () => {
   margin: 0 0 var(--space-12) 0;
   line-height: var(--line-height-tight);
   display: -webkit-box;
+  line-clamp: 2;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
